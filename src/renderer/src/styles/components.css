@@ -1,0 +1,30 @@
+/* ------------------------------- Terminal -------------------------------- */
+.terminal {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  padding: 6px 4px 6px 8px;
+  overflow: hidden;
+}
+.terminal__surface {
+  height: 100%;
+  width: 100%;
+}
+.terminal__surface .xterm {
+  height: 100%;
+  padding: 0;
+}
+.terminal__surface .xterm-viewport {
+  background-color: transparent !important;
+}
+
+/* --------------------------------- App ----------------------------------- */
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.app__body {
+  flex: 1 1 auto;
+  min-height: 0;
+}

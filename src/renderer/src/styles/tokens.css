@@ -1,0 +1,60 @@
+:root {
+  /* Layered backgrounds (near-black, calm). */
+  --bg: #0d0d0f;
+  --panel: #131318;
+  --raised: #1a1a21;
+  --overlay: #1f1f29;
+
+  /* Borders. */
+  --border: #26262e;
+  --border-strong: #34343f;
+
+  /* Text tiers. */
+  --text: #e8e8ed;
+  --text-dim: #a0a0ab;
+  --text-faint: #6b6b76;
+
+  /* Accent (violet default; overridable via [data-accent]). */
+  --accent: #7c6bff;
+  --accent-hover: #8d7dff;
+  --accent-soft: rgba(124, 107, 255, 0.14);
+  --on-accent: #ffffff;
+
+  /* Status (muted). */
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --success-soft: rgba(74, 222, 128, 0.12);
+
+  /* Typography. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono',
+    monospace;
+
+  /* Shape & motion. */
+  --radius: 8px;
+  --radius-sm: 5px;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Chrome metrics. */
+  --topbar-h: 36px;
+  --statusbar-h: 22px;
+  --dock-rail-w: 0px;
+}
+
+:root[data-accent='blue'] {
+  --accent: #5b8aff;
+  --accent-hover: #6f9aff;
+  --accent-soft: rgba(91, 138, 255, 0.14);
+}
+
+:root[data-accent='teal'] {
+  --accent: #2dd4bf;
+  --accent-hover: #45dccb;
+  --accent-soft: rgba(45, 212, 191, 0.14);
+  --on-accent: #04241f;
+}
