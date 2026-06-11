@@ -1,0 +1,55 @@
+appId: com.dockterm.app
+productName: DockTerm
+copyright: Copyright © 2026 DockTerm contributors
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**/*
+  - package.json
+
+asarUnpack:
+  - resources/**
+  - "**/node_modules/node-pty/**"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-windows-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  identity: null
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+dmg:
+  writeUpdateInfo: false
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Development
+  icon: build/icon.png
+  maintainer: DockTerm contributors
+  synopsis: Terminal-first workspace for Claude Code
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+
+publish:
+  provider: github
+  owner: munvard
+  repo: dockterm
