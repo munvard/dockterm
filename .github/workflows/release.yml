@@ -12,15 +12,19 @@ permissions:
 
 jobs:
   release:
-    name: Package (${{ matrix.os }})
+    name: Package (${{ matrix.label }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, args: '--win --x64' }
-          - { os: macos-14, args: '--mac --arm64' }
-          - { os: macos-13, args: '--mac --x64' }
-          - { os: ubuntu-latest, args: '--linux --x64' }
+          - { os: windows-latest, args: '--win --x64', label: windows-x64 }
+          # Both macOS arches build on Apple-Silicon runners (macos-14): the Intel
+          # macos-13 runners are scarce/deprecated and were stalling releases. An
+          # arm64 runner cross-builds the x64 .dmg fine, and the two jobs run in
+          # parallel so Apple notarization happens concurrently.
+          - { os: macos-14, args: '--mac --arm64', label: mac-arm64 }
+          - { os: macos-14, args: '--mac --x64', label: mac-x64 }
+          - { os: ubuntu-latest, args: '--linux --x64', label: linux-x64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
