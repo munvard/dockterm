@@ -117,11 +117,20 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       }
     }
 
-    try {
-      fit.fit()
-    } catch {
-      // not laid out yet
+    // Only fit when the terminal is actually visible. A hidden pane/tab collapses
+    // to 0×0; fitting then would send a bogus resize and make the shell redraw its
+    // prompt at the wrong width (leaving garbled prompt fragments on return).
+    const safeFit = (): void => {
+      const c = containerRef.current
+      if (!c || c.clientWidth === 0 || c.clientHeight === 0) return
+      try {
+        fit.fit()
+      } catch {
+        // not laid out yet
+      }
     }
+
+    safeFit()
 
     let exited = false
     const pending: PtyDataEvent[] = []
@@ -161,12 +170,13 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       if (id) void window.dockterm.invoke('pty:resize', { sessionId: id, cols, rows })
     })
 
+    // Debounce so a multi-step layout change (splitting, building a grid,
+    // dragging a divider) settles into a single resize — repeated fits make the
+    // shell redraw its prompt over and over, leaving fragments.
+    let fitTimer: ReturnType<typeof setTimeout> | undefined
     const observer = new ResizeObserver(() => {
-      try {
-        fit.fit()
-      } catch {
-        // hidden container
-      }
+      if (fitTimer) clearTimeout(fitTimer)
+      fitTimer = setTimeout(() => safeFit(), 60)
     })
     observer.observe(container)
 
@@ -198,6 +208,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       dataSub.dispose()
       resizeSub.dispose()
       observer.disconnect()
+      if (fitTimer) clearTimeout(fitTimer)
       if (sessionIdRef.current) void window.dockterm.invoke('pty:kill', { sessionId: sessionIdRef.current })
       sessionIdRef.current = null
       term.dispose()
@@ -222,10 +233,13 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     const term = termRef.current
     if (!term) return
     const raf = requestAnimationFrame(() => {
-      try {
-        fitRef.current?.fit()
-      } catch {
-        // not laid out yet
+      const c = containerRef.current
+      if (c && c.clientWidth > 0 && c.clientHeight > 0) {
+        try {
+          fitRef.current?.fit()
+        } catch {
+          // not laid out yet
+        }
       }
       term.focus()
     })

@@ -1,4 +1,9 @@
-## 🔎 What's new in v0.5.2 — bigger, comfier UI
+## 🧹 What's new in v0.5.3 — terminal stability
+
+- **Making a grid no longer kills your terminals.** Splitting a tab into a grid now *keeps* your existing terminals (and anything running in them, like a Claude session) — the focused one becomes the first cell and only the extra cells get fresh shells.
+- **No more garbled prompt fragments.** Switching tabs, splitting, or resizing panes no longer makes the shell redraw stray prompt pieces (e.g. `ook-Pro:…`). Terminals now only re-fit when visible, and resizes are debounced into a single clean reflow.
+
+## 🔎 v0.5.2 — bigger, comfier UI
 
 - **The whole UI is now larger and adjustable.** Everything was too small on high-resolution displays. DockTerm now ships at a roomier default and you can scale the entire app — chrome, terminals, and the editor — with **⌘+ / ⌘− / ⌘0**, or the new **UI scale** control in Settings. Your choice is remembered.
 - **Polish:** fixed a misaligned button in the tab bar and enlarged the cramped pane title bar.

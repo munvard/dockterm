@@ -217,9 +217,25 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
 
     makeGrid: (rows, cols) =>
       mapActive((tab) => {
+        // Reuse the existing terminals as grid cells so their shells (e.g. a
+        // running Claude) are NOT killed. The focused pane becomes the first
+        // cell; only the extra cells get fresh shells. Panes beyond the grid's
+        // capacity are dropped (the grid is smaller than the current layout).
         const cwd = focusedCwd(tab)
-        const layout = gridPreset(rows, cols, () => makeLeaf(cwd), () => uid('split'))
-        return { ...tab, layout, focusedLeafId: firstLeaf(layout).id }
+        const focused = findLeaf(tab.layout, tab.focusedLeafId)
+        const ordered = [
+          ...(focused ? [focused] : []),
+          ...allLeaves(tab.layout).filter((l) => l.id !== focused?.id)
+        ]
+        let idx = 0
+        const nextLeaf = (): LeafNode => {
+          const reused = ordered[idx]
+          idx += 1
+          return reused ?? makeLeaf(cwd)
+        }
+        const layout = gridPreset(rows, cols, nextLeaf, () => uid('split'))
+        const focusedLeafId = focused && findLeaf(layout, focused.id) ? focused.id : firstLeaf(layout).id
+        return { ...tab, layout, focusedLeafId }
       }),
 
     retargetLeaf: (tabId, leafId, cwd) => {
