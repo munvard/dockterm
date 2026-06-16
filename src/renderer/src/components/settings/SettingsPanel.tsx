@@ -45,10 +45,12 @@ function clampNum(value: string, lo: number, hi: number, fallback: number): numb
 export function SettingsPanel() {
   const settings = useAppStore((s) => s.settings)
   const update = useAppStore((s) => s.updatePreferences)
+  const setZoom = useAppStore((s) => s.setZoom)
   const themeSel = useThemeStore((st) => st.selection)
   const selectTheme = useThemeStore((st) => st.select)
   if (!settings) return null
   const s = settings
+  const zoom = s.ui.zoom ?? 1.1
 
   const setTerminal = (patch: Partial<Settings['terminal']>) =>
     void update({ terminal: { ...s.terminal, ...patch } })
@@ -79,6 +81,36 @@ export function SettingsPanel() {
         <span className="panel__title">Settings</span>
       </div>
       <div className="panel__body settings">
+        <Section title="Appearance">
+          <Field label="UI scale">
+            <div className="stepper">
+              <button
+                className="stepper__btn"
+                title="Smaller (⌘−)"
+                disabled={zoom <= 0.7}
+                onClick={() => void setZoom(zoom - 0.1)}
+              >
+                −
+              </button>
+              <span className="stepper__value">{Math.round(zoom * 100)}%</span>
+              <button
+                className="stepper__btn"
+                title="Bigger (⌘+)"
+                disabled={zoom >= 2}
+                onClick={() => void setZoom(zoom + 0.1)}
+              >
+                +
+              </button>
+              <button className="btn btn--ghost btn--sm" onClick={() => void setZoom(1)}>
+                Reset
+              </button>
+            </div>
+          </Field>
+          <div className="settings-note">
+            Scales the whole app — chrome, terminals and the editor. Shortcuts: ⌘+ / ⌘− / ⌘0.
+          </div>
+        </Section>
+
         <Section title="Theme">
           <div className="theme-grid">
             <button

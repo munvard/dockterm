@@ -53,6 +53,15 @@ export function useShortcuts(): void {
         return fire(() => app.setOpenPanel('settings'))
       }
 
+      // UI zoom: Cmd/Ctrl + = / - / 0 (resets to 100%). Scales the whole UI.
+      const zoomMod = (isMac ? e.metaKey : e.ctrlKey) && !e.altKey
+      if (zoomMod) {
+        const current = app.settings?.ui.zoom ?? 1.1
+        if (key === '=' || key === '+') return fire(() => void app.setZoom(current + 0.1))
+        if (key === '-' || key === '_') return fire(() => void app.setZoom(current - 0.1))
+        if (key === '0') return fire(() => void app.setZoom(1))
+      }
+
       // Close editor tab (only when the editor is focused).
       const closeCombo = isMac ? cmdOnly : e.ctrlKey && !e.shiftKey && !e.altKey
       if (closeCombo && key === 'w') {

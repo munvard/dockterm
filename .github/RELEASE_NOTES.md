@@ -1,4 +1,9 @@
-## 🛠️ What's new in v0.5.1 — crash fix
+## 🔎 What's new in v0.5.2 — bigger, comfier UI
+
+- **The whole UI is now larger and adjustable.** Everything was too small on high-resolution displays. DockTerm now ships at a roomier default and you can scale the entire app — chrome, terminals, and the editor — with **⌘+ / ⌘− / ⌘0**, or the new **UI scale** control in Settings. Your choice is remembered.
+- **Polish:** fixed a misaligned button in the tab bar and enlarged the cramped pane title bar.
+
+## 🛠️ v0.5.1 — crash fix
 
 - **Fixed a crash that could make the app unusable.** A saved multi-pane / multi-project session could, in rare cases, get into a state that blanked the window on every launch. DockTerm now validates the restored session and, if anything is wrong, shows a recovery screen with a one-click **Reset session & reload** instead of getting stuck. Your files on disk are never touched.
 

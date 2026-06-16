@@ -28,6 +28,8 @@ export interface UiSettings {
   openPanel: PanelId | null
   miniTermOpen: boolean
   editorOpen: boolean
+  /** Whole-UI zoom factor (1 = 100%). Scales chrome, terminals and the editor. */
+  zoom: number
 }
 
 export interface GitSettings {

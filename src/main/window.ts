@@ -5,6 +5,7 @@ import { APP_URL } from './protocol'
 import { killPtysForWindow } from './services/ptyService'
 import { stopWatchingById } from './services/watcherService'
 import { clearActiveRoot } from './services/activeRoot'
+import { getSettings } from './services/settingsService'
 
 const openWindows = new Set<number>()
 let primaryId: number | null = null
@@ -55,10 +56,32 @@ export function createWindow(): BrowserWindow {
     if (primaryId === id) primaryId = openWindows.values().next().value ?? null
   })
 
+  // Apply the saved UI zoom on every (re)load — setZoomFactor resets on reload.
+  win.webContents.on('did-finish-load', () => {
+    try {
+      win.webContents.setZoomFactor(getSettings().ui.zoom)
+    } catch {
+      // window may be gone
+    }
+  })
+
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   void win.loadURL(devUrl ?? APP_URL)
 
   return win
+}
+
+/** Apply a zoom factor to every open window (used by the ui:setZoom handler). */
+export function applyZoomToAllWindows(factor: number): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      try {
+        win.webContents.setZoomFactor(factor)
+      } catch {
+        // ignore destroyed/loading windows
+      }
+    }
+  }
 }
 
 /** Alias kept for the app bootstrap. */

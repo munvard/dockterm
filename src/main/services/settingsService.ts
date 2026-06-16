@@ -52,7 +52,8 @@ const preference = {
         .nullable()
         .default(null),
       miniTermOpen: z.boolean().default(false),
-      editorOpen: z.boolean().default(false)
+      editorOpen: z.boolean().default(false),
+      zoom: z.number().min(0.7).max(2).default(1.1)
     })
     .default({}),
   git: z

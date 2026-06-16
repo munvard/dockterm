@@ -19,6 +19,7 @@ interface AppState {
 
   init: () => Promise<void>
   setActiveRoot: (root: string | null) => void
+  setZoom: (factor: number) => Promise<void>
   openProjectDialog: () => Promise<void>
   openProject: (path: string) => Promise<void>
   initGitRepo: () => Promise<void>
@@ -71,6 +72,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setActiveRoot: (root) => set({ activeRoot: root }),
+
+  setZoom: async (factor) => {
+    const res = await window.dockterm.invoke('ui:setZoom', { factor })
+    // The main process broadcasts settings:changed, which updates the store; this
+    // local set keeps the settings UI snappy in the meantime.
+    if (res.ok) {
+      set((s) => (s.settings ? { settings: { ...s.settings, ui: { ...s.settings.ui, zoom: res.value.zoom } } } : s))
+    }
+  },
 
   openProjectDialog: async () => {
     const res = await window.dockterm.invoke('project:openDialog', undefined)

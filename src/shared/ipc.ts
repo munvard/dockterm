@@ -209,6 +209,7 @@ export interface InvokeChannels {
   'window:new': (req: void) => Result<void>
   'window:isPrimary': (req: void) => Result<boolean>
   'app:recover': (req: { hard: boolean }) => Result<void>
+  'ui:setZoom': (req: { factor: number }) => Result<{ zoom: number }>
 }
 
 export interface EventChannels {
@@ -273,7 +274,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'app:openExternal',
   'window:new',
   'window:isPrimary',
-  'app:recover'
+  'app:recover',
+  'ui:setZoom'
 ]
 
 /** Runtime allowlist mirrored from `EventChannels`. */

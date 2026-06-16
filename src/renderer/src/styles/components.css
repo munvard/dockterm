@@ -487,12 +487,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: 26px;
   flex: 0 0 auto;
-  padding: 0 4px 0 9px;
+  padding: 0 5px 0 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--text-faint);
 }
 .pane--focused .pane__bar {
@@ -518,8 +518,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: none;
   background: none;
   border-radius: 4px;
@@ -554,6 +554,8 @@
 /* ----------------------------- Grid presets ------------------------------ */
 .tabstrip__grid {
   position: relative;
+  display: flex;
+  align-items: stretch;
 }
 .grid-menu {
   position: absolute;
@@ -591,7 +593,11 @@
   text-align: left;
 }
 .tabstrip__caret {
-  width: 16px;
+  width: 20px;
+  color: var(--text-faint);
+}
+.tabstrip__caret:hover {
+  color: var(--text);
 }
 .grid-menu button:hover {
   background: var(--raised);
@@ -1932,6 +1938,38 @@
   color: var(--text-faint);
   margin-top: 6px;
   line-height: 1.4;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stepper__btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.stepper__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.stepper__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.stepper__value {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 .toggle {
   width: 34px;
