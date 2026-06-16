@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from './state/useAppStore'
+import { useThemeStore } from './state/useThemeStore'
 import { useShortcuts } from './hooks/useShortcuts'
 import { Shell } from './components/layout/Shell'
 import { EmptyState } from './components/common/EmptyState'
@@ -10,7 +11,8 @@ import { CommandPalette } from './components/command-palette/CommandPalette'
 export default function App() {
   const ready = useAppStore((s) => s.ready)
   const project = useAppStore((s) => s.project)
-  const accent = useAppStore((s) => s.settings?.ui.accent)
+  const themeSel = useAppStore((s) => s.settings?.theme)
+  const initTheme = useThemeStore((s) => s.init)
   const init = useAppStore((s) => s.init)
 
   useShortcuts()
@@ -20,8 +22,8 @@ export default function App() {
   }, [init])
 
   useEffect(() => {
-    if (accent) document.documentElement.dataset.accent = accent
-  }, [accent])
+    if (themeSel) initTheme(themeSel)
+  }, [themeSel, initTheme])
 
   return (
     <>

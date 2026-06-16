@@ -65,6 +65,7 @@ const settingsSchema = z.object({
   ui: preference.ui,
   git: preference.git,
   claude: preference.claude,
+  theme: z.string().default('dockterm-dark'),
   workspace: workspaceSchema,
   checkpoints: z.record(checkpointSchema).default({})
 })
@@ -76,6 +77,7 @@ export const settingsPatchSchema = z.object({
   ui: preference.ui.optional(),
   git: preference.git.optional(),
   claude: preference.claude.optional(),
+  theme: z.string().optional(),
   workspace: workspaceSchema.optional()
 })
 

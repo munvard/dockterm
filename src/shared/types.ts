@@ -68,6 +68,8 @@ export interface Settings {
   ui: UiSettings
   git: GitSettings
   claude: ClaudeSettings
+  /** Selected theme id, or 'auto' to follow the OS appearance. */
+  theme: string
   workspace: WorkspacePersist | null
   /** Keyed by project path. */
   checkpoints: Record<string, Checkpoint>

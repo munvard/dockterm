@@ -355,6 +355,55 @@
   color: var(--text);
 }
 
+/* ----------------------------- Theme picker ------------------------------ */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  height: 56px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s var(--ease);
+}
+.theme-swatch:hover {
+  transform: translateY(-1px);
+}
+.theme-swatch.is-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.theme-swatch__dots {
+  display: flex;
+  gap: 5px;
+}
+.theme-swatch__dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.theme-swatch__name {
+  font-size: 11px;
+  font-weight: 500;
+}
+.theme-swatch--auto {
+  background: var(--raised);
+  align-items: center;
+  justify-content: center;
+}
+.theme-swatch--auto .theme-swatch__name {
+  color: var(--text-dim);
+}
+
 /* --------------------------- Resizable panels ---------------------------- */
 .vsplit,
 .hsplit {

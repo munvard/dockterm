@@ -1,12 +1,8 @@
 import type { ReactNode } from 'react'
 import { useAppStore } from '../../state/useAppStore'
-import type { AccentName, CursorStyle, TerminalRenderer, Settings } from '@shared/types'
-
-const ACCENTS: { id: AccentName; label: string; color: string }[] = [
-  { id: 'violet', label: 'Violet', color: '#7c6bff' },
-  { id: 'blue', label: 'Blue', color: '#5b8aff' },
-  { id: 'teal', label: 'Teal', color: '#2dd4bf' }
-]
+import { useThemeStore } from '../../state/useThemeStore'
+import { THEMES } from '../../state/themes'
+import type { CursorStyle, TerminalRenderer, Settings } from '@shared/types'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -49,6 +45,8 @@ function clampNum(value: string, lo: number, hi: number, fallback: number): numb
 export function SettingsPanel() {
   const settings = useAppStore((s) => s.settings)
   const update = useAppStore((s) => s.updatePreferences)
+  const themeSel = useThemeStore((st) => st.selection)
+  const selectTheme = useThemeStore((st) => st.select)
   if (!settings) return null
   const s = settings
 
@@ -57,9 +55,9 @@ export function SettingsPanel() {
   const setEditor = (patch: Partial<Settings['editor']>) =>
     void update({ editor: { ...s.editor, ...patch } })
   const setGit = (patch: Partial<Settings['git']>) => void update({ git: { ...s.git, ...patch } })
-  const setUi = (patch: Partial<Settings['ui']>) => void update({ ui: { ...s.ui, ...patch } })
 
-  const resetDefaults = () =>
+  const resetDefaults = () => {
+    selectTheme('dockterm-dark')
     void update({
       terminal: {
         fontFamily: null,
@@ -70,10 +68,10 @@ export function SettingsPanel() {
         scrollback: 5000
       },
       editor: { fontSize: 13 },
-      ui: { ...s.ui, accent: 'violet' },
       git: { beginnerMode: true, confirmDanger: true },
       claude: { readUserConfig: false }
     })
+  }
 
   return (
     <div className="panel">
@@ -81,21 +79,37 @@ export function SettingsPanel() {
         <span className="panel__title">Settings</span>
       </div>
       <div className="panel__body settings">
-        <Section title="Appearance">
-          <Field label="Accent">
-            <div className="settings-accents">
-              {ACCENTS.map((a) => (
-                <button
-                  key={a.id}
-                  className={`settings-accent${s.ui.accent === a.id ? ' is-active' : ''}`}
-                  style={{ background: a.color, color: a.color }}
-                  title={a.label}
-                  aria-label={a.label}
-                  onClick={() => setUi({ accent: a.id })}
-                />
-              ))}
-            </div>
-          </Field>
+        <Section title="Theme">
+          <div className="theme-grid">
+            <button
+              className={`theme-swatch theme-swatch--auto${themeSel === 'auto' ? ' is-active' : ''}`}
+              onClick={() => selectTheme('auto')}
+              title="Match system appearance"
+            >
+              <span className="theme-swatch__name">Auto · system</span>
+            </button>
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                className={`theme-swatch${themeSel === t.id ? ' is-active' : ''}`}
+                style={{
+                  background: t.ui.bg,
+                  borderColor: themeSel === t.id ? t.ui.accent : t.ui.border
+                }}
+                onClick={() => selectTheme(t.id)}
+                title={t.name}
+              >
+                <span className="theme-swatch__dots">
+                  <span style={{ background: t.ui.accent }} />
+                  <span style={{ background: t.terminal.green }} />
+                  <span style={{ background: t.terminal.red }} />
+                </span>
+                <span className="theme-swatch__name" style={{ color: t.ui.text }}>
+                  {t.name}
+                </span>
+              </button>
+            ))}
+          </div>
         </Section>
 
         <Section title="Terminal">

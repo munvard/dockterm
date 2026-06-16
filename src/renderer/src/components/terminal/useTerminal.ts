@@ -6,7 +6,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import type { PtyDataEvent } from '@shared/ipc'
-import { terminalTheme, DEFAULT_MONO } from './terminalTheme'
+import { DEFAULT_MONO } from './terminalTheme'
+import { useThemeStore } from '../../state/useThemeStore'
 import '@xterm/xterm/css/xterm.css'
 
 const encoder = new TextEncoder()
@@ -45,6 +46,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
   const pasteQueueRef = useRef('')
   const optsRef = useRef(options)
   optsRef.current = options
+  const xtermTheme = useThemeStore((s) => s.xterm)
 
   useEffect(() => {
     const container = containerRef.current
@@ -59,7 +61,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       scrollback: o.scrollback ?? 5000,
       allowProposedApi: true,
       macOptionIsMeta: true,
-      theme: terminalTheme,
+      theme: useThemeStore.getState().xterm,
       fontWeightBold: '600'
     })
     termRef.current = term
@@ -205,6 +207,11 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     })
     return () => cancelAnimationFrame(raf)
   }, [options.active])
+
+  // Live-update the terminal palette when the theme changes.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = xtermTheme
+  }, [xtermTheme])
 
   return {
     containerRef,
