@@ -57,7 +57,9 @@ export function Shell() {
   // Point the dock (files/git/…) at the focused pane's project, and refresh.
   useEffect(() => {
     if (!focusedCwd) return
-    void window.dockterm.invoke('project:setActiveRoot', { path: focusedCwd })
+    void window.dockterm.invoke('project:setActiveRoot', { path: focusedCwd }).then((res) => {
+      if (res.ok) useAppStore.getState().setActiveRoot(res.value.root)
+    })
     void useGitStore.getState().refresh()
   }, [focusedCwd])
 

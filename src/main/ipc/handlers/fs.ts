@@ -10,7 +10,9 @@ import {
   createDir,
   rename,
   trash,
-  reveal
+  reveal,
+  readDataUrl,
+  openPath
 } from '../../services/fileService'
 import { MAX_EDIT_FILE_BYTES } from '@shared/constants'
 import type { Registrar } from '../register'
@@ -99,6 +101,23 @@ export function registerFsHandlers(reg: Registrar): void {
   reg('fs:reveal', relSchema, (req, event) => {
     try {
       reveal(rootFor(event), req.relPath)
+      return ok(undefined)
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  reg('fs:readDataUrl', relSchema, async (req, event) => {
+    try {
+      return ok(await readDataUrl(rootFor(event), req.relPath))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  reg('fs:openPath', relSchema, async (req, event) => {
+    try {
+      await openPath(rootFor(event), req.relPath)
       return ok(undefined)
     } catch (e) {
       return fail(e)

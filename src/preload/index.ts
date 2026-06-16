@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { INVOKE_CHANNELS, EVENT_CHANNELS, type DockTermApi } from '@shared/ipc'
 
 /**
@@ -22,6 +22,13 @@ const api: DockTermApi = {
     ipcRenderer.on(event as string, listener)
     return () => {
       ipcRenderer.removeListener(event as string, listener)
+    }
+  },
+  pathForFile(file) {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
     }
   }
 }

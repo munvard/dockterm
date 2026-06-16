@@ -8,6 +8,8 @@ interface AppState {
   isPrimary: boolean
   settings: Settings | null
   project: ProjectInfo | null
+  /** Resolved project root of the focused pane — used to build absolute paths. */
+  activeRoot: string | null
   recent: RecentProject[]
   openPanel: PanelId | null
   miniTermOpen: boolean
@@ -16,6 +18,7 @@ interface AppState {
   error: string | null
 
   init: () => Promise<void>
+  setActiveRoot: (root: string | null) => void
   openProjectDialog: () => Promise<void>
   openProject: (path: string) => Promise<void>
   initGitRepo: () => Promise<void>
@@ -32,6 +35,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isPrimary: true,
   settings: null,
   project: null,
+  activeRoot: null,
   recent: [],
   openPanel: null,
   miniTermOpen: false,
@@ -46,22 +50,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       window.dockterm.invoke('window:isPrimary', undefined)
     ])
     const settings = settingsRes.ok ? settingsRes.value : null
+    const isPrimary = primaryRes.ok ? primaryRes.value : true
     set({
       settings,
       recent: recentRes.ok ? recentRes.value : [],
       openPanel: settings?.ui.openPanel ?? null,
       miniTermOpen: settings?.ui.miniTermOpen ?? false,
-      isPrimary: primaryRes.ok ? primaryRes.value : true
+      isPrimary
     })
     window.dockterm.on('settings:changed', (next) => set({ settings: next }))
 
+    // Only the primary window restores the last project; secondary (⌘N) windows
+    // open project-less and show the welcome screen (Cursor-style).
     const last = settings?.lastProjectPath
-    if (last) {
+    if (last && isPrimary) {
       const res = await window.dockterm.invoke('project:open', { path: last })
       if (res.ok) set({ project: res.value })
     }
     set({ ready: true })
   },
+
+  setActiveRoot: (root) => set({ activeRoot: root }),
 
   openProjectDialog: async () => {
     const res = await window.dockterm.invoke('project:openDialog', undefined)

@@ -8,6 +8,7 @@ import {
   splitLeaf,
   closeLeaf,
   setSizes,
+  setLeafCwd,
   gridPreset
 } from '@renderer/state/layout'
 
@@ -76,6 +77,18 @@ describe('layout tree', () => {
         if (row.type === 'split') expect(row.children).toHaveLength(3)
       }
     }
+  })
+
+  it('setLeafCwd retargets only the matching leaf', () => {
+    const r = splitLeaf(leaf('a'), 'a', 'row', leaf('b'), 's1')
+    const next = setLeafCwd(r, 'b', '/other/project', 'project')
+    expect(findLeaf(next, 'b')).toMatchObject({ cwd: '/other/project', title: 'project' })
+    expect(findLeaf(next, 'a')).toMatchObject({ cwd: '/p', title: 'a' })
+  })
+
+  it('setLeafCwd leaves the tree unchanged for an unknown id', () => {
+    const r = leaf('a')
+    expect(setLeafCwd(r, 'z', '/x', 'x')).toMatchObject({ cwd: '/p', title: 'a' })
   })
 
   it('findLeaf and firstLeaf locate leaves', () => {

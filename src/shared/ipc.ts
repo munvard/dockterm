@@ -115,6 +115,11 @@ export interface RenameReq {
   toRelPath: string
 }
 
+export interface ImageDataResult {
+  dataUrl: string
+  size: number
+}
+
 /* ---------------------------------- git ----------------------------------- */
 
 export interface PathsReq {
@@ -158,7 +163,7 @@ export interface InvokeChannels {
   'project:open': (req: PathReq) => Result<ProjectInfo>
   'project:getRecent': (req: void) => Result<RecentProject[]>
   'project:gitInit': (req: PathReq) => Result<ProjectInfo>
-  'project:setActiveRoot': (req: PathReq) => Result<void>
+  'project:setActiveRoot': (req: PathReq) => Result<{ root: string }>
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:readFile': (req: RelPathReq) => Result<ReadFileResult>
@@ -168,6 +173,8 @@ export interface InvokeChannels {
   'fs:rename': (req: RenameReq) => Result<void>
   'fs:delete': (req: RelPathReq) => Result<void>
   'fs:reveal': (req: RelPathReq) => Result<void>
+  'fs:readDataUrl': (req: RelPathReq) => Result<ImageDataResult>
+  'fs:openPath': (req: RelPathReq) => Result<void>
 
   'git:status': (req: void) => Result<GitStatusView>
   'git:stage': (req: PathsReq) => Result<void>
@@ -239,6 +246,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'fs:rename',
   'fs:delete',
   'fs:reveal',
+  'fs:readDataUrl',
+  'fs:openPath',
   'git:status',
   'git:stage',
   'git:stageAll',
@@ -276,4 +285,6 @@ export const EVENT_CHANNELS: readonly EventName[] = [
 export interface DockTermApi {
   invoke<C extends InvokeChannel>(channel: C, req: ReqOf<C>): Promise<ResOf<C>>
   on<E extends EventName>(event: E, cb: (payload: EventChannels[E]) => void): () => void
+  /** Resolve the absolute path of a dropped File (Electron webUtils). '' if unknown. */
+  pathForFile(file: File): string
 }

@@ -29,6 +29,13 @@ function parentOf(relPath: string): string {
   return i >= 0 ? relPath.slice(0, i) : ''
 }
 
+/** Join a project root with a forward-slash relPath, matching the root's separator. */
+function joinAbs(root: string, relPath: string): string {
+  const sep = root.includes('\\') && !root.includes('/') ? '\\' : '/'
+  const rel = sep === '\\' ? relPath.split('/').join('\\') : relPath
+  return root.endsWith(sep) ? root + rel : root + sep + rel
+}
+
 export function FileTree() {
   const [children, setChildren] = useState<Record<string, TreeNode[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -39,6 +46,7 @@ export function FileTree() {
   const openFile = useEditorStore((s) => s.open)
   const closeTab = useEditorStore((s) => s.close)
   const projectName = useAppStore((s) => s.project?.name ?? 'Files')
+  const activeRoot = useAppStore((s) => s.activeRoot)
   const confirmDanger = useAppStore((s) => s.settings?.git.confirmDanger ?? true)
   const confirm = useDialogStore((s) => s.confirm)
   const prompt = useDialogStore((s) => s.prompt)
@@ -181,6 +189,17 @@ export function FileTree() {
           <div
             className="tree__row"
             style={{ paddingLeft: 6 + depth * 12 }}
+            draggable={!!activeRoot}
+            onDragStart={(e) => {
+              if (!activeRoot) return
+              const abs = joinAbs(activeRoot, node.relPath)
+              e.dataTransfer.setData(
+                'application/x-dockterm',
+                JSON.stringify({ path: abs, type: node.type })
+              )
+              e.dataTransfer.setData('text/plain', abs)
+              e.dataTransfer.effectAllowed = 'copy'
+            }}
             onClick={() => (node.type === 'dir' ? toggleDir(node) : void openFile(node.relPath, node.name))}
             onContextMenu={(e) => onContext(e, node)}
             title={node.name}

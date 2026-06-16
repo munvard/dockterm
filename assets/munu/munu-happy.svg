@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="munu happy">
+  <title>munu — happy</title>
+  <defs>
+    <radialGradient id="mh-glow" cx="50%" cy="46%" r="55%">
+      <stop offset="0%" stop-color="#7c6bff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#7c6bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mh-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9a8cff"/>
+      <stop offset="100%" stop-color="#6d59ee"/>
+    </linearGradient>
+    <clipPath id="mh-clip">
+      <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="128" cy="120" r="120" fill="url(#mh-glow)"/>
+
+  <ellipse cx="98" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+  <ellipse cx="158" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+
+  <path d="M114 44 L128 27 L142 44" fill="none" stroke="#b3a6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z" fill="url(#mh-body)"/>
+  <g clip-path="url(#mh-clip)">
+    <ellipse cx="104" cy="86" rx="46" ry="32" fill="#ffffff" opacity="0.16"/>
+  </g>
+
+  <ellipse cx="69" cy="150" rx="14" ry="8.5" fill="#ff8ab6" opacity="0.6"/>
+  <ellipse cx="187" cy="150" rx="14" ry="8.5" fill="#ff8ab6" opacity="0.6"/>
+
+  <!-- joyful closed eyes (^ ^) -->
+  <path d="M86 134 Q102 118 118 134" fill="none" stroke="#18141f" stroke-width="6" stroke-linecap="round"/>
+  <path d="M138 134 Q154 118 170 134" fill="none" stroke="#18141f" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- open happy smile -->
+  <path d="M112 162 Q128 184 144 162 Q128 174 112 162 Z" fill="#18141f"/>
+
+  <!-- sparkles -->
+  <path d="M200 70 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" fill="#d8d0ff"/>
+  <path d="M46 96 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2 z" fill="#d8d0ff"/>
+</svg>

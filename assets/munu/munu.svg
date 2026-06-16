@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="munu — the DockTerm mascot">
+  <title>munu</title>
+  <defs>
+    <radialGradient id="m-glow" cx="50%" cy="46%" r="55%">
+      <stop offset="0%" stop-color="#7c6bff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#7c6bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9a8cff"/>
+      <stop offset="100%" stop-color="#6d59ee"/>
+    </linearGradient>
+    <clipPath id="m-clip">
+      <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- ambient violet glow -->
+  <circle cx="128" cy="120" r="120" fill="url(#m-glow)"/>
+
+  <!-- feet (peek below the body) -->
+  <ellipse cx="98" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+  <ellipse cx="158" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+
+  <!-- caret sprout: the terminal cursor as a little cowlick -->
+  <path d="M114 44 L128 27 L142 44" fill="none" stroke="#b3a6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- body -->
+  <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z" fill="url(#m-body)"/>
+
+  <!-- soft top-left sheen -->
+  <g clip-path="url(#m-clip)">
+    <ellipse cx="104" cy="86" rx="46" ry="32" fill="#ffffff" opacity="0.16"/>
+  </g>
+
+  <!-- blush -->
+  <ellipse cx="71" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.5"/>
+  <ellipse cx="185" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.5"/>
+
+  <!-- eyes -->
+  <ellipse cx="102" cy="132" rx="16.5" ry="21" fill="#18141f"/>
+  <ellipse cx="154" cy="132" rx="16.5" ry="21" fill="#18141f"/>
+  <!-- shine -->
+  <circle cx="96" cy="124" r="5.5" fill="#ffffff" opacity="0.95"/>
+  <circle cx="148" cy="124" r="5.5" fill="#ffffff" opacity="0.95"/>
+  <circle cx="107" cy="141" r="2.6" fill="#b9adff"/>
+  <circle cx="159" cy="141" r="2.6" fill="#b9adff"/>
+
+  <!-- underscore smile (the shell cursor, smiling) -->
+  <path d="M116 168 Q128 180 140 168" fill="none" stroke="#18141f" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

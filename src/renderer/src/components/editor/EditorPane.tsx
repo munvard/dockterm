@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { File } from 'lucide-react'
 import { monaco } from './monacoEnv'
 import { buildMonacoTheme } from './monacoTheme'
 import { DEFAULT_MONO } from '../terminal/terminalTheme'
@@ -11,6 +12,49 @@ function modelUri(relPath: string): monaco.Uri {
   return monaco.Uri.parse(`inmemory://dockterm/${relPath}`)
 }
 
+function ImageViewer({ dataUrl }: { dataUrl: string }) {
+  const [zoom, setZoom] = useState(false)
+  return (
+    <div
+      className={`imgview${zoom ? ' imgview--zoom' : ''}`}
+      onClick={() => setZoom((z) => !z)}
+      title={zoom ? 'Click to fit' : 'Click to zoom'}
+    >
+      <img src={dataUrl} alt="" draggable={false} />
+    </div>
+  )
+}
+
+function formatSize(size: number): string {
+  return size >= 1024 * 1024
+    ? `${(size / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(size / 1024))} KB`
+}
+
+function BinaryCard({ relPath, name, size }: { relPath: string; name: string; size: number }) {
+  return (
+    <div className="bincard">
+      <File size={44} className="bincard__icon" />
+      <div className="bincard__name">{name}</div>
+      <div className="bincard__meta">{formatSize(size)} · binary file</div>
+      <div className="bincard__actions">
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => void window.dockterm.invoke('fs:reveal', { relPath })}
+        >
+          Reveal in folder
+        </button>
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => void window.dockterm.invoke('fs:openPath', { relPath })}
+        >
+          Open externally
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function EditorPane() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -18,6 +62,9 @@ export function EditorPane() {
   const tabs = useEditorStore((s) => s.tabs)
   const fontSize = useAppStore((s) => s.settings?.editor.fontSize ?? 13)
   const appTheme = useThemeStore((s) => s.theme)
+
+  const activeTab = tabs.find((t) => t.relPath === activePath) ?? null
+  const activeKind = activeTab?.kind ?? null
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -65,16 +112,12 @@ export function EditorPane() {
     monaco.editor.setTheme('dockterm')
   }, [appTheme])
 
-  // Swap the active model.
+  // Swap the active model (text tabs only).
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    if (!activePath) {
-      editor.setModel(null)
-      return
-    }
     const tab = tabs.find((t) => t.relPath === activePath)
-    if (!tab) {
+    if (!activePath || !tab || tab.kind !== 'text') {
       editor.setModel(null)
       return
     }
@@ -85,7 +128,9 @@ export function EditorPane() {
 
   // Dispose models for closed tabs.
   useEffect(() => {
-    const openUris = new Set(tabs.map((t) => modelUri(t.relPath).toString()))
+    const openUris = new Set(
+      tabs.filter((t) => t.kind === 'text').map((t) => modelUri(t.relPath).toString())
+    )
     for (const model of monaco.editor.getModels()) {
       if (model.uri.scheme === 'inmemory' && !openUris.has(model.uri.toString())) {
         model.dispose()
@@ -96,7 +141,15 @@ export function EditorPane() {
   return (
     <div className="editor">
       <EditorTabs />
-      <div className="editor__surface" ref={containerRef} />
+      <div
+        className="editor__surface"
+        ref={containerRef}
+        style={{ display: activeKind === 'text' ? 'block' : 'none' }}
+      />
+      {activeKind === 'image' && activeTab?.dataUrl && <ImageViewer dataUrl={activeTab.dataUrl} />}
+      {activeKind === 'binary' && activeTab && (
+        <BinaryCard relPath={activeTab.relPath} name={activeTab.name} size={activeTab.size ?? 0} />
+      )}
     </div>
   )
 }

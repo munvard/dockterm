@@ -418,11 +418,24 @@
   overflow: hidden;
 }
 .pane {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+.pane--drop {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+.pane--drop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  pointer-events: none;
+  z-index: 5;
 }
 .pane__bar {
   display: flex;
@@ -519,6 +532,9 @@
   padding: 2px 6px 5px;
 }
 .grid-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 6px 8px;
   font-size: 12px;
   color: var(--text-dim);
@@ -527,6 +543,9 @@
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
+}
+.tabstrip__caret {
+  width: 16px;
 }
 .grid-menu button:hover {
   background: var(--raised);
@@ -791,6 +810,62 @@
 .editor__surface {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Image viewer + binary card */
+.imgview {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  cursor: zoom-in;
+  background-color: var(--bg);
+  background-image: linear-gradient(45deg, var(--panel) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--panel) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--panel) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--panel) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+.imgview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.imgview--zoom {
+  cursor: zoom-out;
+}
+.imgview--zoom img {
+  max-width: none;
+  max-height: none;
+}
+.bincard {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+.bincard__icon {
+  color: var(--text-faint);
+}
+.bincard__name {
+  color: var(--text);
+  font-weight: 500;
+}
+.bincard__meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.bincard__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 /* ---------------------------------- Tabs --------------------------------- */

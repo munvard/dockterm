@@ -83,6 +83,30 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
 
     term.open(container)
 
+    // Scroll shortcuts (intercepted, not sent to the shell). ⌘↓/⌘↑ jump to
+    // bottom/top; Shift+PageUp/Down page. Typing already returns to the bottom
+    // via xterm's scrollOnUserInput, and drag-selection auto-scrolls natively.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      if (e.metaKey && e.key === 'ArrowDown') {
+        term.scrollToBottom()
+        return false
+      }
+      if (e.metaKey && e.key === 'ArrowUp') {
+        term.scrollToTop()
+        return false
+      }
+      if (e.shiftKey && e.key === 'PageUp') {
+        term.scrollPages(-1)
+        return false
+      }
+      if (e.shiftKey && e.key === 'PageDown') {
+        term.scrollPages(1)
+        return false
+      }
+      return true
+    })
+
     if ((o.renderer ?? 'auto') === 'auto') {
       try {
         const webgl = new WebglAddon()

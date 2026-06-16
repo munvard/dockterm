@@ -87,6 +87,14 @@ export function closeLeaf(root: LayoutNode, leafId: string): LayoutNode | null {
   return { ...root, children, sizes: directChildRemoved ? equalSizes(children.length) : root.sizes }
 }
 
+/** Retarget `leafId` to a new working directory (and matching title). */
+export function setLeafCwd(root: LayoutNode, leafId: string, cwd: string, title: string): LayoutNode {
+  if (root.type === 'leaf') {
+    return root.id === leafId ? { ...root, cwd, title } : root
+  }
+  return { ...root, children: root.children.map((c) => setLeafCwd(c, leafId, cwd, title)) }
+}
+
 export function setSizes(root: LayoutNode, splitId: string, sizes: number[]): LayoutNode {
   if (root.type === 'leaf') return root
   if (root.id === splitId) return { ...root, sizes }
