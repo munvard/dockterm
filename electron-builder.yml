@@ -15,9 +15,11 @@ directories:
 files:
   - out/**/*
   - package.json
+  - build/icon.png
 
 asarUnpack:
   - resources/**
+  - build/icon.png
   - "**/node_modules/node-pty/**"
 
 win:
