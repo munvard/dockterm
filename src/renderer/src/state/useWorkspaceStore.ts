@@ -15,6 +15,10 @@ import {
 let counter = 0
 const uid = (p: string): string => `${p}-${Date.now().toString(36)}-${(++counter).toString(36)}`
 
+/** Only the primary window persists/restores its workspace (secondary windows
+ * opened with ⌘N are session-scoped). */
+let isPrimaryWindow = true
+
 function titleFromCwd(cwd: string): string {
   return cwd.split(/[\\/]/).filter(Boolean).pop() || 'Terminal'
 }
@@ -27,6 +31,7 @@ function makeTab(cwd: string): WsTab {
 }
 
 function persist(tabs: WsTab[], activeId: string): void {
+  if (!isPrimaryWindow) return
   void window.dockterm.invoke('settings:set', {
     workspace: {
       tabs: tabs.map((t) => ({
@@ -47,7 +52,7 @@ interface WorkspaceStore {
   activity: Record<string, boolean>
   ready: boolean
 
-  init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null) => void
+  init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null, isPrimary: boolean) => void
   resetForProject: (cwd: string) => void
   open: (cwd: string) => void
   close: (tabId: string) => void
@@ -83,8 +88,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     activity: {},
     ready: false,
 
-    init: (cwd, restored) => {
-      if (restored && Array.isArray(restored.tabs) && restored.tabs.length > 0) {
+    init: (cwd, restored, isPrimary) => {
+      isPrimaryWindow = isPrimary
+      if (isPrimary && restored && Array.isArray(restored.tabs) && restored.tabs.length > 0) {
         try {
           const tabs: WsTab[] = restored.tabs.map((t) => ({
             id: t.id,

@@ -4,7 +4,7 @@ import { registerAppSchemePrivileges, serveAppProtocol } from './protocol'
 import { applyGlobalSecurity } from './security'
 import { registerIpc } from './ipc/register'
 import { killAllPtys } from './services/ptyService'
-import { stopWatching } from './services/watcherService'
+import { stopAllWatchers } from './services/watcherService'
 
 // Must run before `app` is ready.
 registerAppSchemePrivileges()
@@ -34,12 +34,12 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     killAllPtys()
-    stopWatching()
+    stopAllWatchers()
   })
 
   app.on('window-all-closed', () => {
     killAllPtys()
-    stopWatching()
+    stopAllWatchers()
     if (process.platform !== 'darwin') app.quit()
   })
 }

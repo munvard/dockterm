@@ -24,7 +24,9 @@ export function registerReviewHandlers(reg: Registrar): void {
   reg('review:list', listSchema, async (req, event) => {
     const root = rootFor(event)
     try {
-      return ok(await gitService.changedSince(root, req.base, checkpointHash(root), getSessionChanges()))
+      return ok(
+        await gitService.changedSince(root, req.base, checkpointHash(root), getSessionChanges(event.sender.id))
+      )
     } catch (e) {
       return err('GIT', e instanceof Error ? e.message : 'Could not list changes')
     }

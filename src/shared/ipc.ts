@@ -198,6 +198,9 @@ export interface InvokeChannels {
 
   'info:get': (req: void) => Result<ProjectInfoData>
   'app:openExternal': (req: { url: string }) => Result<void>
+
+  'window:new': (req: void) => Result<void>
+  'window:isPrimary': (req: void) => Result<boolean>
 }
 
 export interface EventChannels {
@@ -257,7 +260,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'claude:skillsRead',
   'claude:skillCreate',
   'info:get',
-  'app:openExternal'
+  'app:openExternal',
+  'window:new',
+  'window:isPrimary'
 ]
 
 /** Runtime allowlist mirrored from `EventChannels`. */

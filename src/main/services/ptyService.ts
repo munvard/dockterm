@@ -12,6 +12,8 @@ interface Session {
   flow: PtyFlow
   flushTimer: ReturnType<typeof setTimeout> | null
   win: BrowserWindow
+  /** webContents id of the owning window (stable even after the window closes). */
+  ownerId: number
 }
 
 const sessions = new Map<string, Session>()
@@ -48,7 +50,14 @@ export function createPty(args: CreatePtyArgs): { sessionId: string; shell: stri
   })
 
   const id = `pty-${++counter}`
-  const session: Session = { id, pty, flow: new PtyFlow(), flushTimer: null, win: args.win }
+  const session: Session = {
+    id,
+    pty,
+    flow: new PtyFlow(),
+    flushTimer: null,
+    win: args.win,
+    ownerId: args.win.webContents.id
+  }
   sessions.set(id, session)
 
   pty.onData((data) => {
@@ -125,6 +134,13 @@ export function killPty(sessionId: string): void {
 
 export function killAllPtys(): void {
   for (const id of [...sessions.keys()]) killPty(id)
+}
+
+/** Kill every PTY owned by a window (called when that window closes). */
+export function killPtysForWindow(webContentsId: number): void {
+  for (const [id, session] of sessions) {
+    if (session.ownerId === webContentsId) killPty(id)
+  }
 }
 
 function disposeSession(id: string): void {

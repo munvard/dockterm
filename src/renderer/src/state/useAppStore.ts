@@ -4,6 +4,8 @@ import type { SettingsPatch } from '@shared/ipc'
 
 interface AppState {
   ready: boolean
+  /** False for secondary (⌘N) windows — they don't persist/restore the workspace. */
+  isPrimary: boolean
   settings: Settings | null
   project: ProjectInfo | null
   recent: RecentProject[]
@@ -27,6 +29,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   ready: false,
+  isPrimary: true,
   settings: null,
   project: null,
   recent: [],
@@ -37,16 +40,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
 
   init: async () => {
-    const [settingsRes, recentRes] = await Promise.all([
+    const [settingsRes, recentRes, primaryRes] = await Promise.all([
       window.dockterm.invoke('settings:get', undefined),
-      window.dockterm.invoke('project:getRecent', undefined)
+      window.dockterm.invoke('project:getRecent', undefined),
+      window.dockterm.invoke('window:isPrimary', undefined)
     ])
     const settings = settingsRes.ok ? settingsRes.value : null
     set({
       settings,
       recent: recentRes.ok ? recentRes.value : [],
       openPanel: settings?.ui.openPanel ?? null,
-      miniTermOpen: settings?.ui.miniTermOpen ?? false
+      miniTermOpen: settings?.ui.miniTermOpen ?? false,
+      isPrimary: primaryRes.ok ? primaryRes.value : true
     })
     window.dockterm.on('settings:changed', (next) => set({ settings: next }))
 

@@ -44,7 +44,8 @@ export function Shell() {
     if (!projectPath) return
     const ws = useWorkspaceStore.getState()
     if (wsProject.current === null) {
-      ws.init(projectPath, useAppStore.getState().settings?.workspace ?? null)
+      const app = useAppStore.getState()
+      ws.init(projectPath, app.settings?.workspace ?? null, app.isPrimary)
     } else if (wsProject.current !== projectPath) {
       ws.resetForProject(projectPath)
     }
@@ -76,6 +77,10 @@ export function Shell() {
         e.preventDefault()
         e.stopPropagation()
         ws.splitFocused('row')
+      } else if (e.key === 'n') {
+        e.preventDefault()
+        e.stopPropagation()
+        void window.dockterm.invoke('window:new', undefined)
       } else if (e.key >= '1' && e.key <= '9') {
         const tab = ws.tabs[Number(e.key) - 1]
         if (tab) {
