@@ -418,11 +418,24 @@
   overflow: hidden;
 }
 .pane {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+.pane--drop {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+.pane--drop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  pointer-events: none;
+  z-index: 5;
 }
 .pane__bar {
   display: flex;

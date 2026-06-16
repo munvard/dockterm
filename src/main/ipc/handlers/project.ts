@@ -48,7 +48,7 @@ export function registerProjectHandlers(reg: Registrar): void {
     setActiveRoot(event.sender.id, root)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) retargetWatcher(win, root)
-    return ok(undefined)
+    return ok({ root })
   })
 
   reg('project:getRecent', z.void(), () =>

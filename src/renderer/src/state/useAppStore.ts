@@ -8,6 +8,8 @@ interface AppState {
   isPrimary: boolean
   settings: Settings | null
   project: ProjectInfo | null
+  /** Resolved project root of the focused pane — used to build absolute paths. */
+  activeRoot: string | null
   recent: RecentProject[]
   openPanel: PanelId | null
   miniTermOpen: boolean
@@ -16,6 +18,7 @@ interface AppState {
   error: string | null
 
   init: () => Promise<void>
+  setActiveRoot: (root: string | null) => void
   openProjectDialog: () => Promise<void>
   openProject: (path: string) => Promise<void>
   initGitRepo: () => Promise<void>
@@ -32,6 +35,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isPrimary: true,
   settings: null,
   project: null,
+  activeRoot: null,
   recent: [],
   openPanel: null,
   miniTermOpen: false,
@@ -62,6 +66,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ ready: true })
   },
+
+  setActiveRoot: (root) => set({ activeRoot: root }),
 
   openProjectDialog: async () => {
     const res = await window.dockterm.invoke('project:openDialog', undefined)

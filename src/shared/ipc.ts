@@ -163,7 +163,7 @@ export interface InvokeChannels {
   'project:open': (req: PathReq) => Result<ProjectInfo>
   'project:getRecent': (req: void) => Result<RecentProject[]>
   'project:gitInit': (req: PathReq) => Result<ProjectInfo>
-  'project:setActiveRoot': (req: PathReq) => Result<void>
+  'project:setActiveRoot': (req: PathReq) => Result<{ root: string }>
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:readFile': (req: RelPathReq) => Result<ReadFileResult>
@@ -285,4 +285,6 @@ export const EVENT_CHANNELS: readonly EventName[] = [
 export interface DockTermApi {
   invoke<C extends InvokeChannel>(channel: C, req: ReqOf<C>): Promise<ResOf<C>>
   on<E extends EventName>(event: E, cb: (payload: EventChannels[E]) => void): () => void
+  /** Resolve the absolute path of a dropped File (Electron webUtils). '' if unknown. */
+  pathForFile(file: File): string
 }

@@ -1,4 +1,4 @@
-import { Fragment, type MouseEvent } from 'react'
+import { Fragment, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
@@ -8,6 +8,11 @@ import { TerminalView } from './TerminalView'
 
 function sameSizes(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5)
+}
+
+/** Double-quote a path when it contains whitespace (works on Windows + POSIX). */
+function quotePath(p: string): string {
+  return /\s/.test(p) ? `"${p}"` : p
 }
 
 function TerminalPane({
@@ -26,6 +31,8 @@ function TerminalPane({
   const split = useWorkspaceStore((s) => s.splitFocused)
   const closeFocused = useWorkspaceStore((s) => s.closeFocused)
   const markActivity = useWorkspaceStore((s) => s.markActivity)
+  const pasteRef = useRef<(text: string) => void>(() => {})
+  const [dragOver, setDragOver] = useState(false)
 
   const act = (fn: () => void) => (e: MouseEvent) => {
     e.stopPropagation()
@@ -33,10 +40,58 @@ function TerminalPane({
     fn()
   }
 
+  const onDragOver = (e: DragEvent) => {
+    const dt = e.dataTransfer
+    const hasPayload =
+      dt.types.includes('application/x-dockterm') ||
+      dt.types.includes('Files') ||
+      dt.types.includes('text/plain')
+    if (!hasPayload) return
+    e.preventDefault()
+    dt.dropEffect = 'copy'
+    if (!dragOver) setDragOver(true)
+  }
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    focusPane(tabId, leaf.id)
+
+    // From the file tree (or anything emitting our payload).
+    const internal = e.dataTransfer.getData('application/x-dockterm')
+    if (internal) {
+      try {
+        const { path } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
+        if (path) pasteRef.current(quotePath(path))
+      } catch {
+        // ignore malformed payload
+      }
+      return
+    }
+
+    // From Finder / Explorer — one or more real files.
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length) {
+      const paths = files
+        .map((f) => window.dockterm.pathForFile(f))
+        .filter(Boolean)
+        .map(quotePath)
+      if (paths.length) pasteRef.current(paths.join(' '))
+      return
+    }
+
+    // Last resort: plain-text path payload.
+    const text = e.dataTransfer.getData('text/plain')
+    if (text) pasteRef.current(quotePath(text))
+  }
+
   return (
     <div
-      className={`pane${focused ? ' pane--focused' : ''}`}
+      className={`pane${focused ? ' pane--focused' : ''}${dragOver ? ' pane--drop' : ''}`}
       onMouseDown={() => focusPane(tabId, leaf.id)}
+      onDragOver={onDragOver}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
     >
       <div className="pane__bar">
         <span className="pane__title">{leaf.title}</span>
@@ -59,6 +114,7 @@ function TerminalPane({
           kind="main"
           cwd={leaf.cwd}
           active={focused}
+          onPasteReady={(p) => (pasteRef.current = p)}
           onActivity={() => markActivity(tabId)}
           fontFamily={t?.fontFamily ?? undefined}
           fontSize={t?.fontSize}
