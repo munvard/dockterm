@@ -28,6 +28,17 @@
   flex: 1 1 auto;
   min-width: 220px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.term-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.term-pane {
+  position: absolute;
+  inset: 0;
 }
 .editor-wrap {
   flex: 0 0 auto;
@@ -233,6 +244,115 @@
 }
 .terminal__surface .xterm-viewport {
   background-color: transparent !important;
+}
+
+/* --------------------------- Terminal tab strip -------------------------- */
+.tabstrip {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding-left: 4px;
+}
+.tabstrip__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabstrip__tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  align-self: flex-end;
+  padding: 0 6px 0 10px;
+  max-width: 200px;
+  min-width: 84px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  cursor: default;
+  user-select: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tab:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+.tab--active {
+  color: var(--text);
+  background: var(--bg);
+  border-color: var(--border);
+}
+.tab__title {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tab__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.tab__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+.tab__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tab:hover .tab__close,
+.tab--active .tab__close {
+  opacity: 1;
+}
+.tab__close:hover {
+  background: var(--border-strong);
+  color: var(--text);
+}
+.tabstrip__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.tabstrip__add:hover {
+  color: var(--text);
 }
 
 /* --------------------------- Resizable panels ---------------------------- */

@@ -20,6 +20,10 @@ export interface TerminalOptions {
   cursorBlink?: boolean
   scrollback?: number
   renderer?: 'auto' | 'dom'
+  /** True when this terminal's tab is the visible/active one. */
+  active?: boolean
+  /** Called when output arrives (used to flag background-tab activity). */
+  onActivity?: () => void
 }
 
 export interface TerminalHandle {
@@ -35,6 +39,7 @@ export interface TerminalHandle {
 export function useTerminal(options: TerminalOptions): TerminalHandle {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const searchRef = useRef<SearchAddon | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const sessionIdRef = useRef<string | null>(null)
   const pasteQueueRef = useRef('')
@@ -60,6 +65,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     termRef.current = term
 
     const fit = new FitAddon()
+    fitRef.current = fit
     const search = new SearchAddon()
     searchRef.current = search
     term.loadAddon(fit)
@@ -108,7 +114,10 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
         pending.push(e)
         return
       }
-      if (e.sessionId === sessionIdRef.current) writeChunk(e.data)
+      if (e.sessionId === sessionIdRef.current) {
+        writeChunk(e.data)
+        optsRef.current.onActivity?.()
+      }
     })
     const offExit = window.dockterm.on('pty:exit', (e) => {
       if (e.sessionId === sessionIdRef.current) {
@@ -179,6 +188,23 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     term.options.cursorStyle = options.cursorStyle ?? 'block'
     term.options.cursorBlink = options.cursorBlink ?? true
   }, [options.fontSize, options.fontFamily, options.cursorStyle, options.cursorBlink])
+
+  // When this terminal's tab becomes active, refit (it may have been hidden at
+  // 0×0) and focus it.
+  useEffect(() => {
+    if (!options.active) return
+    const term = termRef.current
+    if (!term) return
+    const raf = requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit()
+      } catch {
+        // not laid out yet
+      }
+      term.focus()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [options.active])
 
   return {
     containerRef,

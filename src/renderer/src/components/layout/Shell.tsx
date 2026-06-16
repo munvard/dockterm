@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GitBranchPlus } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useGitStore } from '../../state/useGitStore'
 import { useReviewStore } from '../../state/useReviewStore'
+import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { TopBar } from './TopBar'
 import { Dock } from './Dock'
 import { Divider } from './Divider'
+import { TabStrip } from '../terminal/TabStrip'
 import { TerminalView } from '../terminal/TerminalView'
 import { MiniTerminal } from '../terminal/MiniTerminal'
 import { EditorPane } from '../editor/EditorPane'
@@ -24,11 +26,55 @@ export function Shell() {
   const diffTarget = useReviewStore((s) => s.diffTarget)
   const editorOpen = hasTabs || diffTarget != null
 
+  const terminals = useWorkspaceStore((s) => s.tabs)
+  const activeId = useWorkspaceStore((s) => s.activeId)
+  const markActivity = useWorkspaceStore((s) => s.markActivity)
+
   const [dockW, setDockW] = useState(260)
   const [editorW, setEditorW] = useState(520)
   const [miniH, setMiniH] = useState(200)
 
   const projectPath = project?.path
+  const wsProject = useRef<string | null>(null)
+
+  // Set up / switch the terminal workspace for the active project.
+  useEffect(() => {
+    if (!projectPath) return
+    const ws = useWorkspaceStore.getState()
+    if (wsProject.current === null) {
+      ws.init(projectPath, useAppStore.getState().settings?.workspace ?? null)
+    } else if (wsProject.current !== projectPath) {
+      ws.resetForProject(projectPath)
+    }
+    wsProject.current = projectPath
+  }, [projectPath])
+
+  // Terminal tab shortcuts (capture phase so they win over the focused xterm).
+  useEffect(() => {
+    if (!projectPath) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+      const ws = useWorkspaceStore.getState()
+      if (e.key === 't') {
+        e.preventDefault()
+        e.stopPropagation()
+        ws.open(projectPath)
+      } else if (e.key === 'w') {
+        e.preventDefault()
+        e.stopPropagation()
+        ws.close(ws.activeId)
+      } else if (e.key >= '1' && e.key <= '9') {
+        const tab = ws.tabs[Number(e.key) - 1]
+        if (tab) {
+          e.preventDefault()
+          e.stopPropagation()
+          ws.setActive(tab.id)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [projectPath])
 
   useEffect(() => {
     if (!projectPath) return
@@ -51,7 +97,6 @@ export function Shell() {
   if (!project) return null
   const t = settings?.terminal
   const termProps = {
-    cwd: project.path,
     fontFamily: t?.fontFamily ?? undefined,
     fontSize: t?.fontSize,
     cursorStyle: t?.cursorStyle,
@@ -86,7 +131,24 @@ export function Shell() {
             />
           )}
           <div className="term-wrap" key="term">
-            <TerminalView key={project.path} kind="main" {...termProps} />
+            <TabStrip />
+            <div className="term-stack">
+              {terminals.map((tab) => (
+                <div
+                  key={tab.id}
+                  className="term-pane"
+                  style={{ display: tab.id === activeId ? 'block' : 'none' }}
+                >
+                  <TerminalView
+                    kind="main"
+                    {...termProps}
+                    cwd={tab.cwd}
+                    active={tab.id === activeId}
+                    onActivity={() => markActivity(tab.id)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
           {editorOpen && (
             <Divider
@@ -113,7 +175,7 @@ export function Shell() {
             <div className="minit">
               <div className="minit__bar">mini terminal</div>
               <div className="minit__body">
-                <MiniTerminal key={`mini-${project.path}`} kind="mini" {...termProps} />
+                <MiniTerminal key={`mini-${project.path}`} kind="mini" cwd={project.path} {...termProps} />
               </div>
             </div>
           </div>

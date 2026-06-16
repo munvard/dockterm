@@ -40,6 +40,12 @@ export interface ClaudeSettings {
   readUserConfig: boolean
 }
 
+/** Persisted terminal tabs for the window, restored on relaunch. */
+export interface WorkspacePersist {
+  tabs: { id: string; title: string; cwd: string }[]
+  activeId: string
+}
+
 export interface Checkpoint {
   hash: string
   branch: string
@@ -62,6 +68,7 @@ export interface Settings {
   ui: UiSettings
   git: GitSettings
   claude: ClaudeSettings
+  workspace: WorkspacePersist | null
   /** Keyed by project path. */
   checkpoints: Record<string, Checkpoint>
 }

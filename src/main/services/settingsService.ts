@@ -12,6 +12,14 @@ const checkpointSchema = z.object({
   createdAt: z.number()
 })
 
+const workspaceSchema = z
+  .object({
+    tabs: z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() })),
+    activeId: z.string()
+  })
+  .nullable()
+  .default(null)
+
 /** Per-section preference schemas. Every leaf has a default so old/partial
  * configs migrate forward by simply filling the gaps. */
 const preference = {
@@ -57,6 +65,7 @@ const settingsSchema = z.object({
   ui: preference.ui,
   git: preference.git,
   claude: preference.claude,
+  workspace: workspaceSchema,
   checkpoints: z.record(checkpointSchema).default({})
 })
 
@@ -66,7 +75,8 @@ export const settingsPatchSchema = z.object({
   editor: preference.editor.optional(),
   ui: preference.ui.optional(),
   git: preference.git.optional(),
-  claude: preference.claude.optional()
+  claude: preference.claude.optional(),
+  workspace: workspaceSchema.optional()
 })
 
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({}) as Settings

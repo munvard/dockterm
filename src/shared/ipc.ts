@@ -136,7 +136,9 @@ export interface GitOutput {
 
 /* -------------------------------- settings -------------------------------- */
 
-export type SettingsPatch = Partial<Pick<Settings, 'terminal' | 'editor' | 'ui' | 'git' | 'claude'>>
+export type SettingsPatch = Partial<
+  Pick<Settings, 'terminal' | 'editor' | 'ui' | 'git' | 'claude' | 'workspace'>
+>
 
 /* ------------------------------- channel maps ----------------------------- */
 
