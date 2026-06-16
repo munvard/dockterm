@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Plus, X, LayoutGrid, AppWindow } from 'lucide-react'
+import { Plus, X, LayoutGrid, AppWindow, ChevronDown, FolderOpen } from 'lucide-react'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useAppStore } from '../../state/useAppStore'
 import { firstLeaf } from '../../state/layout'
@@ -26,7 +26,13 @@ export function TabStrip() {
 
   const [editing, setEditing] = useState<string | null>(null)
   const [gridOpen, setGridOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const dragFrom = useRef<number | null>(null)
+
+  const openFolderTab = async (): Promise<void> => {
+    const res = await window.dockterm.invoke('project:openDialog', undefined)
+    if (res.ok && 'path' in res.value) open(res.value.path)
+  }
 
   return (
     <div className="tabstrip">
@@ -90,6 +96,38 @@ export function TabStrip() {
       >
         <Plus size={14} />
       </button>
+      <div className="tabstrip__grid">
+        <button
+          className="tabstrip__add tabstrip__caret"
+          title="New terminal in another folder…"
+          onClick={() => setAddOpen((o) => !o)}
+        >
+          <ChevronDown size={12} />
+        </button>
+        {addOpen && (
+          <div className="grid-menu" onMouseLeave={() => setAddOpen(false)}>
+            <div className="grid-menu__label">New terminal in…</div>
+            {projectPath && (
+              <button
+                onClick={() => {
+                  open(projectPath)
+                  setAddOpen(false)
+                }}
+              >
+                <Plus size={13} /> This project
+              </button>
+            )}
+            <button
+              onClick={() => {
+                void openFolderTab()
+                setAddOpen(false)
+              }}
+            >
+              <FolderOpen size={13} /> Choose folder…
+            </button>
+          </div>
+        )}
+      </div>
       <div className="tabstrip__grid">
         <button
           className="tabstrip__add"

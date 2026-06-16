@@ -31,6 +31,7 @@ function TerminalPane({
   const split = useWorkspaceStore((s) => s.splitFocused)
   const closeFocused = useWorkspaceStore((s) => s.closeFocused)
   const markActivity = useWorkspaceStore((s) => s.markActivity)
+  const retargetLeaf = useWorkspaceStore((s) => s.retargetLeaf)
   const pasteRef = useRef<(text: string) => void>(() => {})
   const [dragOver, setDragOver] = useState(false)
 
@@ -57,12 +58,14 @@ function TerminalPane({
     setDragOver(false)
     focusPane(tabId, leaf.id)
 
-    // From the file tree (or anything emitting our payload).
+    // From the file tree (or anything emitting our payload). A folder retargets
+    // this pane to that directory; a file is typed at the prompt.
     const internal = e.dataTransfer.getData('application/x-dockterm')
     if (internal) {
       try {
-        const { path } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
-        if (path) pasteRef.current(quotePath(path))
+        const { path, type } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
+        if (path && type === 'dir') retargetLeaf(tabId, leaf.id, path)
+        else if (path) pasteRef.current(quotePath(path))
       } catch {
         // ignore malformed payload
       }
@@ -111,6 +114,7 @@ function TerminalPane({
       </div>
       <div className="pane__term">
         <TerminalView
+          key={`${leaf.id}:${leaf.cwd}`}
           kind="main"
           cwd={leaf.cwd}
           active={focused}

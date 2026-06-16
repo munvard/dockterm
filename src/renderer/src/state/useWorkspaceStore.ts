@@ -4,6 +4,7 @@ import {
   splitLeaf,
   closeLeaf,
   setSizes,
+  setLeafCwd,
   firstLeaf,
   findLeaf,
   allLeaves,
@@ -67,6 +68,8 @@ interface WorkspaceStore {
   focusPane: (tabId: string, leafId: string) => void
   resizeSplit: (splitId: string, sizes: number[]) => void
   makeGrid: (rows: number, cols: number) => void
+  /** Point one pane at a different folder; its shell respawns there. */
+  retargetLeaf: (tabId: string, leafId: string, cwd: string) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
@@ -199,6 +202,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         const cwd = focusedCwd(tab)
         const layout = gridPreset(rows, cols, () => makeLeaf(cwd), () => uid('split'))
         return { ...tab, layout, focusedLeafId: firstLeaf(layout).id }
-      })
+      }),
+
+    retargetLeaf: (tabId, leafId, cwd) => {
+      const { tabs, activeId } = get()
+      const next = tabs.map((t) =>
+        t.id === tabId
+          ? { ...t, layout: setLeafCwd(t.layout, leafId, cwd, titleFromCwd(cwd)) }
+          : t
+      )
+      commit(next, activeId)
+    }
   }
 })

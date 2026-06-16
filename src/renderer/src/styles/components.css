@@ -532,6 +532,9 @@
   padding: 2px 6px 5px;
 }
 .grid-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 6px 8px;
   font-size: 12px;
   color: var(--text-dim);
@@ -540,6 +543,9 @@
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
+}
+.tabstrip__caret {
+  width: 16px;
 }
 .grid-menu button:hover {
   background: var(--raised);

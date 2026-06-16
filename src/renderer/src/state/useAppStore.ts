@@ -50,17 +50,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       window.dockterm.invoke('window:isPrimary', undefined)
     ])
     const settings = settingsRes.ok ? settingsRes.value : null
+    const isPrimary = primaryRes.ok ? primaryRes.value : true
     set({
       settings,
       recent: recentRes.ok ? recentRes.value : [],
       openPanel: settings?.ui.openPanel ?? null,
       miniTermOpen: settings?.ui.miniTermOpen ?? false,
-      isPrimary: primaryRes.ok ? primaryRes.value : true
+      isPrimary
     })
     window.dockterm.on('settings:changed', (next) => set({ settings: next }))
 
+    // Only the primary window restores the last project; secondary (⌘N) windows
+    // open project-less and show the welcome screen (Cursor-style).
     const last = settings?.lastProjectPath
-    if (last) {
+    if (last && isPrimary) {
       const res = await window.dockterm.invoke('project:open', { path: last })
       if (res.ok) set({ project: res.value })
     }
