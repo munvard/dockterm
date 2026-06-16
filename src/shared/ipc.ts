@@ -156,6 +156,7 @@ export interface InvokeChannels {
   'project:open': (req: PathReq) => Result<ProjectInfo>
   'project:getRecent': (req: void) => Result<RecentProject[]>
   'project:gitInit': (req: PathReq) => Result<ProjectInfo>
+  'project:setActiveRoot': (req: PathReq) => Result<void>
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:readFile': (req: RelPathReq) => Result<ReadFileResult>
@@ -224,6 +225,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'project:open',
   'project:getRecent',
   'project:gitInit',
+  'project:setActiveRoot',
   'fs:readTree',
   'fs:readFile',
   'fs:writeFile',

@@ -10,6 +10,7 @@ import {
 } from '../../services/settingsService'
 import { startWatching } from '../../services/watcherService'
 import { setProjectRoot } from '../../services/projectContext'
+import { setActiveRoot } from '../../services/activeRoot'
 import type { Registrar } from '../register'
 
 const pathSchema = z.object({ path: z.string().min(1).max(4096) })
@@ -39,6 +40,11 @@ export function registerProjectHandlers(reg: Registrar): void {
       clearLastProjectIfMatches(req.path)
       return err('NOT_FOUND', e instanceof Error ? e.message : 'Cannot open project')
     }
+  })
+
+  reg('project:setActiveRoot', pathSchema, (req, event) => {
+    setActiveRoot(event.sender.id, req.path)
+    return ok(undefined)
   })
 
   reg('project:getRecent', z.void(), () =>
