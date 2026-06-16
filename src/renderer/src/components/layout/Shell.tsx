@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { GitBranchPlus } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
@@ -12,8 +12,10 @@ import { Divider } from './Divider'
 import { TabStrip } from '../terminal/TabStrip'
 import { PaneTree } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
-import { EditorPane } from '../editor/EditorPane'
-import { DiffView } from '../review/DiffView'
+
+// Lazily loaded so Monaco (the editor) isn't part of the startup bundle.
+const EditorPane = lazy(() => import('../editor/EditorPane').then((m) => ({ default: m.EditorPane })))
+const DiffView = lazy(() => import('../review/DiffView').then((m) => ({ default: m.DiffView })))
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
@@ -171,7 +173,9 @@ export function Shell() {
           )}
           {editorOpen && (
             <div className="editor-wrap" style={{ width: editorW }} key="editor">
-              {diffTarget ? <DiffView /> : <EditorPane />}
+              <Suspense fallback={<div className="editor" />}>
+                {diffTarget ? <DiffView /> : <EditorPane />}
+              </Suspense>
             </div>
           )}
         </div>

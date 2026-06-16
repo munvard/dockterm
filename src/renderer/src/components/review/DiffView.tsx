@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { monaco } from '../editor/monacoEnv'
+import { buildMonacoTheme } from '../editor/monacoTheme'
 import { DEFAULT_MONO } from '../terminal/terminalTheme'
 import { useReviewStore } from '../../state/useReviewStore'
 import { useAppStore } from '../../state/useAppStore'
+import { useThemeStore } from '../../state/useThemeStore'
 
 function baseName(p: string): string {
   const i = p.lastIndexOf('/')
@@ -14,13 +16,14 @@ export function DiffView() {
   const target = useReviewStore((s) => s.diffTarget)
   const closeDiff = useReviewStore((s) => s.closeDiff)
   const fontSize = useAppStore((s) => s.settings?.editor.fontSize ?? 13)
+  const appTheme = useThemeStore((s) => s.theme)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
     const editor = monaco.editor.createDiffEditor(containerRef.current, {
-      theme: 'dockterm-dark',
+      theme: 'dockterm',
       automaticLayout: true,
       fontFamily: DEFAULT_MONO,
       fontSize: 13,
@@ -43,6 +46,11 @@ export function DiffView() {
   useEffect(() => {
     editorRef.current?.updateOptions({ fontSize })
   }, [fontSize])
+
+  useEffect(() => {
+    monaco.editor.defineTheme('dockterm', buildMonacoTheme(appTheme))
+    monaco.editor.setTheme('dockterm')
+  }, [appTheme])
 
   useEffect(() => {
     const editor = editorRef.current

@@ -4,7 +4,8 @@ import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
-import { dockTermDark } from './monacoTheme'
+import { buildMonacoTheme } from './monacoTheme'
+import { useThemeStore } from '../../state/useThemeStore'
 
 declare global {
   interface Window {
@@ -35,6 +36,8 @@ window.MonacoEnvironment = {
   }
 }
 
-monaco.editor.defineTheme('dockterm-dark', dockTermDark)
+// Defined from the current app theme so the editor exists before either editor
+// component mounts; the components re-define + re-apply it when the theme changes.
+monaco.editor.defineTheme('dockterm', buildMonacoTheme(useThemeStore.getState().theme))
 
 export { monaco }

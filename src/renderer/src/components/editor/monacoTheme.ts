@@ -1,46 +1,54 @@
 import type { editor } from 'monaco-editor'
+import type { Theme } from '../../state/themes'
 
-/** Monaco theme tuned to DockTerm's palette (tokens.css) so the editor, terminal,
- * and chrome read as one product. */
-export const dockTermDark: editor.IStandaloneThemeData = {
-  base: 'vs-dark',
-  inherit: true,
-  rules: [
-    { token: 'comment', foreground: '6b6b76', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'a78bfa' },
-    { token: 'string', foreground: '86efac' },
-    { token: 'number', foreground: 'fbbf24' },
-    { token: 'regexp', foreground: '5eead4' },
-    { token: 'type', foreground: '5eead4' },
-    { token: 'type.identifier', foreground: '5eead4' },
-    { token: 'function', foreground: '93b4ff' },
-    { token: 'variable', foreground: 'e8e8ed' },
-    { token: 'constant', foreground: 'fbbf24' },
-    { token: 'tag', foreground: '93b4ff' },
-    { token: 'attribute.name', foreground: 'c4b5fd' },
-    { token: 'delimiter', foreground: 'a0a0ab' }
-  ],
-  colors: {
-    'editor.background': '#0d0d0f',
-    'editor.foreground': '#e8e8ed',
-    'editorLineNumber.foreground': '#3a3a45',
-    'editorLineNumber.activeForeground': '#a0a0ab',
-    'editor.selectionBackground': '#7c6bff44',
-    'editor.inactiveSelectionBackground': '#7c6bff22',
-    'editor.lineHighlightBackground': '#15151d',
-    'editor.lineHighlightBorder': '#00000000',
-    'editorCursor.foreground': '#7c6bff',
-    'editorIndentGuide.background1': '#1f1f29',
-    'editorIndentGuide.activeBackground1': '#34343f',
-    'editorWhitespace.foreground': '#26262e',
-    'editorGutter.background': '#0d0d0f',
-    'editorWidget.background': '#131318',
-    'editorWidget.border': '#26262e',
-    'editorSuggestWidget.background': '#16161c',
-    'editorSuggestWidget.selectedBackground': '#7c6bff22',
-    'input.background': '#0d0d0f',
-    'scrollbarSlider.background': '#34343f80',
-    'scrollbarSlider.hoverBackground': '#46465290',
-    'editorOverviewRuler.border': '#00000000'
+const noHash = (c: string): string => c.replace('#', '')
+
+/** Build a Monaco theme from an app Theme so the editor matches the chosen
+ * palette (UI colors + the terminal's ANSI colors for syntax). */
+export function buildMonacoTheme(theme: Theme): editor.IStandaloneThemeData {
+  const u = theme.ui
+  const t = theme.terminal
+  const tk = (c: string | undefined, fallback: string): string => noHash(c ?? fallback)
+  return {
+    base: theme.appearance === 'dark' ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: noHash(u['text-faint']), fontStyle: 'italic' },
+      { token: 'keyword', foreground: tk(t.magenta, u.accent) },
+      { token: 'string', foreground: tk(t.green, u.accent) },
+      { token: 'number', foreground: tk(t.yellow, u.accent) },
+      { token: 'regexp', foreground: tk(t.cyan, u.accent) },
+      { token: 'type', foreground: tk(t.cyan, u.accent) },
+      { token: 'type.identifier', foreground: tk(t.cyan, u.accent) },
+      { token: 'function', foreground: tk(t.blue, u.accent) },
+      { token: 'variable', foreground: noHash(u.text) },
+      { token: 'constant', foreground: tk(t.yellow, u.accent) },
+      { token: 'tag', foreground: tk(t.blue, u.accent) },
+      { token: 'attribute.name', foreground: tk(t.magenta, u.accent) },
+      { token: 'delimiter', foreground: noHash(u['text-dim']) }
+    ],
+    colors: {
+      'editor.background': u.bg,
+      'editor.foreground': u.text,
+      'editorLineNumber.foreground': u['text-faint'],
+      'editorLineNumber.activeForeground': u['text-dim'],
+      'editor.selectionBackground': u.accent + '44',
+      'editor.inactiveSelectionBackground': u.accent + '22',
+      'editor.lineHighlightBackground': u.raised,
+      'editor.lineHighlightBorder': '#00000000',
+      'editorCursor.foreground': u.accent,
+      'editorIndentGuide.background1': u.overlay,
+      'editorIndentGuide.activeBackground1': u['border-strong'],
+      'editorWhitespace.foreground': u.border,
+      'editorGutter.background': u.bg,
+      'editorWidget.background': u.panel,
+      'editorWidget.border': u.border,
+      'editorSuggestWidget.background': u.panel,
+      'editorSuggestWidget.selectedBackground': u.accent + '22',
+      'input.background': u.bg,
+      'scrollbarSlider.background': u['border-strong'] + '80',
+      'scrollbarSlider.hoverBackground': u['border-strong'] + 'aa',
+      'editorOverviewRuler.border': '#00000000'
+    }
   }
 }

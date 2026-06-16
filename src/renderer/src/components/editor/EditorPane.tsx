@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { monaco } from './monacoEnv'
+import { buildMonacoTheme } from './monacoTheme'
 import { DEFAULT_MONO } from '../terminal/terminalTheme'
 import { EditorTabs } from './EditorTabs'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useAppStore } from '../../state/useAppStore'
+import { useThemeStore } from '../../state/useThemeStore'
 
 function modelUri(relPath: string): monaco.Uri {
   return monaco.Uri.parse(`inmemory://dockterm/${relPath}`)
@@ -15,11 +17,12 @@ export function EditorPane() {
   const activePath = useEditorStore((s) => s.activePath)
   const tabs = useEditorStore((s) => s.tabs)
   const fontSize = useAppStore((s) => s.settings?.editor.fontSize ?? 13)
+  const appTheme = useThemeStore((s) => s.theme)
 
   useEffect(() => {
     if (!containerRef.current) return
     const editor = monaco.editor.create(containerRef.current, {
-      theme: 'dockterm-dark',
+      theme: 'dockterm',
       automaticLayout: true,
       fontFamily: DEFAULT_MONO,
       fontSize: 13,
@@ -55,6 +58,12 @@ export function EditorPane() {
   useEffect(() => {
     editorRef.current?.updateOptions({ fontSize })
   }, [fontSize])
+
+  // Re-skin Monaco when the app theme changes.
+  useEffect(() => {
+    monaco.editor.defineTheme('dockterm', buildMonacoTheme(appTheme))
+    monaco.editor.setTheme('dockterm')
+  }, [appTheme])
 
   // Swap the active model.
   useEffect(() => {
