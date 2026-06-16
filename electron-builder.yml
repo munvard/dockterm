@@ -54,6 +54,21 @@ mac:
 
 dmg:
   writeUpdateInfo: false
+  title: ${productName} ${version}
+  background: build/background.png
+  iconSize: 128
+  iconTextSize: 13
+  window:
+    width: 660
+    height: 420
+  contents:
+    - x: 180
+      y: 230
+      type: file
+    - x: 480
+      y: 230
+      type: link
+      path: /Applications
 
 linux:
   target:

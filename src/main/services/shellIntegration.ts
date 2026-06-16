@@ -78,6 +78,10 @@ precmd_functions+=(_dockterm_osc7)
 [ -n "$DOCKTERM_USER_ZDOTDIR" ] && export ZDOTDIR="$DOCKTERM_USER_ZDOTDIR"
 `
 const BASH_INIT = `# DockTerm shell integration (auto-generated)
+# We run bash with --rcfile (interactive, non-login), which skips the normal
+# login startup. Re-source it so the system prompt (e.g. macOS /etc/bashrc) and
+# PATH are preserved, then add the OSC 7 directory hook.
+[ -r /etc/profile ] && . /etc/profile
 if [ -f ~/.bash_profile ]; then . ~/.bash_profile;
 elif [ -f ~/.bash_login ]; then . ~/.bash_login;
 elif [ -f ~/.profile ]; then . ~/.profile; fi

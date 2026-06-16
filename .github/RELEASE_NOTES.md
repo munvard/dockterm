@@ -3,10 +3,10 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🧭 What's new in v0.6.0 — the dock follows your terminal
+## 🩹 What's new in v0.6.1 — prompt fix + a nicer installer
 
-- **Files & Git now follow the focused terminal's *live* directory.** With shell integration (on by default), the side panels track where the shell actually is as you `cd` around — focus a pane that's in `roast-me` and you see roast-me's files; focus one in `GlowAI-main` and it switches. Works per-pane, so a grid of different projects "just works." Toggle it in **Settings → Terminal** if you prefer.
-- Under the hood: zsh/bash/PowerShell get a tiny OSC 7 hook (the same technique VS Code uses) that only sources *your own* dotfiles — no network, no secrets — with a clean fallback for other shells.
+- **Fixed your shell prompt.** On bash, last release's directory-tracking could replace your normal prompt with a bare `bash-3.2$` (and drop your PATH) because it skipped the system login files. It now re-sources them, so your usual `host:dir user$` prompt — and your PATH — are back, with directory tracking still working.
+- **Beautiful new macOS installer.** The DMG now has a polished, on-brand background instead of the plain gray window.
 
 ---
 
