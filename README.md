@@ -1,21 +1,48 @@
-<div align="center">
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"  srcset="assets/brand/dockterm-logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brand/dockterm-logo-light.svg">
+    <img alt="DockTerm" src="assets/brand/dockterm-logo.svg" width="420">
+  </picture>
+</p>
 
-# DockTerm
+<p align="center">
+  the calm workspace for Claude Code — your terminal, with a face
+</p>
 
-### Run `claude`. Everything else stays out of your way.
+<p align="center">
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-7c6bff?style=flat-square"></a>
+  <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1a1a21?style=flat-square">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-signed%20%26%20notarized-4ade80?style=flat-square">
+  <img alt="built for Claude Code" src="https://img.shields.io/badge/built%20for-Claude%20Code-7c6bff?style=flat-square">
+</p>
 
-A terminal-first desktop workspace for [Claude Code](https://www.anthropic.com/claude-code) — with files, an editor, Git, MCP, and skills panels that appear only when you need them.
+---
 
-**No telemetry. No accounts. No cloud. Not opt-out — just absent.**
+## Meet munu
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-7c6bff.svg)](LICENSE)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-1a1a21)
-![macOS](https://img.shields.io/badge/macOS-signed%20%26%20notarized-4ade80)
-![Status](https://img.shields.io/badge/status-actively%20developed-7c6bff)
+**munu is the mini DockTerm — the workspace that woke up.** It sits on the dark terminal tile, watches your files, git, and what Claude Code is doing, and never calls an AI of its own. Its face just mirrors the state — so a glance tells you everything.
 
-![DockTerm workspace — file tree, terminal, and editor](docs/screenshots/workspace.png)
+<table align="center">
+  <tr>
+    <td align="center" width="130"><img src="assets/brand/munu.svg"         width="72"></td>
+    <td align="center" width="130"><img src="assets/brand/munu-happy.svg"    width="72"></td>
+    <td align="center" width="130"><img src="assets/brand/munu-working.svg"  width="72"></td>
+    <td align="center" width="130"><img src="assets/brand/munu-sleeping.svg" width="72"></td>
+    <td align="center" width="130"><img src="assets/brand/munu-asking.svg"   width="72"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>resting</b><br><sub>idle / ready</sub></td>
+    <td align="center"><b>happy</b><br><sub>done / clean</sub></td>
+    <td align="center"><b>working</b><br><sub>busy / running</sub></td>
+    <td align="center"><b>sleeping</b><br><sub>no project</sub></td>
+    <td align="center"><b>asking</b><br><sub>needs your <code>[y/n]</code></sub></td>
+  </tr>
+</table>
 
-</div>
+> **asking** is the important one: when Claude Code pauses to request permission (run a command, edit a file), munu raises a brow and shows `[y/n]` — on a floating pill that stays visible even over other apps. It never auto-approves; the decision is always yours.
+
+---
 
 > **DockTerm is terminal-first. The terminal stays central. Panels only appear when you need them.**
 

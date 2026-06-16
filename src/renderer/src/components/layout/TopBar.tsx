@@ -1,6 +1,7 @@
 import { GitBranch, FolderOpen, SquareTerminal, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useGitStore } from '../../state/useGitStore'
+import { TopBarMunu } from '../munu/TopBarMunu'
 import { PANELS } from './panels'
 
 export function TopBar() {
@@ -57,6 +58,7 @@ export function TopBar() {
         )}
       </div>
       <div className="topbar__right">
+        <TopBarMunu />
         {PANELS.map((panel) => {
           const Icon = panel.icon
           return (

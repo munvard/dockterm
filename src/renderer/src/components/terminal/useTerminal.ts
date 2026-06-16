@@ -8,6 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import type { PtyDataEvent } from '@shared/ipc'
 import { DEFAULT_MONO } from './terminalTheme'
 import { parseOsc7 } from './osc7'
+import { classify, parseAsk, type ClaudeState } from './claudeStatus'
 import { useThemeStore } from '../../state/useThemeStore'
 import '@xterm/xterm/css/xterm.css'
 
@@ -28,6 +29,8 @@ export interface TerminalOptions {
   onActivity?: () => void
   /** Called with the shell's live working directory (from OSC 7), when reported. */
   onCwd?: (cwd: string) => void
+  /** Reports the pane's inferred Claude state from the rendered buffer. */
+  onStatus?: (state: ClaudeState, ask: string | null) => void
 }
 
 export interface TerminalHandle {
@@ -143,6 +146,28 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
 
     safeFit()
 
+    // Infer Claude's state from the rendered buffer (debounced), so the dock /
+    // munu can react to working / asking / idle — even for hidden panes.
+    let statusTimer: ReturnType<typeof setTimeout> | undefined
+    const readBufferText = (): string => {
+      const buf = term.buffer.active
+      const start = Math.max(0, buf.baseY + term.rows - 60)
+      const end = buf.baseY + term.rows
+      let out = ''
+      for (let y = start; y < end; y++) {
+        out += (buf.getLine(y)?.translateToString(true) ?? '') + '\n'
+      }
+      return out
+    }
+    const scheduleStatus = (): void => {
+      if (statusTimer) clearTimeout(statusTimer)
+      statusTimer = setTimeout(() => {
+        const text = readBufferText()
+        const state = classify(text)
+        optsRef.current.onStatus?.(state, state === 'asking' ? parseAsk(text) : null)
+      }, 200)
+    }
+
     let exited = false
     const pending: PtyDataEvent[] = []
 
@@ -163,6 +188,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       if (e.sessionId === sessionIdRef.current) {
         writeChunk(e.data)
         optsRef.current.onActivity?.()
+        scheduleStatus()
       }
     })
     const offExit = window.dockterm.on('pty:exit', (e) => {
@@ -221,6 +247,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       observer.disconnect()
       osc7.dispose()
       if (fitTimer) clearTimeout(fitTimer)
+      if (statusTimer) clearTimeout(statusTimer)
       if (sessionIdRef.current) void window.dockterm.invoke('pty:kill', { sessionId: sessionIdRef.current })
       sessionIdRef.current = null
       term.dispose()

@@ -26,6 +26,7 @@ win:
   target:
     - target: nsis
       arch: [x64]
+  icon: build/icon.ico
   artifactName: ${productName}-${version}-windows-${arch}.${ext}
 
 nsis:
@@ -41,6 +42,7 @@ mac:
     - target: dmg
       arch: [arm64, x64]
   category: public.app-category.developer-tools
+  icon: build/icon.icns
   # Code signing + notarization are driven entirely by environment/secrets in CI
   # (see .github/workflows/release.yml and SIGNING.md). When no Apple cert is
   # present the build falls back to an unsigned .dmg instead of failing.
