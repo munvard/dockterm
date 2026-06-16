@@ -3,10 +3,11 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🩹 What's new in v0.6.1 — prompt fix + a nicer installer
+## 👋 What's new in v0.7.0 — meet munu
 
-- **Fixed your shell prompt.** On bash, last release's directory-tracking could replace your normal prompt with a bare `bash-3.2$` (and drop your PATH) because it skipped the system login files. It now re-sources them, so your usual `host:dir user$` prompt — and your PATH — are back, with directory tracking still working.
-- **Beautiful new macOS installer.** The DMG now has a polished, on-brand background instead of the plain gray window.
+- **DockTerm has a face now.** Say hi to **munu** — a little mascot that mirrors what Claude Code is doing. A munu sits in the top bar and changes as Claude works: **resting**, **working…**, **needs you** (when Claude pauses for a `[y/n]`), and a happy **done**. It infers state from the terminal itself and never calls an AI of its own.
+- **New app icon & branding** across the app and installer.
+- *Coming next:* munu floats free as an always-on-top pill (Dynamic Island on Mac) so you can glance at it even while DockTerm is in the background — plus one-click approve/deny.
 
 ---
 
