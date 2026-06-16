@@ -115,6 +115,11 @@ export interface RenameReq {
   toRelPath: string
 }
 
+export interface ImageDataResult {
+  dataUrl: string
+  size: number
+}
+
 /* ---------------------------------- git ----------------------------------- */
 
 export interface PathsReq {
@@ -168,6 +173,8 @@ export interface InvokeChannels {
   'fs:rename': (req: RenameReq) => Result<void>
   'fs:delete': (req: RelPathReq) => Result<void>
   'fs:reveal': (req: RelPathReq) => Result<void>
+  'fs:readDataUrl': (req: RelPathReq) => Result<ImageDataResult>
+  'fs:openPath': (req: RelPathReq) => Result<void>
 
   'git:status': (req: void) => Result<GitStatusView>
   'git:stage': (req: PathsReq) => Result<void>
@@ -239,6 +246,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'fs:rename',
   'fs:delete',
   'fs:reveal',
+  'fs:readDataUrl',
+  'fs:openPath',
   'git:status',
   'git:stage',
   'git:stageAll',

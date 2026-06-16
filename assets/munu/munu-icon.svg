@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="munu app icon">
+  <title>munu icon</title>
+  <defs>
+    <linearGradient id="mi-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9a8cff"/>
+      <stop offset="100%" stop-color="#6d59ee"/>
+    </linearGradient>
+    <clipPath id="mi-clip">
+      <path d="M128 50 C150 59 184 86 197 130 C211 176 186 213 128 213 C70 213 45 176 59 130 C72 86 106 59 128 50 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- DockTerm dark chip -->
+  <rect x="6" y="6" width="244" height="244" rx="54" fill="#0d0d0f"/>
+  <rect x="6.75" y="6.75" width="242.5" height="242.5" rx="53.25" fill="none" stroke="#34343f" stroke-width="1.5"/>
+
+  <!-- feet -->
+  <ellipse cx="102" cy="216" rx="19" ry="11" fill="#5a47d6"/>
+  <ellipse cx="154" cy="216" rx="19" ry="11" fill="#5a47d6"/>
+
+  <!-- caret sprout -->
+  <path d="M115 59 L128 44 L141 59" fill="none" stroke="#b3a6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- body -->
+  <path d="M128 50 C150 59 184 86 197 130 C211 176 186 213 128 213 C70 213 45 176 59 130 C72 86 106 59 128 50 Z" fill="url(#mi-body)"/>
+  <g clip-path="url(#mi-clip)">
+    <ellipse cx="106" cy="98" rx="42" ry="29" fill="#ffffff" opacity="0.16"/>
+  </g>
+
+  <!-- blush -->
+  <ellipse cx="76" cy="156" rx="12" ry="7" fill="#ff8ab6" opacity="0.5"/>
+  <ellipse cx="180" cy="156" rx="12" ry="7" fill="#ff8ab6" opacity="0.5"/>
+
+  <!-- eyes -->
+  <ellipse cx="104" cy="138" rx="15.5" ry="20" fill="#18141f"/>
+  <ellipse cx="152" cy="138" rx="15.5" ry="20" fill="#18141f"/>
+  <circle cx="98" cy="130" r="5" fill="#ffffff" opacity="0.95"/>
+  <circle cx="146" cy="130" r="5" fill="#ffffff" opacity="0.95"/>
+
+  <!-- underscore smile -->
+  <path d="M118 172 Q128 183 138 172" fill="none" stroke="#18141f" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

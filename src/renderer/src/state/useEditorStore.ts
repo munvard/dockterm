@@ -3,14 +3,23 @@ import { languageForFile } from '../components/editor/language'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
 
+export type EditorTabKind = 'text' | 'image' | 'binary'
+
 export interface EditorTab {
   relPath: string
   name: string
+  kind: EditorTabKind
   content: string
+  /** image tabs only */
+  dataUrl?: string
+  /** image/binary tabs */
+  size?: number
   mtimeMs: number
   dirty: boolean
   language: string
 }
+
+const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
 
 interface EditorState {
   tabs: EditorTab[]
@@ -33,31 +42,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ activePath: relPath })
       return
     }
+    const ext = name.split('.').pop()?.toLowerCase() ?? ''
+    const add = (tab: EditorTab): void => set((s) => ({ tabs: [...s.tabs, tab], activePath: relPath }))
+    const base = { relPath, name, content: '', mtimeMs: 0, dirty: false, language: '' }
+
+    if (IMAGE_EXT.includes(ext)) {
+      const res = await window.dockterm.invoke('fs:readDataUrl', { relPath })
+      if (!res.ok) {
+        useToastStore.getState().push(res.error.message, 'error')
+        return
+      }
+      add({ ...base, kind: 'image', dataUrl: res.value.dataUrl, size: res.value.size })
+      return
+    }
+
     const res = await window.dockterm.invoke('fs:readFile', { relPath })
     if (!res.ok) {
       useToastStore.getState().push(res.error.message, 'error')
       return
     }
     const file = res.value
-    if (file.kind === 'binary') {
-      useToastStore.getState().push(`${name} is a binary file and can't be edited here`, 'warning')
+    if (file.kind === 'binary' || file.kind === 'too-large') {
+      add({ ...base, kind: 'binary', size: file.size })
       return
     }
-    if (file.kind === 'too-large') {
-      useToastStore
-        .getState()
-        .push(`${name} is too large to open (${Math.round(file.size / 1024)} KB)`, 'warning')
-      return
-    }
-    const tab: EditorTab = {
-      relPath,
-      name,
+    add({
+      ...base,
+      kind: 'text',
       content: file.content,
       mtimeMs: file.mtimeMs,
-      dirty: false,
       language: languageForFile(name)
-    }
-    set((s) => ({ tabs: [...s.tabs, tab], activePath: relPath }))
+    })
   },
 
   close: (relPath) =>
@@ -82,7 +97,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   save: async (relPath, content) => {
     const tab = get().tabs.find((t) => t.relPath === relPath)
-    if (!tab) return
+    if (!tab || tab.kind !== 'text') return
 
     const res = await window.dockterm.invoke('fs:writeFile', {
       relPath,

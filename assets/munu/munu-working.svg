@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="munu working">
+  <title>munu — working</title>
+  <defs>
+    <radialGradient id="mw-glow" cx="50%" cy="46%" r="55%">
+      <stop offset="0%" stop-color="#7c6bff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#7c6bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mw-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9a8cff"/>
+      <stop offset="100%" stop-color="#6d59ee"/>
+    </linearGradient>
+    <clipPath id="mw-clip">
+      <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="128" cy="120" r="120" fill="url(#mw-glow)"/>
+
+  <ellipse cx="98" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+  <ellipse cx="158" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+
+  <!-- caret sprout with a blinking cursor block on top -->
+  <path d="M114 44 L128 27 L142 44" fill="none" stroke="#b3a6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="121" y="10" width="14" height="14" rx="3" fill="#b3a6ff">
+    <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.45;0.5;0.95;1" dur="1.1s" repeatCount="indefinite"/>
+  </rect>
+
+  <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z" fill="url(#mw-body)"/>
+  <g clip-path="url(#mw-clip)">
+    <ellipse cx="104" cy="86" rx="46" ry="32" fill="#ffffff" opacity="0.16"/>
+  </g>
+
+  <ellipse cx="71" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.5"/>
+  <ellipse cx="185" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.5"/>
+
+  <!-- focused eyes looking down at work -->
+  <ellipse cx="102" cy="136" rx="15.5" ry="19" fill="#18141f"/>
+  <ellipse cx="154" cy="136" rx="15.5" ry="19" fill="#18141f"/>
+  <circle cx="100" cy="143" r="5" fill="#ffffff" opacity="0.95"/>
+  <circle cx="152" cy="143" r="5" fill="#ffffff" opacity="0.95"/>
+  <!-- half-lidded concentration -->
+  <path d="M84 128 Q102 120 120 128" fill="none" stroke="url(#mw-body)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M136 128 Q154 120 172 128" fill="none" stroke="url(#mw-body)" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- small focused mouth -->
+  <rect x="119" y="170" width="18" height="5" rx="2.5" fill="#18141f"/>
+
+  <!-- working dots -->
+  <circle cx="176" cy="92" r="4.5" fill="#cfc6ff">
+    <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" begin="0s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="192" cy="92" r="4.5" fill="#cfc6ff">
+    <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" begin="0.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="208" cy="92" r="4.5" fill="#cfc6ff">
+    <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" begin="0.4s" repeatCount="indefinite"/>
+  </circle>
+</svg>

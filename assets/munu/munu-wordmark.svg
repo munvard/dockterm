@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 224" width="560" height="224" role="img" aria-label="munu wordmark">
+  <title>munu</title>
+  <defs>
+    <linearGradient id="mwm-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9a8cff"/>
+      <stop offset="100%" stop-color="#6d59ee"/>
+    </linearGradient>
+    <clipPath id="mwm-clip">
+      <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- mascot -->
+  <g transform="translate(8,34) scale(0.62)">
+    <ellipse cx="98" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+    <ellipse cx="158" cy="218" rx="21" ry="12" fill="#5a47d6"/>
+    <path d="M114 44 L128 27 L142 44" fill="none" stroke="#b3a6ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M128 34 C152 44 190 74 204 122 C220 172 192 214 128 214 C64 214 36 172 52 122 C66 74 104 44 128 34 Z" fill="url(#mwm-body)"/>
+    <g clip-path="url(#mwm-clip)">
+      <ellipse cx="104" cy="86" rx="46" ry="32" fill="#ffffff" opacity="0.16"/>
+    </g>
+    <ellipse cx="71" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.55"/>
+    <ellipse cx="185" cy="152" rx="13" ry="7.5" fill="#ff8ab6" opacity="0.55"/>
+    <ellipse cx="102" cy="132" rx="16.5" ry="21" fill="#18141f"/>
+    <ellipse cx="154" cy="132" rx="16.5" ry="21" fill="#18141f"/>
+    <circle cx="96" cy="124" r="5.5" fill="#ffffff" opacity="0.95"/>
+    <circle cx="148" cy="124" r="5.5" fill="#ffffff" opacity="0.95"/>
+    <path d="M116 168 Q128 180 140 168" fill="none" stroke="#18141f" stroke-width="4.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="186" y="148" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif" font-size="116" font-weight="700" letter-spacing="-4" fill="#ece9ff">munu</text>
+
+  <!-- shell cursor -->
+  <rect x="506" y="150" width="40" height="13" rx="4" fill="#7c6bff">
+    <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.5;0.51;0.99;1" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+</svg>

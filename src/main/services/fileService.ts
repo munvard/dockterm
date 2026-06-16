@@ -75,6 +75,38 @@ export function reveal(root: string, relPath: string): void {
   shell.showItemInFolder(resolveInside(root, relPath))
 }
 
+const IMAGE_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  avif: 'image/avif'
+}
+const MAX_DATAURL_BYTES = 25 * 1024 * 1024
+
+/** Read a (jailed) file as a base64 data URL — used to preview images. */
+export async function readDataUrl(
+  root: string,
+  relPath: string
+): Promise<{ dataUrl: string; size: number }> {
+  const abs = resolveInside(root, relPath)
+  const stat = await fs.stat(abs)
+  if (stat.size > MAX_DATAURL_BYTES) throw new Error('File is too large to preview')
+  const buffer = await fs.readFile(abs)
+  const ext = relPath.split('.').pop()?.toLowerCase() ?? ''
+  const mime = IMAGE_MIME[ext] ?? 'application/octet-stream'
+  return { dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, size: stat.size }
+}
+
+/** Open a (jailed) file in the OS default application. */
+export async function openPath(root: string, relPath: string): Promise<void> {
+  await shell.openPath(resolveInside(root, relPath))
+}
+
 function isBinary(buffer: Buffer): boolean {
   const len = Math.min(buffer.length, 8000)
   for (let i = 0; i < len; i++) {
