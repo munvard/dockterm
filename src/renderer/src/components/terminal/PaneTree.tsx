@@ -119,6 +119,7 @@ function TerminalPane({
           cwd={leaf.cwd}
           active={focused}
           onPasteReady={(p) => (pasteRef.current = p)}
+          onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
           onActivity={() => markActivity(tabId)}
           fontFamily={t?.fontFamily ?? undefined}
           fontSize={t?.fontSize}

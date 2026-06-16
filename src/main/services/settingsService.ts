@@ -37,7 +37,8 @@ const preference = {
       cursorStyle: z.enum(['block', 'underline', 'bar']).default('block'),
       cursorBlink: z.boolean().default(true),
       renderer: z.enum(['auto', 'dom']).default('auto'),
-      scrollback: z.number().int().min(500).max(100000).default(5000)
+      scrollback: z.number().int().min(500).max(100000).default(5000),
+      shellIntegration: z.boolean().default(true)
     })
     .default({}),
   editor: z.object({ fontSize: z.number().int().min(8).max(40).default(13) }).default({}),

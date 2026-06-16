@@ -31,6 +31,7 @@ export function Shell() {
 
   const terminals = useWorkspaceStore((s) => s.tabs)
   const activeId = useWorkspaceStore((s) => s.activeId)
+  const paneCwd = useWorkspaceStore((s) => s.paneCwd)
 
   const [dockW, setDockW] = useState(260)
   const [editorW, setEditorW] = useState(520)
@@ -40,7 +41,11 @@ export function Shell() {
   const wsProject = useRef<string | null>(null)
 
   const activeTab = terminals.find((t) => t.id === activeId)
-  const focusedCwd = activeTab ? findLeaf(activeTab.layout, activeTab.focusedLeafId)?.cwd ?? null : null
+  const focusedLeafId = activeTab?.focusedLeafId
+  const spawnCwd = activeTab && focusedLeafId ? findLeaf(activeTab.layout, focusedLeafId)?.cwd ?? null : null
+  // The dock follows the focused pane's LIVE directory (OSC 7), falling back to
+  // its spawn folder when the shell hasn't reported one.
+  const focusedCwd = (focusedLeafId ? paneCwd[focusedLeafId] : undefined) ?? spawnCwd
 
   useEffect(() => {
     if (!projectPath) return

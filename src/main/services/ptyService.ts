@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs'
 import { spawn, type IPty } from 'node-pty'
 import type { BrowserWindow } from 'electron'
 import { detectShell } from './shellDetect'
+import { integrationFor } from './shellIntegration'
+import { getSettings } from './settingsService'
 import { PtyFlow } from './ptyFlow'
 import { PTY } from '@shared/constants'
 
@@ -41,7 +43,18 @@ export function createPty(args: CreatePtyArgs): { sessionId: string; shell: stri
     CLAUDE_CODE_NO_FLICKER: '1'
   }
 
-  const pty = spawn(shell.file, shell.args, {
+  // Shell integration: make the shell emit OSC 7 so the dock follows `cd`.
+  // Off / unsupported shell → spawn unchanged (dock uses the spawn folder).
+  let shellArgs = shell.args
+  if (getSettings().terminal.shellIntegration) {
+    const integration = integrationFor(shell.file, shell.args, env)
+    if (integration) {
+      shellArgs = integration.args
+      Object.assign(env, integration.env)
+    }
+  }
+
+  const pty = spawn(shell.file, shellArgs, {
     name: 'xterm-256color',
     cols: clamp(args.cols, PTY.MIN_COLS, PTY.MAX_COLS),
     rows: clamp(args.rows, PTY.MIN_ROWS, PTY.MAX_ROWS),

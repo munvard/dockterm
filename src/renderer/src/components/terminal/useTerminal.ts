@@ -7,6 +7,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import type { PtyDataEvent } from '@shared/ipc'
 import { DEFAULT_MONO } from './terminalTheme'
+import { parseOsc7 } from './osc7'
 import { useThemeStore } from '../../state/useThemeStore'
 import '@xterm/xterm/css/xterm.css'
 
@@ -25,6 +26,8 @@ export interface TerminalOptions {
   active?: boolean
   /** Called when output arrives (used to flag background-tab activity). */
   onActivity?: () => void
+  /** Called with the shell's live working directory (from OSC 7), when reported. */
+  onCwd?: (cwd: string) => void
 }
 
 export interface TerminalHandle {
@@ -82,6 +85,14 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     }
 
     term.open(container)
+
+    // Track the shell's working directory via OSC 7 (emitted by shell integration)
+    // so the dock can follow `cd`. Returns true = handled.
+    const osc7 = term.parser.registerOscHandler(7, (data) => {
+      const cwd = parseOsc7(data)
+      if (cwd) optsRef.current.onCwd?.(cwd)
+      return true
+    })
 
     // Scroll shortcuts (intercepted, not sent to the shell). ⌘↓/⌘↑ jump to
     // bottom/top; Shift+PageUp/Down page. Typing already returns to the bottom
@@ -208,6 +219,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       dataSub.dispose()
       resizeSub.dispose()
       observer.disconnect()
+      osc7.dispose()
       if (fitTimer) clearTimeout(fitTimer)
       if (sessionIdRef.current) void window.dockterm.invoke('pty:kill', { sessionId: sessionIdRef.current })
       sessionIdRef.current = null

@@ -47,6 +47,8 @@ export function FileTree() {
   const closeTab = useEditorStore((s) => s.close)
   const projectName = useAppStore((s) => s.project?.name ?? 'Files')
   const activeRoot = useAppStore((s) => s.activeRoot)
+  const headerName =
+    (activeRoot && activeRoot.split(/[\\/]/).filter(Boolean).pop()) || projectName
   const confirmDanger = useAppStore((s) => s.settings?.git.confirmDanger ?? true)
   const confirm = useDialogStore((s) => s.confirm)
   const prompt = useDialogStore((s) => s.prompt)
@@ -66,9 +68,13 @@ export function FileTree() {
     for (const dir of expandedRef.current) void load(dir)
   }, [load])
 
+  // (Re)load the tree on mount and whenever the dock retargets to another
+  // project root (focusing a pane in a different directory).
   useEffect(() => {
+    setExpanded(new Set())
+    setChildren({})
     void load('')
-  }, [load])
+  }, [activeRoot, load])
 
   useEffect(() => window.dockterm.on('fs:watch', refresh), [refresh])
 
@@ -233,7 +239,7 @@ export function FileTree() {
   return (
     <div className="panel">
       <div className="panel__head">
-        <span className="panel__title">{projectName}</span>
+        <span className="panel__title">{headerName}</span>
         <div className="panel__actions">
           <button className="iconbtn iconbtn--sm" title="New file" onClick={() => void newFile('')}>
             <FilePlus size={14} />

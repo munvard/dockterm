@@ -67,7 +67,8 @@ export function SettingsPanel() {
         cursorStyle: 'block',
         cursorBlink: true,
         renderer: 'auto',
-        scrollback: 5000
+        scrollback: 5000,
+        shellIntegration: true
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },
@@ -188,6 +189,16 @@ export function SettingsPanel() {
               <option value="dom">DOM (compatible)</option>
             </select>
           </Field>
+          <Field label="Track directory (shell integration)">
+            <Toggle
+              checked={s.terminal.shellIntegration}
+              onChange={(v) => setTerminal({ shellIntegration: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            Lets the Files/Git panels follow the focused terminal as you <code>cd</code>. Adds a
+            tiny hook to zsh/bash/PowerShell sessions. Restart a terminal after changing this.
+          </div>
         </Section>
 
         <Section title="Editor">

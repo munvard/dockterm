@@ -52,6 +52,10 @@ interface WorkspaceStore {
   activeId: string
   /** tabId -> has unseen output in the background */
   activity: Record<string, boolean>
+  /** leafId -> live working directory reported by the shell (OSC 7). Not persisted
+   * and kept separate from leaf.cwd (which keys the terminal) so a `cd` never
+   * respawns the shell. */
+  paneCwd: Record<string, string>
   ready: boolean
 
   init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null, isPrimary: boolean) => void
@@ -71,6 +75,8 @@ interface WorkspaceStore {
   makeGrid: (rows: number, cols: number) => void
   /** Point one pane at a different folder; its shell respawns there. */
   retargetLeaf: (tabId: string, leafId: string, cwd: string) => void
+  /** Record a pane's live working directory (from OSC 7). */
+  setPaneCwd: (leafId: string, cwd: string) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
@@ -90,6 +96,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     tabs: [],
     activeId: '',
     activity: {},
+    paneCwd: {},
     ready: false,
 
     init: (cwd, restored, isPrimary) => {
@@ -148,13 +155,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     },
 
     close: (tabId) => {
+      const closing = get().tabs.find((t) => t.id === tabId)
       const next = removeTab(get(), tabId)
       commit(next.tabs, next.activeId)
       set((s) => {
-        if (!(tabId in s.activity)) return s
         const activity = { ...s.activity }
         delete activity[tabId]
-        return { activity }
+        const paneCwd = { ...s.paneCwd }
+        if (closing) for (const l of allLeaves(closing.layout)) delete paneCwd[l.id]
+        return { activity, paneCwd }
       })
     },
 
@@ -192,6 +201,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       const { tabs, activeId } = get()
       const tab = tabs.find((t) => t.id === activeId)
       if (!tab) return
+      const closingLeafId = tab.focusedLeafId
       const layout = closeLeaf(tab.layout, tab.focusedLeafId)
       if (layout === null) {
         get().close(activeId)
@@ -201,6 +211,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         t.id === activeId ? { ...t, layout, focusedLeafId: firstLeaf(layout).id } : t
       )
       commit(next, activeId)
+      set((s) => {
+        if (!(closingLeafId in s.paneCwd)) return s
+        const paneCwd = { ...s.paneCwd }
+        delete paneCwd[closingLeafId]
+        return { paneCwd }
+      })
     },
 
     focusPane: (tabId, leafId) => {
@@ -245,7 +261,17 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
           ? { ...t, layout: setLeafCwd(t.layout, leafId, cwd, titleFromCwd(cwd)) }
           : t
       )
+      // The pane respawns in the new folder; drop any stale live cwd for it.
+      set((s) => {
+        if (!(leafId in s.paneCwd)) return s
+        const paneCwd = { ...s.paneCwd }
+        delete paneCwd[leafId]
+        return { paneCwd }
+      })
       commit(next, activeId)
-    }
+    },
+
+    setPaneCwd: (leafId, cwd) =>
+      set((s) => (s.paneCwd[leafId] === cwd ? s : { paneCwd: { ...s.paneCwd, [leafId]: cwd } }))
   }
 })

@@ -14,6 +14,8 @@ export interface TerminalSettings {
   cursorBlink: boolean
   renderer: TerminalRenderer
   scrollback: number
+  /** Inject shell integration so the dock follows the terminal's `cd` (OSC 7). */
+  shellIntegration: boolean
 }
 
 export interface EditorSettings {
