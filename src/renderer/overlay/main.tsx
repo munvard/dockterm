@@ -5,13 +5,6 @@ import type { MunuGlobal, MunuState } from '@shared/types'
 import { playAsk, playDone } from './sounds'
 import './overlay.css'
 
-const LABEL: Record<MunuState, string> = {
-  idle: 'resting',
-  working: 'working…',
-  asking: 'needs you',
-  done: 'all done'
-}
-
 const setInteractive = (v: boolean): void => {
   void window.dockterm.invoke('munu:setInteractive', { interactive: v })
 }
@@ -56,7 +49,7 @@ function Overlay() {
   return (
     <div className={`ov ov--${platform}`}>
       <div
-        className={`island island--${g.state}${showCard ? ' island--open' : ''}`}
+        className={`island island--${g.state}${showCard ? ' island--card' : ''}`}
         onMouseEnter={() => setInteractive(true)}
         onMouseLeave={() => setInteractive(false)}
         onClick={() => {
@@ -64,14 +57,7 @@ function Overlay() {
         }}
         title="munu"
       >
-        <div className="island__row">
-          <Munu state={g.state} size={30} />
-          {g.state !== 'idle' && (
-            <span className="island__label">
-              {asking && !showCard ? 'needs you · open' : LABEL[g.state]}
-            </span>
-          )}
-        </div>
+        <Munu state={g.state} size={40} />
         {showCard && (
           <div className="island__card">
             {ask?.title && <div className="island__title">{ask.title}</div>}

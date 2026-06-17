@@ -1,7 +1,7 @@
 :root {
   --accent: #7c6bff;
   --amber: #fbbf24;
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --green: #4ade80;
   --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
@@ -15,91 +15,58 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  font-family: var(--font-ui);
-  padding-top: 8px;
+  padding-top: 6px;
 }
 /* Clear the notch / menu bar on macOS; sit near the top elsewhere. */
 .ov--darwin {
-  padding-top: 38px;
+  padding-top: 36px;
 }
 
-/* The pill. Pointer events only here — the rest of the window is click-through. */
+/* Icon-only by default: just the floating, animated munu (pointer events here;
+   the rest of the window is click-through). The munu SVG is a self-contained
+   tile, so it reads as a floating app icon — no extra chrome needed. */
 .island {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
-  padding: 7px 15px;
+  gap: 8px;
+  padding: 2px;
+  cursor: pointer;
+}
+.island .munu {
+  filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.55));
+  transition: filter 0.25s ease;
+}
+.island--asking .munu {
+  filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.75))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
+.island--done .munu {
+  filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.6))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
+.island--working .munu {
+  filter: drop-shadow(0 0 10px rgba(124, 107, 255, 0.5))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
+
+/* When Claude asks a clear yes/no, the icon docks onto a card with the command. */
+.island--card {
+  padding: 8px;
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(26, 26, 34, 0.96), rgba(15, 15, 20, 0.96));
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 28px rgba(251, 191, 36, 0.25);
   backdrop-filter: blur(16px) saturate(1.2);
-  color: #e8e8ed;
-  cursor: pointer;
-  transition:
-    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
   max-width: 360px;
-  animation: island-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.island:hover {
-  transform: translateY(1px) scale(1.02);
-}
-.island__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.island__label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #cfcfda;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
+  animation: island-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* States */
-.island--idle {
-  padding: 5px 7px;
-  opacity: 0.85;
-  border-radius: 16px;
-}
-.island--idle:hover {
-  opacity: 1;
-}
-.island--working {
-  border-color: rgba(124, 107, 255, 0.4);
-}
-.island--working .island__label {
-  color: var(--accent);
-}
-.island--asking {
-  border-color: rgba(251, 191, 36, 0.6);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(251, 191, 36, 0.4),
-    0 0 30px rgba(251, 191, 36, 0.3);
-  animation: island-attention 1.1s ease-in-out infinite;
-}
-.island--asking .island__label {
-  color: var(--amber);
-  font-weight: 600;
-}
-.island--done {
-  border-color: rgba(74, 222, 128, 0.5);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55), 0 0 24px rgba(74, 222, 128, 0.22);
-}
-.island--done .island__label {
-  color: #4ade80;
-}
-
-/* Permission card */
 .island__card {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  width: 100%;
-  padding-top: 2px;
+  width: 320px;
   animation: card-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .island__title {
@@ -143,7 +110,7 @@
 }
 .ob--yes {
   border-color: rgba(74, 222, 128, 0.55);
-  color: #4ade80;
+  color: var(--green);
   background: rgba(74, 222, 128, 0.08);
 }
 .ob--no {
@@ -153,21 +120,10 @@
 }
 
 @keyframes island-in {
-  from { transform: translateY(-10px) scale(0.9); opacity: 0; }
+  from { transform: translateY(-8px) scale(0.92); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 @keyframes card-in {
   from { transform: translateY(-4px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
-}
-@keyframes island-attention {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .island,
-  .island--asking {
-    animation: none;
-  }
 }

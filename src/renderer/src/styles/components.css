@@ -142,48 +142,6 @@
   font-family: var(--font-mono);
 }
 
-/* munu in the top bar */
-.topbar-munu {
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-}
-.topbar-munu--still img {
-  animation: none !important;
-}
-.topbar-munu--still {
-  animation: none !important;
-}
-.topbar-munu img {
-  display: block;
-  transition: transform 0.2s var(--ease);
-}
-.topbar-munu--working img {
-  animation: munu-breathe 2s ease-in-out infinite;
-}
-.topbar-munu--asking {
-  animation: munu-pulse 1s ease-in-out infinite;
-}
-.topbar-munu--done img {
-  animation: munu-pop 0.4s var(--ease);
-}
-@keyframes munu-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.14); }
-}
-@keyframes munu-breathe {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
-@keyframes munu-pop {
-  0% { transform: scale(0.7); }
-  60% { transform: scale(1.18); }
-  100% { transform: scale(1); }
-}
 
 /* -------------------------------- Banner ---------------------------------- */
 .banner {
