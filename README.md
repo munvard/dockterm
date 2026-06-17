@@ -7,9 +7,9 @@
 </p>
 
 <p align="center">
-  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a>.<br>
-  Run <code>claude</code> like you do today — diffs, Git, files and MCP are one keypress away,<br>
-  and a little face in your notch tells you the moment Claude needs you — even over a fullscreen app.
+  <b>Run Claude Code, then go do something else.</b><br>
+  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with diffs, Git, files &amp; MCP one keypress away.<br>
+  And <b>munu</b>, a face in your notch, tells you the moment Claude needs you — even in a fullscreen app on another desktop.
 </p>
 
 <p align="center">
@@ -27,13 +27,17 @@
 
 ---
 
-You run `claude` in a terminal. It edits files, runs commands, changes your repo. DockTerm keeps that terminal front and center and adds the things you'd otherwise switch windows for: a diff of what just changed, stage-and-commit, a file tree, image previews, and a read-only view of your MCP servers. They open when you ask and stay out of the way otherwise.
+- 🔔 **munu** — a notch mascot that reads Claude's state from the terminal and surfaces permission prompts, even when you're in another window or a fullscreen app.
+- 🔍 **Diff review + safe Git** — see exactly what changed, then stage and commit, without leaving the terminal.
+- 🗂️ **Files, editor & MCP, on demand** — a file tree, Monaco editor, image previews, and a read-only MCP view that appear when you ask and vanish when you don't.
+- 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus.
+- 🔒 **Local-only** — no accounts, no telemetry; it never calls an AI of its own.
 
-It runs locally. No accounts, no telemetry, and it never calls an AI of its own — Claude Code does the work; DockTerm is the window around it.
+Running Claude Code means living next to a terminal — alt-tabbing to read a diff, to commit, to check whether it's stuck on a `[y/n]`. DockTerm keeps that terminal central and brings the rest to you, so you can let Claude work and actually step away. Claude Code does the work; DockTerm is the calm window around it.
+
+**It keeps your real `claude` — it doesn't replace it.** Unlike Claude Code GUIs that swap your terminal for a custom chat UI (Claudia/Opcode), DockTerm wraps your actual session and builds views around it. Nothing to relearn, and it stays compatible as Claude Code evolves.
 
 **Why not just iTerm or VS Code?** A terminal alone can't show a highlighted diff of what Claude changed, or let you commit safely without raw `git` gymnastics — and it can't tell you Claude is waiting on you while you're in another window. Opening a full IDE to review three lines breaks the flow. DockTerm sits in between.
-
-**Tried a Claude Code GUI like Claudia/Opcode before?** DockTerm takes the opposite approach: it keeps your *real* `claude` session and adds views around it, instead of replacing the terminal with a custom chat UI. Nothing to relearn, and it stays compatible as Claude Code evolves.
 
 ## munu
 
@@ -42,22 +46,7 @@ DockTerm reads Claude's state from the terminal output and shows it as **munu**,
 <p align="center"><img src="docs/screenshots/fullscreen.png" alt="munu surfacing a Claude permission prompt over a fullscreen video" width="900"></p>
 <p align="center"><sub>Go watch something fullscreen — munu floats over it (even on another desktop/Space) and brings Claude's prompt to you, so you never miss it.</sub></p>
 
-<table align="center">
-  <tr>
-    <td align="center" width="110"><img src="assets/brand/munu.svg"         width="56"></td>
-    <td align="center" width="110"><img src="assets/brand/munu-working.svg"  width="56"></td>
-    <td align="center" width="110"><img src="assets/brand/munu-asking.svg"   width="56"></td>
-    <td align="center" width="110"><img src="assets/brand/munu-happy.svg"    width="56"></td>
-    <td align="center" width="110"><img src="assets/brand/munu-sleeping.svg" width="56"></td>
-  </tr>
-  <tr>
-    <td align="center">resting</td>
-    <td align="center">working</td>
-    <td align="center">needs you</td>
-    <td align="center">done</td>
-    <td align="center">no project</td>
-  </tr>
-</table>
+<p align="center"><img src="docs/screenshots/munu-states.png" alt="munu states — resting, working, needs you, done, no project" width="820"></p>
 
 It tucks into the notch and slides out on hover, peeks for a few seconds when Claude's state changes, and stays out while Claude needs you. On Windows and Linux it's a small auto-hiding pill at the top of the screen.
 
