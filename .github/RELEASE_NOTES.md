@@ -3,9 +3,9 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🔗 What's new in v0.12.0 — clickable file paths
+## 🎯 What's new in v0.13.0 — click an error, land on the line
 
-- **File paths in terminal output are now clickable.** When Claude (or any command) prints a path like `src/rateLimit.ts` or `server.ts:42`, click it to open the file right in the editor — no copy-pasting. Version numbers, domains, and URLs are left alone.
+- **Clicked paths now jump to the exact line.** Click something like `src/server.ts:42` in the terminal and DockTerm opens the file *and* scrolls to line 42 — go straight from a stack trace to the code.
 
 ---
 
