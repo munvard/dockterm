@@ -31,15 +31,36 @@ export function useMunuBridge(): void {
     }
   }, [panes, done, activeId])
 
-  // The overlay answered the asking pane's menu; main synthesized the exact key
-  // sequence (arrow nav / checkbox toggles / Enter) — just write it to the pane.
-  useEffect(
-    () =>
-      window.dockterm.on('munu:doAnswer', ({ leafId, keys }) => {
-        paneWriters.write(leafId, keys)
-      }),
-    []
-  )
+  // The overlay answered the asking pane's menu. Write the key chunks into the
+  // PTY ONE AT A TIME, ~70ms apart, through a single serialized queue — Claude's
+  // TUI (ink) coalesces a burst of bytes into one keypress and drops the rest,
+  // so a paced stream is the only way arrow navigation / toggles register. The
+  // queue also keeps rapid clicks from interleaving.
+  useEffect(() => {
+    const queue: { leafId: string; key: string }[] = []
+    let draining = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const drain = (): void => {
+      const item = queue.shift()
+      if (!item) {
+        draining = false
+        return
+      }
+      paneWriters.write(item.leafId, item.key)
+      timer = setTimeout(drain, 70)
+    }
+    const off = window.dockterm.on('munu:doAnswer', ({ leafId, keys }) => {
+      for (const key of keys) queue.push({ leafId, key })
+      if (!draining) {
+        draining = true
+        drain()
+      }
+    })
+    return () => {
+      off()
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
 
   // The overlay asked to jump to the asking pane (window raise handled in main).
   useEffect(

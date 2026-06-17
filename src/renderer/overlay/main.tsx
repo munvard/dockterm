@@ -5,11 +5,15 @@ import type { MunuAsk, MunuGlobal, MunuState } from '@shared/types'
 import { playAsk, playDone } from './sounds'
 import './overlay.css'
 
+const DOWN = '\x1b[B'
+const UP = '\x1b[A'
+const ENTER = '\r'
+
 const setInteractive = (v: boolean): void => {
   void window.dockterm.invoke('munu:setInteractive', { interactive: v })
 }
-const sendAnswer = (leafId: string, indices: number[], multi: boolean): void => {
-  void window.dockterm.invoke('munu:answer', { leafId, indices, multi })
+const sendKeys = (leafId: string, keys: string[]): void => {
+  if (keys.length) void window.dockterm.invoke('munu:answer', { leafId, keys })
 }
 const focus = (): void => {
   void window.dockterm.invoke('munu:focus', undefined)
@@ -24,6 +28,9 @@ function Overlay() {
   const prev = useRef<MunuState>('idle')
   const islandRef = useRef<HTMLDivElement | null>(null)
   const lastSize = useRef({ w: 0, h: 0 })
+  // Our prediction of where Claude's menu cursor sits (row index), so multi-select
+  // toggles can navigate from the right place and reflect live in the terminal.
+  const cursor = useRef(0)
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
   useEffect(() => window.dockterm.on('munu:reveal', setRevealed), [])
@@ -53,10 +60,15 @@ function Overlay() {
   const options = primary?.options ?? []
   const showCard = asking && !!primary && !primary.visible && options.length > 0
 
-  // Reset the multi-select toggles to the prompt's initial checked state whenever
-  // the surfaced ask changes.
+  // Reset the multi-select toggles + cursor whenever a fresh prompt is surfaced
+  // (toggling boxes doesn't change the row count, so this only fires on a real
+  // new question — not on every re-parse).
   useEffect(() => {
-    if (!primary) return
+    cursor.current = 0
+    if (!primary) {
+      setSelected(new Set())
+      return
+    }
     const init = new Set<number>()
     primary.checked.forEach((c, i) => {
       if (c && primary.checkable[i]) init.add(i)
@@ -90,16 +102,53 @@ function Overlay() {
     }
   }, [platform, showCard])
 
-  const toggle = (i: number) => (): void =>
+  // Arrow keys to move Claude's menu cursor from its current row to `to`.
+  const arrowsTo = (to: number): string[] => {
+    const from = cursor.current
+    cursor.current = to
+    const k = to >= from ? DOWN : UP
+    return Array.from({ length: Math.abs(to - from) }, () => k)
+  }
+
+  const submitIndexOf = (): number =>
+    primary?.submitIndex ?? Math.max(0, options.length - 1)
+
+  const isSubmitRow = (i: number): boolean =>
+    primary?.submitIndex === i || (primary?.multiSelect === true && /^submit\b/i.test(options[i] ?? ''))
+
+  // Single-select: Claude selects directly on the number key (immune to byte
+  // coalescing / arrow-format quirks). Big menus (>9) fall back to paced arrows.
+  const pickSingle = (i: number): void => {
+    if (!primary) return
+    if (i < 9) sendKeys(primary.leafId, [String(i + 1)])
+    else sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
+  }
+
+  // Multi-select: navigate to the row and press Enter to toggle it — live, so the
+  // checkbox flips in the terminal immediately. Optimistically reflect it here too.
+  const toggleLive = (i: number): void => {
+    if (!primary) return
+    sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
     setSelected((s) => {
       const n = new Set(s)
       if (n.has(i)) n.delete(i)
       else n.add(i)
       return n
     })
+  }
 
-  const isSubmitRow = (i: number): boolean =>
-    primary?.submitIndex === i || (primary?.multiSelect === true && /^submit\b/i.test(options[i] ?? ''))
+  // A non-checkbox action row in a multi-select (e.g. "Type something"): pick it
+  // and bring the terminal forward so the user can continue there.
+  const pickActionRow = (i: number): void => {
+    if (!primary) return
+    sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
+    focus()
+  }
+
+  const submitMulti = (): void => {
+    if (!primary) return
+    sendKeys(primary.leafId, [...arrowsTo(submitIndexOf()), ENTER])
+  }
 
   return (
     <div className={`ov ov--${platform}${revealed ? ' ov--revealed' : ' ov--hidden'}`}>
@@ -128,7 +177,7 @@ function Overlay() {
                       className={`ob ob--check${on ? ' ob--on' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        toggle(i)()
+                        toggleLive(i)
                       }}
                     >
                       <span className="box">{on ? '✓' : ''}</span>
@@ -136,7 +185,8 @@ function Overlay() {
                     </button>
                   )
                 }
-                // Submit row → send the toggled set. Other rows → pick directly.
+                // Submit row → finalize; other rows → pick directly (single) or
+                // pick that action (multi).
                 const submit = isSubmitRow(i)
                 return (
                   <button
@@ -144,8 +194,9 @@ function Overlay() {
                     className={`ob${!primary.multiSelect && i === 0 ? ' ob--first' : ''}${submit ? ' ob--submit' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (submit) sendAnswer(primary.leafId, [...selected], true)
-                      else sendAnswer(primary.leafId, [i], false)
+                      if (submit) submitMulti()
+                      else if (primary.multiSelect) pickActionRow(i)
+                      else pickSingle(i)
                     }}
                   >
                     {!primary.multiSelect && <span className="num">{i + 1}</span>}
@@ -159,7 +210,7 @@ function Overlay() {
                 className="ob ob--submit"
                 onClick={(e) => {
                   e.stopPropagation()
-                  sendAnswer(primary.leafId, [...selected], true)
+                  submitMulti()
                 }}
               >
                 Submit {selected.size > 0 ? `(${selected.size})` : ''}

@@ -119,50 +119,22 @@ function ownerOfPrimaryAsk(): { wc: Electron.WebContents; ask: MunuAsk } | null 
   return fallback
 }
 
-/** The window + ask for a specific pane (used to route answers exactly). */
-function ownerByLeaf(leafId: string): { wc: Electron.WebContents; ask: MunuAsk } | null {
+/** The window owning a specific asking pane (used to route answers exactly). */
+function ownerByLeaf(leafId: string): Electron.WebContents | null {
   for (const [wcId, g] of windowStates) {
-    const ask = g.asks.find((a) => a.leafId === leafId)
-    if (ask) {
+    if (g.asks.some((a) => a.leafId === leafId)) {
       const wc = webContents.fromId(wcId)
-      if (wc && !wc.isDestroyed()) return { wc, ask }
+      if (wc && !wc.isDestroyed()) return wc
     }
   }
   return null
 }
 
-/** Arrow-key keystrokes to move the menu cursor from row `from` to row `to`. */
-function move(from: number, to: number): string {
-  const d = to - from
-  return (d >= 0 ? '\x1b[B' : '\x1b[A').repeat(Math.abs(d))
-}
-
-/** Synthesize the key sequence that selects the user's answer in Claude's menu. */
-function keysForAnswer(ask: MunuAsk, indices: number[], multi: boolean): string {
-  if (!multi) {
-    return '\x1b[B'.repeat(Math.max(0, indices[0] ?? 0)) + '\r'
-  }
-  // Multi-select: toggle (Space) each checkbox whose desired state differs from
-  // its initial state, walking the cursor between rows, then move to Submit + Enter.
-  const desired = new Set(indices)
-  const toggles: number[] = []
-  ask.options.forEach((_, i) => {
-    if (ask.checkable[i] && desired.has(i) !== !!ask.checked[i]) toggles.push(i)
-  })
-  let cur = 0
-  let out = ''
-  for (const t of toggles) {
-    out += move(cur, t) + ' '
-    cur = t
-  }
-  const submit = ask.submitIndex ?? ask.options.length - 1
-  out += move(cur, submit) + '\r'
-  return out
-}
-
-export function answerMunu(leafId: string, indices: number[], multi: boolean): void {
-  const o = ownerByLeaf(leafId)
-  if (o) o.wc.send('munu:doAnswer', { leafId, keys: keysForAnswer(o.ask, indices, multi) })
+/** Forward the overlay's synthesized key chunks to the pane that's asking; the
+ * renderer writes them into the PTY one at a time, paced. */
+export function answerMunu(leafId: string, keys: string[]): void {
+  const wc = ownerByLeaf(leafId)
+  if (wc) wc.send('munu:doAnswer', { leafId, keys })
 }
 
 export function resizeMunu(width: number, height: number): void {

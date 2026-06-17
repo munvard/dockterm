@@ -214,9 +214,9 @@ export interface InvokeChannels {
 
   // munu — each window reports its aggregate; the overlay drives answers/focus.
   'munu:report': (req: MunuGlobal) => Result<void>
-  /** Answer the asking pane `leafId`: `indices` are the chosen option(s) — a
-   * single element for single-select, the desired checked set for multi-select. */
-  'munu:answer': (req: { leafId: string; indices: number[]; multi: boolean }) => Result<void>
+  /** Answer the asking pane `leafId` by writing `keys` (a sequence of individual
+   * key chunks — digits, arrows, Enter) one at a time, paced, into its PTY. */
+  'munu:answer': (req: { leafId: string; keys: string[] }) => Result<void>
   'munu:focus': (req: void) => Result<void>
   'munu:setInteractive': (req: { interactive: boolean }) => Result<void>
   /** The overlay's content size changed — resize the floating window to fit. */
@@ -232,9 +232,9 @@ export interface EventChannels {
   'munu:state': MunuGlobal
   /** main → overlay: reveal (slide down) or hide (tuck into the notch). */
   'munu:reveal': boolean
-  /** main → the window owning an asking pane: the exact key sequence to write
-   * (arrow navigation / checkbox toggles / Enter), synthesized in main. */
-  'munu:doAnswer': { leafId: string; keys: string }
+  /** main → the window owning an asking pane: key chunks to write into the PTY
+   * one at a time, paced, so the TUI registers each as a separate keypress. */
+  'munu:doAnswer': { leafId: string; keys: string[] }
   /** main → the window owning an asking pane: focus that pane. */
   'munu:doFocus': { tabId: string; leafId: string }
 }

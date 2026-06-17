@@ -28,8 +28,7 @@ const reportSchema = z.object({
 })
 const answerSchema = z.object({
   leafId: z.string(),
-  indices: z.array(z.number().int().min(0).max(32)).max(32),
-  multi: z.boolean()
+  keys: z.array(z.string().max(8)).max(80)
 })
 const interactiveSchema = z.object({ interactive: z.boolean() })
 const resizeSchema = z.object({
@@ -44,7 +43,7 @@ export function registerMunuHandlers(reg: Registrar): void {
   })
 
   reg('munu:answer', answerSchema, (req) => {
-    answerMunu(req.leafId, req.indices, req.multi)
+    answerMunu(req.leafId, req.keys)
     return ok(undefined)
   })
 
