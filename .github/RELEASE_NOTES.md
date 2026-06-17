@@ -3,10 +3,9 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🪄 What's new in v0.11.0 — answer Claude from the notch
+## 🔗 What's new in v0.12.0 — clickable file paths
 
-- **Pick any option from munu.** When Claude asks — yes/no *or* a multi-option choice ("restore which checkpoint?", etc.) — munu now shows **every** option as a button. Click one and it's selected in the terminal for you, so you don't have to tab back to choose.
-- **munu shows over fullscreen apps now.** Hovering the notch (or any state change) reveals munu even while you're in a fullscreen browser or editor — the earlier release could miss that. munu is also a bit bigger and easier to read.
+- **File paths in terminal output are now clickable.** When Claude (or any command) prints a path like `src/rateLimit.ts` or `server.ts:42`, click it to open the file right in the editor — no copy-pasting. Version numbers, domains, and URLs are left alone.
 
 ---
 
