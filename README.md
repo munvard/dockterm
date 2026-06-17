@@ -33,6 +33,8 @@ It runs locally. No accounts, no telemetry, and it never calls an AI of its own 
 
 **Why not just iTerm or VS Code?** A terminal alone can't show a highlighted diff of what Claude changed, or let you commit safely without raw `git` gymnastics — and it can't tell you Claude is waiting on you while you're in another window. Opening a full IDE to review three lines breaks the flow. DockTerm sits in between.
 
+**Tried a Claude Code GUI like Claudia/Opcode before?** DockTerm takes the opposite approach: it keeps your *real* `claude` session and adds views around it, instead of replacing the terminal with a custom chat UI. Nothing to relearn, and it stays compatible as Claude Code evolves.
+
 ## munu
 
 DockTerm reads Claude's state from the terminal output and shows it as **munu**, a small face near your menu bar — in the notch, on a MacBook. At a glance you can tell whether Claude is working, finished, or waiting for a `[y/n]`, even when DockTerm is behind another window. When Claude pauses to ask permission, munu surfaces the prompt so you can answer with one click and never lose your flow. It infers everything from the terminal; it never auto-answers and never calls an API.

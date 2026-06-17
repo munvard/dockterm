@@ -4,6 +4,7 @@ import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useMunuStore } from '../../state/useMunuStore'
+import { useEditorStore } from '../../state/useEditorStore'
 import { paneWriters } from '../../state/paneWriters'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
@@ -135,6 +136,19 @@ function TerminalPane({
           }}
           onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
           onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
+          onOpenPath={(raw) => {
+            // Resolve a path clicked in output to a project-relative path and open it.
+            const root = useAppStore.getState().activeRoot
+            let p = raw.replace(/\\/g, '/').replace(/^\.\//, '')
+            if (root) {
+              const r = root.replace(/\\/g, '/').replace(/\/+$/, '')
+              if (p === r) return
+              if (p.startsWith(r + '/')) p = p.slice(r.length + 1)
+            }
+            // Skip paths outside the open project (can't be jailed-opened).
+            if (p.startsWith('/') || /^[A-Za-z]:\//.test(p)) return
+            void useEditorStore.getState().open(p, p.split('/').pop() ?? p)
+          }}
           onActivity={() => markActivity(tabId)}
           fontFamily={t?.fontFamily ?? undefined}
           fontSize={t?.fontSize}

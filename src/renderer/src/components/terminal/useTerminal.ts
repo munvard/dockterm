@@ -9,6 +9,7 @@ import type { PtyDataEvent } from '@shared/ipc'
 import { DEFAULT_MONO } from './terminalTheme'
 import { parseOsc7 } from './osc7'
 import { classify, parseAsk, type ClaudeState } from './claudeStatus'
+import { findPathLinks } from './pathLinks'
 import type { AskInfo } from '@shared/types'
 import { useThemeStore } from '../../state/useThemeStore'
 import '@xterm/xterm/css/xterm.css'
@@ -32,6 +33,8 @@ export interface TerminalOptions {
   onCwd?: (cwd: string) => void
   /** Reports the pane's inferred Claude state from the rendered buffer. */
   onStatus?: (state: ClaudeState, ask: AskInfo | null) => void
+  /** Open a file path clicked in the terminal output. */
+  onOpenPath?: (path: string) => void
 }
 
 export interface TerminalHandle {
@@ -102,6 +105,26 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       const cwd = parseOsc7(data)
       if (cwd) optsRef.current.onCwd?.(cwd)
       return true
+    })
+
+    // Make file paths in output clickable → open them in the editor.
+    const pathLinks = term.registerLinkProvider({
+      provideLinks(bufferLineNumber, callback) {
+        const ln = term.buffer.active.getLine(bufferLineNumber - 1)
+        if (!ln) return callback(undefined)
+        const found = findPathLinks(ln.translateToString(true))
+        if (!found.length) return callback(undefined)
+        callback(
+          found.map((f) => ({
+            range: {
+              start: { x: f.index + 1, y: bufferLineNumber },
+              end: { x: f.index + f.length, y: bufferLineNumber }
+            },
+            text: f.path,
+            activate: () => optsRef.current.onOpenPath?.(f.path)
+          }))
+        )
+      }
     })
 
     // Scroll shortcuts (intercepted, not sent to the shell). ⌘↓/⌘↑ jump to
@@ -253,6 +276,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
       resizeSub.dispose()
       observer.disconnect()
       osc7.dispose()
+      pathLinks.dispose()
       if (fitTimer) clearTimeout(fitTimer)
       if (statusTimer) clearTimeout(statusTimer)
       if (sessionIdRef.current) void window.dockterm.invoke('pty:kill', { sessionId: sessionIdRef.current })
