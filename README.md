@@ -13,11 +13,21 @@
 </p>
 
 <p align="center">
-  <a href="../../releases"><img alt="Download" src="https://img.shields.io/github/v/release/munvard/dockterm?style=flat-square&color=7c6bff&label=download"></a>
-  <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/munvard/dockterm/total?style=flat-square&color=4ade80"></a>
-  <a href="../../stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/munvard/dockterm?style=flat-square&color=fbbf24"></a>
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-7c6bff?style=flat-square"></a>
-  <a href="../../releases"><img alt="macOS · Windows · Linux" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1a1a21?style=flat-square"></a>
+  <a href="../../releases"><img alt="Download" src="https://img.shields.io/github/v/release/munvard/dockterm?style=for-the-badge&label=Download&labelColor=1e1e1d&color=7c6bff&logo=github&logoColor=white"></a>
+  &nbsp;
+  <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/munvard/dockterm/total?style=for-the-badge&label=Downloads&labelColor=1e1e1d&color=4ade80&logo=github&logoColor=white"></a>
+  &nbsp;
+  <a href="../../stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/munvard/dockterm?style=for-the-badge&label=Stars&labelColor=1e1e1d&color=fbbf24&logo=github&logoColor=white"></a>
+  &nbsp;
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-7c6bff?style=for-the-badge&labelColor=1e1e1d&logo=opensourceinitiative&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-1e1e1d?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-1e1e1d?style=flat-square&logo=gitforwindows&logoColor=white">
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-1e1e1d?style=flat-square&logo=linux&logoColor=white">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-1e1e1d?style=flat-square&logo=electron&logoColor=9FEAF9">
+  <img alt="No telemetry" src="https://img.shields.io/badge/no%20telemetry-1e1e1d?style=flat-square&logo=ghostery&logoColor=white">
 </p>
 
 <p align="center">
