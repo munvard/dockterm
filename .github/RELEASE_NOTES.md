@@ -3,8 +3,9 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🛟 What's new in v0.10.1 — freeze fix + the Dynamic Island
+## 🛟 What's new in v0.10.2 — MCP fix, freeze fix & the Dynamic Island
 
+- **Your MCP servers actually show up now.** The MCP panel used to only see classic `mcpServers` entries, so if your servers are **claude.ai connectors** (Gmail, Drive, Canva…) or come from **plugins**, it said "none." It now surfaces those too (turn on *Include servers from ~/.claude.json*).
 - **Fixed a freeze when opening a big non-git folder.** Opening something huge (like your whole home directory) made the file-watcher try to track *millions* of files and locked up the window. It now never recursively watches the home directory or filesystem roots, and caps watch depth — open anything you like, instantly.
 - **Smoother, comfier terminal** — smooth wheel scrolling, a calmer inactive cursor, a bit more line height and padding.
 - **munu is now a Dynamic Island.** It tucks into the notch and **slides down when your cursor goes to the top of the screen**, peeks for a few seconds whenever Claude's state changes, and **stays out the whole time Claude needs you** (so you never miss a `[y/n]`). Pointing at it keeps it open. Works on every platform (slides from the top edge where there's no notch).
