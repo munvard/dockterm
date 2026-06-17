@@ -29,6 +29,12 @@ export function createOverlayWindow(): BrowserWindow {
     height: H,
     x,
     y,
+    // macOS: a 'panel' window gets the NSWindowStyleMaskNonactivatingPanel mask
+    // at runtime, so it floats OVER other apps' fullscreen Spaces and joins all
+    // desktops — the same mechanism native notch apps use (an NSPanel). This is
+    // what makes munu visible when you're in another window's fullscreen Space.
+    // (Type must be set at construction; only valid on macOS.)
+    ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
     frame: false,
     transparent: true,
     resizable: false,
@@ -76,23 +82,24 @@ export function getOverlay(): BrowserWindow | null {
 /**
  * Float above everything, on every Space, including other apps' fullscreen.
  *
- * Called ONCE at setup (not on a timer): revealing munu is pure CSS, so the
- * window itself just stays present and always-on-top everywhere.
+ * The fullscreen-Space crossing is handled by the window's `type: 'panel'`
+ * (NSWindowStyleMaskNonactivatingPanel) — set at construction. Here we just pin
+ * the level high and (re)affirm all-spaces membership. Called ONCE at setup;
+ * revealing munu is pure CSS so the window itself stays present everywhere.
  *
  * ORDER MATTERS: setAlwaysOnTop resets the macOS collectionBehavior, so
- * setVisibleOnAllWorkspaces must come AFTER it.
- *
- * We deliberately do NOT pass skipTransformProcessType: the default process-type
- * transform (briefly flipping the app to an accessory) is exactly what lets the
- * window cross into ANOTHER app's fullscreen Space. Skipping it (to avoid a Dock
- * flicker) is what previously kept munu from appearing over fullscreen. Calling
- * this once means the one-time flicker is acceptable.
+ * setVisibleOnAllWorkspaces must come AFTER it. skipTransformProcessType avoids
+ * the Dock flicker — the panel type, not the process transform, is what gets us
+ * over fullscreen now.
  */
 export function reassertOverlayLevel(): void {
   if (!overlay || overlay.isDestroyed()) return
   try {
     overlay.setAlwaysOnTop(true, 'screen-saver')
-    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    overlay.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
   } catch {
     // window may be gone
   }

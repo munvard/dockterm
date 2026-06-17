@@ -3,11 +3,12 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.19.0 — instant munu, correct dock
+## 🎯 What's new in v0.20.0 — munu truly floats over fullscreen
 
-- **No more state lag.** When you answer in munu (Yes / Submit / a choice), the card now closes and munu updates **immediately** instead of ~2s later — it no longer waits for the just-answered menu to scroll out of the terminal buffer.
-- **The dock shows the right project.** Fixed a case where panes whose folder had no `.git` of their own collapsed up to your home directory (because a `.git` in `$HOME` — dotfiles repos — was claiming them). The dock now stops at home and shows the actual folder.
-- Plus everything from v0.18.0: fullscreen visibility, bigger/fully-visible card, robust multi-select, and the "Type something" text field.
+- **Visible over another app's fullscreen Space (macOS).** This is the real fix: the overlay is now a macOS **panel window** (the same non-activating NSPanel trick native notch apps use), so munu floats over fullscreened apps on other desktops — not just regular windows. Also removes the launch flicker.
+- **Instant state on answer.** Clicking Yes / Submit / a choice closes the card and updates munu **immediately** (no more ~2s lag waiting for the old menu to scroll out of the buffer).
+- **Dock shows the right project.** Folders without their own `.git` no longer collapse up to your home directory (a `.git` in `$HOME` was claiming them).
+- Plus everything from v0.18.0: bigger/fully-visible card, robust multi-select, and the "Type something" text field.
 
 ---
 
