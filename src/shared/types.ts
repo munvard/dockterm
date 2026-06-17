@@ -10,6 +10,10 @@ export interface AskInfo {
   title: string | null
   /** the menu option labels, in order (numbers + checkbox markers stripped) */
   options: string[]
+  /** per-option helper text shown beneath it in the prompt (null if none) */
+  descriptions: (string | null)[]
+  /** multi-step wizard breadcrumb, if the prompt has one (else empty) */
+  steps: { label: string; done: boolean }[]
   /** true only for a clear Yes/No confirm — the only case we offer [y]/[n] */
   binary: boolean
   /** true for a checkbox prompt where several options can be toggled before submit */

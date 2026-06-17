@@ -3,12 +3,13 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.16.0 — munu answers the *right* option
+## 🎯 What's new in v0.17.0 — munu handles the whole flow
 
-- **Fixed: munu picking the wrong choice.** Answers are now sent as separate, paced keypresses (Claude's TUI was coalescing a burst of keys into one and ignoring the rest). Picking the 3rd option now actually picks the 3rd.
-- **Single-select uses the number key** — instant and reliable, no arrow guesswork.
-- **Multi-select works live.** Toggling a checkbox in munu now flips it in the terminal immediately (Enter-to-toggle + paced arrow navigation), and Submit finalizes the exact set you picked.
-- Plus everything from v0.15.0: the right font back, a card that fits its content, and the card only popping when you can't see the terminal.
+- **Fixed the multi-select "Submit → Cancel" bug.** Claude's post-submit review screen was being misread as multi-select (it echoes "(multi select)"), so its Submit mapped to Cancel. munu now classifies by real checkboxes, so the review screen is a normal Submit/Cancel pick that works.
+- **Multi-step wizards.** Prompts with a step breadcrumb (Focus area › Change type › Submit) are now shown with their progress, and munu walks each step as Claude advances.
+- **Option descriptions.** The helper text under each option is now shown in the card, so you know what you're picking.
+- **Cancel from munu.** A cancel (Esc) action alongside "open terminal."
+- Plus everything from v0.16.0: paced keystrokes, number-key single-select, and live multi-select toggles.
 
 ---
 

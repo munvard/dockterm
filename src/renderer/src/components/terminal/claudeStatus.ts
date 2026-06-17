@@ -32,59 +32,102 @@ function cleanLine(line: string): string {
   return line.replace(BOX, ' ').replace(/\s+/g, ' ').trim()
 }
 
-const OPTION_RE = /^\s*❯?\s*(\d+)[.)]\s+(.*)$/
+// A cursor marker can be ❯, ›, or > in the various prompt styles.
+const OPTION_RE = /^\s*[❯›>]?\s*(\d+)[.)]\s+(.*)$/
 // An un-numbered, selectable action row inside the menu (e.g. multi-select's
 // "Submit"). Matched only in multi-select mode so it can't catch stray prose.
-const ACTION_RE = /^\s*❯?\s*(submit)\s*$/i
+const ACTION_RE = /^\s*[❯›>]?\s*(submit)\s*$/i
 // A leading checkbox marker: "[ ]" unchecked, "[x]"/"[✓]"/"[✔]"/"[·]" checked.
 const CHECKBOX_RE = /^\[([ xX✓✔·•])\]\s*(.*)$/
+// Step / wizard tab markers (the breadcrumb across the top of multi-step prompts).
+const STEP_MARK = /[☐▢🔲⬜☑✅✔✓]/g
+const STEP_DONE = /[☑✅✔✓]/
+
+/** The footer hint line ("Enter to select · ↑/↓ to navigate · Esc to cancel"). */
+function isFooterLine(clean: string): boolean {
+  return /esc to cancel|to navigate|enter to (select|confirm|submit)/i.test(clean)
+}
+
+/** A wizard breadcrumb line carries ≥2 step markers (☐ Step ✔ Step …). */
+function isStepLine(line: string): boolean {
+  return (line.match(STEP_MARK)?.length ?? 0) >= 2
+}
+
+/** Parse the wizard breadcrumb into ordered steps, if present. */
+function parseSteps(raw: string[]): { label: string; done: boolean }[] {
+  for (const line of raw) {
+    if (!isStepLine(line)) continue
+    const steps: { label: string; done: boolean }[] = []
+    const re = /([☐▢🔲⬜☑✅✔✓])\s*([^☐▢🔲⬜☑✅✔✓→]+)/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(line))) {
+      const label = cleanLine(m[2])
+      if (label) steps.push({ label, done: STEP_DONE.test(m[1]) })
+    }
+    if (steps.length >= 2) return steps
+  }
+  return []
+}
 
 /**
- * Parse a Claude permission prompt into a clean title + the menu rows, in the
- * order they appear (so arrow-key navigation counts line up). Decides whether
- * it's a simple Yes/No (one-click [y]/[n]) or a checkbox multi-select.
+ * Parse a Claude prompt into a clean title, step breadcrumb, and the menu rows
+ * (with per-option descriptions), in textual order so arrow-key navigation
+ * counts line up. Classifies as Yes/No (one-click), checkbox multi-select, or a
+ * plain single-select.
  */
 export function parseAsk(text: string): AskInfo | null {
   if (classify(text) !== 'asking') return null
 
   const raw = text.split('\n')
 
-  // First pass: is this a checkbox (multi-select) prompt? The marker appears
-  // after the "N." prefix, so scan anywhere in the line, not just the start.
-  const multiSelect =
-    /\(\s*multi[- ]?select\s*\)/i.test(text) || /\[[ xX✓✔·•]\]/.test(text)
+  // A real checkbox prompt has "[ ]"/"[x]" rows. We deliberately DON'T trust the
+  // phrase "(multi-select)" — Claude's review/confirm screen echoes it while
+  // being a plain Submit/Cancel single-select.
+  const multiSelect = /\[[ xX✓✔·•]\]/.test(text)
+  const steps = parseSteps(raw)
 
-  // Collect the navigable rows in textual order. Numbered options always count;
-  // un-numbered action rows (Submit) only count for multi-select, where they're
-  // real navigation stops between the checkboxes.
-  const rows: { label: string }[] = []
+  // Collect navigable rows (with any description lines beneath them) in order.
+  // Numbered options always count; the un-numbered "Submit" row counts only for
+  // multi-select, where it's a real navigation stop.
+  const rows: { label: string; desc: string | null }[] = []
   let firstMenuIdx = -1
-  raw.forEach((line, i) => {
-    const stripped = line.replace(BOX, ' ')
+  for (let i = 0; i < raw.length; i++) {
+    const stripped = raw[i].replace(BOX, ' ')
     const m = stripped.match(OPTION_RE)
     if (m) {
       const label = cleanLine(m[2])
       if (label) {
         if (firstMenuIdx < 0) firstMenuIdx = i
-        rows.push({ label })
+        // Capture up to two indented description lines beneath the option.
+        const desc: string[] = []
+        for (let j = i + 1; j < raw.length && desc.length < 2; j++) {
+          const s = raw[j].replace(BOX, ' ')
+          if (OPTION_RE.test(s) || ACTION_RE.test(cleanLine(s))) break
+          const c = cleanLine(s)
+          if (!c || isFooterLine(c) || isStepLine(raw[j])) break
+          desc.push(c)
+        }
+        rows.push({ label, desc: desc.join(' ') || null })
       }
-      return
+      continue
     }
     if (multiSelect) {
       const a = cleanLine(stripped).match(ACTION_RE)
       if (a) {
         if (firstMenuIdx < 0) firstMenuIdx = i
-        rows.push({ label: 'Submit' })
+        rows.push({ label: 'Submit', desc: null })
       }
     }
-  })
+  }
 
   // Split each row's checkbox marker (if any) from its display label.
   const options: string[] = []
+  const descriptions: (string | null)[] = []
   const checkable: boolean[] = []
   const checked: boolean[] = []
   let submitIndex: number | null = null
   rows.forEach((r, i) => {
+    descriptions.push(r.desc)
     const cb = r.label.match(CHECKBOX_RE)
     if (cb) {
       options.push(cleanLine(cb[2]))
@@ -102,8 +145,10 @@ export function parseAsk(text: string): AskInfo | null {
   if (firstMenuIdx > 0) {
     const above = raw
       .slice(0, firstMenuIdx)
+      .filter((l) => !isStepLine(l)) // the breadcrumb is shown separately
       .map(cleanLine)
       .filter(Boolean)
+      .filter((l) => !isFooterLine(l))
       .filter((l) => !/^do you want to proceed\??$/i.test(l))
       .filter((l) => l.replace(/[.\s·]/g, '').length > 0) // drop dash/dot-only lines
     if (above.length) title = above.slice(-3).join(' · ').slice(0, 200)
@@ -115,5 +160,5 @@ export function parseAsk(text: string): AskInfo | null {
   const hasNo = options.some((o) => /^no\b/i.test(o))
   const binary = !multiSelect && options.length > 0 && hasYes && hasNo
 
-  return { title, options, binary, multiSelect, checkable, checked, submitIndex }
+  return { title, options, descriptions, steps, binary, multiSelect, checkable, checked, submitIndex }
 }

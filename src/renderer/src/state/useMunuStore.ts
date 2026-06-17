@@ -77,6 +77,8 @@ export const useMunuStore = create<MunuStore>((set, get) => ({
         tabId: p.tabId,
         title: p.ask?.title ?? null,
         options: p.ask?.options ?? [],
+        descriptions: p.ask?.descriptions ?? [],
+        steps: p.ask?.steps ?? [],
         binary: p.ask?.binary ?? false,
         multiSelect: p.ask?.multiSelect ?? false,
         checkable: p.ask?.checkable ?? [],

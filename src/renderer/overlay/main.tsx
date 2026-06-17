@@ -74,7 +74,9 @@ function Overlay() {
       if (c && primary.checkable[i]) init.add(i)
     })
     setSelected(init)
-  }, [primary?.leafId, options.length])
+    // Keyed on the question itself too, so advancing to the next wizard step
+    // (same option count, new question) still resets the cursor + toggles.
+  }, [primary?.leafId, primary?.title, options.length])
 
   // Measure the rendered content and ask main to size the floating window to fit
   // it exactly — small when it fits small, taller when there are many options.
@@ -110,11 +112,11 @@ function Overlay() {
     return Array.from({ length: Math.abs(to - from) }, () => k)
   }
 
-  const submitIndexOf = (): number =>
-    primary?.submitIndex ?? Math.max(0, options.length - 1)
-
+  // Only the parsed, un-numbered "Submit" row is the submit action — never guess
+  // from a label (a "Submit answers" option in a plain Submit/Cancel menu is a
+  // normal single-select choice, not our multi-select submit).
   const isSubmitRow = (i: number): boolean =>
-    primary?.submitIndex === i || (primary?.multiSelect === true && /^submit\b/i.test(options[i] ?? ''))
+    primary?.multiSelect === true && primary?.submitIndex === i
 
   // Single-select: Claude selects directly on the number key (immune to byte
   // coalescing / arrow-format quirks). Big menus (>9) fall back to paced arrows.
@@ -146,8 +148,13 @@ function Overlay() {
   }
 
   const submitMulti = (): void => {
-    if (!primary) return
-    sendKeys(primary.leafId, [...arrowsTo(submitIndexOf()), ENTER])
+    if (!primary || primary.submitIndex == null) return
+    sendKeys(primary.leafId, [...arrowsTo(primary.submitIndex), ENTER])
+  }
+
+  // Esc cancels — every prompt footer offers it, so this is always safe.
+  const cancel = (): void => {
+    if (primary) sendKeys(primary.leafId, ['\x1b'])
   }
 
   return (
@@ -165,10 +172,21 @@ function Overlay() {
         <Munu state={g.state} size={showCard ? 34 : 48} />
         {showCard && primary && (
           <div className={`island__card${primary.multiSelect ? ' island__card--multi' : ''}`}>
+            {primary.steps.length > 0 && (
+              <div className="island__steps">
+                {primary.steps.map((s, i) => (
+                  <span key={i} className={`step${s.done ? ' step--done' : ''}`}>
+                    {s.done ? '✓ ' : ''}
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            )}
             {primary.title && <div className="island__title">{primary.title}</div>}
             <div className="island__opts">
               {options.map((opt, i) => {
-                // Multi-select checkbox row: toggle locally, submit later.
+                const desc = primary.descriptions[i]
+                // Multi-select checkbox row: toggle live.
                 if (primary.multiSelect && primary.checkable[i]) {
                   const on = selected.has(i)
                   return (
@@ -181,7 +199,10 @@ function Overlay() {
                       }}
                     >
                       <span className="box">{on ? '✓' : ''}</span>
-                      <span className="lbl">{opt}</span>
+                      <span className="lbl">
+                        {opt}
+                        {desc && <span className="desc">{desc}</span>}
+                      </span>
                     </button>
                   )
                 }
@@ -199,32 +220,35 @@ function Overlay() {
                       else pickSingle(i)
                     }}
                   >
-                    {!primary.multiSelect && <span className="num">{i + 1}</span>}
-                    <span className="lbl">{opt}</span>
+                    {!primary.multiSelect && !submit && <span className="num">{i + 1}</span>}
+                    <span className="lbl">
+                      {opt}
+                      {desc && <span className="desc">{desc}</span>}
+                    </span>
                   </button>
                 )
               })}
             </div>
-            {primary.multiSelect && primary.submitIndex == null && (
+            <div className="island__foot">
               <button
-                className="ob ob--submit"
+                className="ob ob--ghost"
                 onClick={(e) => {
                   e.stopPropagation()
-                  submitMulti()
+                  cancel()
                 }}
               >
-                Submit {selected.size > 0 ? `(${selected.size})` : ''}
+                cancel (esc)
               </button>
-            )}
-            <button
-              className="ob ob--open"
-              onClick={(e) => {
-                e.stopPropagation()
-                focus()
-              }}
-            >
-              open terminal
-            </button>
+              <button
+                className="ob ob--ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  focus()
+                }}
+              >
+                open terminal
+              </button>
+            </div>
           </div>
         )}
       </div>

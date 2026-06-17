@@ -14,6 +14,8 @@ const askSchema = z.object({
   tabId: z.string(),
   title: z.string().nullable(),
   options: z.array(z.string()).max(32),
+  descriptions: z.array(z.string().nullable()).max(32),
+  steps: z.array(z.object({ label: z.string(), done: z.boolean() })).max(12),
   binary: z.boolean(),
   multiSelect: z.boolean(),
   checkable: z.array(z.boolean()).max(32),

@@ -83,6 +83,41 @@ describe('parseAsk', () => {
     expect(ask.submitIndex).toBe(2)
   })
 
+  it('treats the post-submit review screen as a plain single-select', () => {
+    // Claude's confirm screen echoes "(multi select)" but is really Submit/Cancel.
+    const text = [
+      'Review your answers',
+      'Pick any number of options (multi select):',
+      'Ready to submit your answers?',
+      '❯ 1. Submit answers',
+      '  2. Cancel',
+      'Enter to select · Esc to cancel'
+    ].join('\n')
+    const ask = parseAsk(text)!
+    expect(ask.multiSelect).toBe(false)
+    expect(ask.options).toEqual(['Submit answers', 'Cancel'])
+    expect(ask.submitIndex).toBeNull()
+  })
+
+  it('parses a multi-step wizard: breadcrumb, options + descriptions', () => {
+    const text = [
+      '☐ Focus area  ☐ Change type  ✔ Submit',
+      'Which area should we focus on?',
+      '❯ 1. Lighting (Sonoff 4CH)',
+      '   Work with your ~17 Sonoff switches.',
+      '  2. Climate (DeLonghi)',
+      '   Focus on the DeLonghi machines.',
+      'Enter to select · Tab/Arrow keys to navigate · Esc to cancel'
+    ].join('\n')
+    const ask = parseAsk(text)!
+    expect(ask.multiSelect).toBe(false)
+    expect(ask.steps.map((s) => s.label)).toEqual(['Focus area', 'Change type', 'Submit'])
+    expect(ask.steps[2].done).toBe(true)
+    expect(ask.options).toEqual(['Lighting (Sonoff 4CH)', 'Climate (DeLonghi)'])
+    expect(ask.descriptions[0]).toContain('Sonoff')
+    expect(ask.title).toContain('Which area')
+  })
+
   it('returns null when not asking', () => {
     expect(parseAsk('just output')).toBeNull()
   })
