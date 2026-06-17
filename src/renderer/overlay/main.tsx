@@ -19,9 +19,11 @@ function Overlay() {
   const [g, setG] = useState<MunuGlobal>({ state: 'idle', asks: [] })
   const [sounds, setSounds] = useState(true)
   const [platform, setPlatform] = useState('')
+  const [revealed, setRevealed] = useState(false)
   const prev = useRef<MunuState>('idle')
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
+  useEffect(() => window.dockterm.on('munu:reveal', setRevealed), [])
 
   useEffect(() => {
     void window.dockterm.invoke('settings:get', undefined).then((r) => {
@@ -47,7 +49,7 @@ function Overlay() {
   const showCard = asking && !!ask?.binary // only true yes/no gets one-click buttons
 
   return (
-    <div className={`ov ov--${platform}`}>
+    <div className={`ov ov--${platform}${revealed ? ' ov--revealed' : ' ov--hidden'}`}>
       <div
         className={`island island--${g.state}${showCard ? ' island--card' : ''}`}
         onMouseEnter={() => setInteractive(true)}
@@ -57,7 +59,7 @@ function Overlay() {
         }}
         title="munu"
       >
-        <Munu state={g.state} size={40} />
+        <Munu state={g.state} size={showCard ? 32 : 40} />
         {showCard && (
           <div className="island__card">
             {ask?.title && <div className="island__title">{ask.title}</div>}

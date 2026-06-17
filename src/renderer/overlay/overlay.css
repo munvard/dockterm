@@ -22,17 +22,32 @@
   padding-top: 36px;
 }
 
-/* Icon-only by default: just the floating, animated munu (pointer events here;
-   the rest of the window is click-through). The munu SVG is a self-contained
-   tile, so it reads as a floating app icon — no extra chrome needed. */
+/* Icon-only by default: just the floating, animated munu. The munu SVG is a
+   self-contained tile, so it reads as a floating app icon — no extra chrome. */
 .island {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 2px;
   cursor: pointer;
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.22s ease;
 }
+
+/* Dynamic-Island reveal: tucked up into the notch by default, slides down on
+   hover / state-change / while Claude needs you. */
+.ov--hidden .island {
+  transform: translateY(-150%);
+  opacity: 0;
+  pointer-events: none;
+}
+.ov--revealed .island {
+  transform: translateY(0);
+  opacity: 1;
+}
+
 .island .munu {
   filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.55));
   transition: filter 0.25s ease;
@@ -50,54 +65,52 @@
     drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
 }
 
-/* When Claude asks a clear yes/no, the icon docks onto a card with the command. */
+/* Compact card when Claude asks a clear yes/no. */
 .island--card {
-  padding: 8px;
-  border-radius: 20px;
+  padding: 6px;
+  border-radius: 15px;
   background: linear-gradient(180deg, rgba(26, 26, 34, 0.96), rgba(15, 15, 20, 0.96));
   border: 1px solid rgba(251, 191, 36, 0.55);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 28px rgba(251, 191, 36, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 22px rgba(251, 191, 36, 0.22);
   backdrop-filter: blur(16px) saturate(1.2);
-  max-width: 360px;
-  animation: island-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .island__card {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  width: 320px;
-  animation: card-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  gap: 6px;
+  width: 212px;
+  animation: card-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .island__title {
-  max-height: 64px;
+  max-height: 42px;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  padding: 7px 10px;
-  border-radius: 10px;
+  padding: 5px 8px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.06);
   color: #dcdce6;
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.45;
+  font-size: 10.5px;
+  line-height: 1.4;
   word-break: break-word;
 }
 .island__actions {
   display: flex;
-  gap: 7px;
+  gap: 5px;
 }
 .ob {
   flex: 1 1 auto;
-  padding: 7px 8px;
-  border-radius: 10px;
+  padding: 5px 6px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
   color: #e8e8ed;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.14s ease, transform 0.1s ease;
@@ -106,7 +119,7 @@
   background: rgba(255, 255, 255, 0.12);
 }
 .ob:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 .ob--yes {
   border-color: rgba(74, 222, 128, 0.55);
@@ -119,10 +132,6 @@
   background: rgba(248, 113, 113, 0.07);
 }
 
-@keyframes island-in {
-  from { transform: translateY(-8px) scale(0.92); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
 @keyframes card-in {
   from { transform: translateY(-4px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }

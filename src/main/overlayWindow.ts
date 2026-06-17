@@ -53,8 +53,11 @@ export function createOverlayWindow(): BrowserWindow {
 
   applyWindowSecurity(overlay)
   // Float above everything, on every Space, including fullscreen apps.
+  overlay.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+    skipTransformProcessType: true
+  })
   overlay.setAlwaysOnTop(true, 'screen-saver')
-  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   // Start click-through; the renderer enables interaction while hovering munu.
   overlay.setIgnoreMouseEvents(true, { forward: true })
 

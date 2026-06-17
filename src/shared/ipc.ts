@@ -226,6 +226,8 @@ export interface EventChannels {
   'fs:watch': WatchBatch
   /** main → overlay window: the global munu state. */
   'munu:state': MunuGlobal
+  /** main → overlay: reveal (slide down) or hide (tuck into the notch). */
+  'munu:reveal': boolean
   /** main → the window owning an asking pane: inject the answer key. */
   'munu:doAnswer': { leafId: string; key: 'enter' | 'esc' }
   /** main → the window owning an asking pane: focus that pane. */
@@ -302,6 +304,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'settings:changed',
   'fs:watch',
   'munu:state',
+  'munu:reveal',
   'munu:doAnswer',
   'munu:doFocus'
 ]

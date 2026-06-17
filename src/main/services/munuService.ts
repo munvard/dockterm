@@ -1,4 +1,4 @@
-import { BrowserWindow, Notification, powerSaveBlocker, webContents } from 'electron'
+import { BrowserWindow, Notification, powerSaveBlocker, screen, webContents } from 'electron'
 import { aggregate } from '@shared/munu'
 import { getSettings } from './settingsService'
 import {
@@ -13,6 +13,46 @@ import type { MunuAsk, MunuGlobal, MunuState } from '@shared/types'
 const windowStates = new Map<number, MunuGlobal>()
 let blockerId: number | null = null
 let lastNotified: MunuState = 'idle'
+
+// Dynamic-Island reveal: munu hides (tucked in the notch) and reveals when the
+// cursor enters the top-center zone or briefly after a state change ("peek").
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let peekUntil = 0
+let revealed = false
+let lastGlobalState: MunuState = 'idle'
+
+function inRevealZone(): boolean {
+  const d = screen.getPrimaryDisplay()
+  const p = screen.getCursorScreenPoint()
+  const cx = d.bounds.x + d.bounds.width / 2
+  // Top-center strip covering the notch + where munu slides down to.
+  return Math.abs(p.x - cx) <= 175 && p.y >= d.bounds.y && p.y <= d.bounds.y + 120
+}
+
+function pollReveal(): void {
+  const overlay = getOverlay()
+  if (!overlay) return
+  // Always reveal while Claude needs you (don't miss it); otherwise reveal on
+  // hover or during a post-state-change peek.
+  const want = lastGlobalState === 'asking' || inRevealZone() || Date.now() < peekUntil
+  if (want !== revealed) {
+    revealed = want
+    overlay.webContents.send('munu:reveal', want)
+  }
+}
+
+function startCursorPoll(): void {
+  if (pollTimer) return
+  peekUntil = Date.now() + 4000 // greet on launch, then tuck away
+  revealed = false
+  pollTimer = setInterval(pollReveal, 140)
+}
+
+function stopCursorPoll(): void {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+  revealed = false
+}
 
 export function reportMunu(wcId: number, payload: MunuGlobal): void {
   windowStates.set(wcId, payload)
@@ -37,6 +77,11 @@ function pushGlobal(): void {
   const global = computeGlobal()
   const overlay = getOverlay()
   if (overlay) overlay.webContents.send('munu:state', global)
+  // Peek (briefly reveal) when the state changes, so a glance catches it.
+  if (global.state !== lastGlobalState) {
+    peekUntil = Date.now() + (global.state === 'asking' ? 6000 : 4500)
+    lastGlobalState = global.state
+  }
   applyKeepAwake(global.state)
   maybeNotify(global.state)
 }
@@ -110,8 +155,10 @@ export function syncOverlay(): void {
   try {
     if (m.enabled && m.overlay) {
       createOverlayWindow()
+      startCursorPoll()
       pushGlobal()
     } else {
+      stopCursorPoll()
       destroyOverlay()
     }
   } catch (e) {
