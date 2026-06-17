@@ -3,8 +3,9 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🛟 What's new in v0.10.2 — MCP fix, freeze fix & the Dynamic Island
+## 🛟 What's new in v0.10.3 — new theme, MCP fix, freeze fix & the Dynamic Island
 
+- **New default theme: "DockTerm Graphite"** — a softer, warmer dark (`#1e1e1d`) instead of the near-black. It's the new default; pick any other in **Settings → Appearance**.
 - **Your MCP servers actually show up now.** The MCP panel used to only see classic `mcpServers` entries, so if your servers are **claude.ai connectors** (Gmail, Drive, Canva…) or come from **plugins**, it said "none." It now surfaces those too (turn on *Include servers from ~/.claude.json*).
 - **Fixed a freeze when opening a big non-git folder.** Opening something huge (like your whole home directory) made the file-watcher try to track *millions* of files and locked up the window. It now never recursively watches the home directory or filesystem roots, and caps watch depth — open anything you like, instantly.
 - **Smoother, comfier terminal** — smooth wheel scrolling, a calmer inactive cursor, a bit more line height and padding.
