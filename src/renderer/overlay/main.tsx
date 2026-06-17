@@ -8,16 +8,30 @@ import './overlay.css'
 const DOWN = '\x1b[B'
 const UP = '\x1b[A'
 const ENTER = '\r'
+const ESC = '\x1b'
 
 const setInteractive = (v: boolean): void => {
   void window.dockterm.invoke('munu:setInteractive', { interactive: v })
 }
+const setFocusable = (v: boolean): void => {
+  void window.dockterm.invoke('munu:setFocusable', { focusable: v })
+}
 const sendKeys = (leafId: string, keys: string[]): void => {
   if (keys.length) void window.dockterm.invoke('munu:answer', { leafId, keys })
 }
-const focus = (): void => {
+const focusTerminal = (): void => {
   void window.dockterm.invoke('munu:focus', undefined)
 }
+
+/** Arrow-key chunks to move Claude's menu cursor from row `from` to row `to`. */
+const arrows = (from: number, to: number): string[] => {
+  const k = to >= from ? DOWN : UP
+  return Array.from({ length: Math.abs(to - from) }, () => k)
+}
+
+/** Rows that open a free-text field ("Type something", "Other", "something else"). */
+const isFreeText = (label: string): boolean =>
+  /^type\b/i.test(label) || /^other$/i.test(label) || /something else$/i.test(label)
 
 function Overlay() {
   const [g, setG] = useState<MunuGlobal>({ state: 'idle', asks: [] })
@@ -25,12 +39,13 @@ function Overlay() {
   const [platform, setPlatform] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  // Row index we're typing a free-text answer for, or null.
+  const [typing, setTyping] = useState<number | null>(null)
+  const [draft, setDraft] = useState('')
   const prev = useRef<MunuState>('idle')
   const islandRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const lastSize = useRef({ w: 0, h: 0 })
-  // Our prediction of where Claude's menu cursor sits (row index), so multi-select
-  // toggles can navigate from the right place and reflect live in the terminal.
-  const cursor = useRef(0)
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
   useEffect(() => window.dockterm.on('munu:reveal', setRevealed), [])
@@ -60,11 +75,10 @@ function Overlay() {
   const options = primary?.options ?? []
   const showCard = asking && !!primary && !primary.visible && options.length > 0
 
-  // Reset the multi-select toggles + cursor whenever a fresh prompt is surfaced
-  // (toggling boxes doesn't change the row count, so this only fires on a real
-  // new question — not on every re-parse).
+  // Reset toggles + text mode whenever a fresh prompt (or wizard step) is shown.
   useEffect(() => {
-    cursor.current = 0
+    setTyping(null)
+    setDraft('')
     if (!primary) {
       setSelected(new Set())
       return
@@ -74,19 +88,26 @@ function Overlay() {
       if (c && primary.checkable[i]) init.add(i)
     })
     setSelected(init)
-    // Keyed on the question itself too, so advancing to the next wizard step
-    // (same option count, new question) still resets the cursor + toggles.
   }, [primary?.leafId, primary?.title, options.length])
 
-  // Measure the rendered content and ask main to size the floating window to fit
-  // it exactly — small when it fits small, taller when there are many options.
+  // Make the window focusable only while typing (so the field gets keystrokes),
+  // and autofocus the input.
+  useEffect(() => {
+    setFocusable(typing !== null)
+    if (typing === null) return
+    const t = setTimeout(() => inputRef.current?.focus(), 40)
+    return () => clearTimeout(t)
+  }, [typing])
+
+  // Measure content and size the floating window to fit it fully (clamped to the
+  // screen by main). Generous margins so the shadow/last row never clip.
   useEffect(() => {
     const el = islandRef.current
     if (!el) return
-    const pad = platform === 'darwin' ? 34 : 6
+    const pad = platform === 'darwin' ? 34 : 8
     const measure = (): void => {
-      const w = Math.ceil(el.offsetWidth) + 44
-      const h = Math.ceil(el.offsetHeight) + pad + 44
+      const w = Math.ceil(el.offsetWidth) + 48
+      const h = Math.ceil(el.offsetHeight) + pad + 52
       if (Math.abs(w - lastSize.current.w) < 2 && Math.abs(h - lastSize.current.h) < 2) return
       lastSize.current = { w, h }
       void window.dockterm.invoke('munu:resize', { width: w, height: h })
@@ -102,59 +123,72 @@ function Overlay() {
       ro.disconnect()
       cancelAnimationFrame(raf)
     }
-  }, [platform, showCard])
+  }, [platform, showCard, typing])
 
-  // Arrow keys to move Claude's menu cursor from its current row to `to`.
-  const arrowsTo = (to: number): string[] => {
-    const from = cursor.current
-    cursor.current = to
-    const k = to >= from ? DOWN : UP
-    return Array.from({ length: Math.abs(to - from) }, () => k)
-  }
+  // Cap the option list to the real screen height so a long menu scrolls inside
+  // the card instead of running off-screen.
+  const optsMax = Math.max(180, (window.screen?.availHeight ?? 800) - 260)
 
-  // Only the parsed, un-numbered "Submit" row is the submit action — never guess
-  // from a label (a "Submit answers" option in a plain Submit/Cancel menu is a
-  // normal single-select choice, not our multi-select submit).
-  const isSubmitRow = (i: number): boolean =>
-    primary?.multiSelect === true && primary?.submitIndex === i
-
-  // Single-select: Claude selects directly on the number key (immune to byte
-  // coalescing / arrow-format quirks). Big menus (>9) fall back to paced arrows.
-  const pickSingle = (i: number): void => {
-    if (!primary) return
-    if (i < 9) sendKeys(primary.leafId, [String(i + 1)])
-    else sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
-  }
-
-  // Multi-select: navigate to the row and press Enter to toggle it — live, so the
-  // checkbox flips in the terminal immediately. Optimistically reflect it here too.
-  const toggleLive = (i: number): void => {
-    if (!primary) return
-    sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
+  const toggleLocal = (i: number): void =>
     setSelected((s) => {
       const n = new Set(s)
       if (n.has(i)) n.delete(i)
       else n.add(i)
       return n
     })
-  }
 
-  // A non-checkbox action row in a multi-select (e.g. "Type something"): pick it
-  // and bring the terminal forward so the user can continue there.
-  const pickActionRow = (i: number): void => {
+  // Single-select / action rows. Free-text rows open the text field instead.
+  const pick = (i: number): void => {
     if (!primary) return
-    sendKeys(primary.leafId, [...arrowsTo(i), ENTER])
-    focus()
+    if (isFreeText(options[i] ?? '')) {
+      setDraft('')
+      setTyping(i)
+      return
+    }
+    if (primary.multiSelect) {
+      // A non-checkbox action row (e.g. "Chat about this"): one clean sequence.
+      sendKeys(primary.leafId, [...arrows(primary.cursorRow, i), ENTER])
+      focusTerminal()
+    } else if (i < 9) {
+      sendKeys(primary.leafId, [String(i + 1)]) // Claude selects on the number key
+    } else {
+      sendKeys(primary.leafId, [...arrows(primary.cursorRow, i), ENTER])
+    }
   }
 
+  // Multi-select: clicks only update the card (instant, race-free). On Submit we
+  // send ONE deterministic sequence from Claude's real cursor row — toggling each
+  // changed box top-to-bottom, then Enter on Submit.
   const submitMulti = (): void => {
     if (!primary || primary.submitIndex == null) return
-    sendKeys(primary.leafId, [...arrowsTo(primary.submitIndex), ENTER])
+    const toggles: number[] = []
+    options.forEach((_, i) => {
+      if (primary.checkable[i] && selected.has(i) !== !!primary.checked[i]) toggles.push(i)
+    })
+    let cur = primary.cursorRow
+    const seq: string[] = []
+    for (const t of toggles) {
+      seq.push(...arrows(cur, t), ENTER)
+      cur = t
+    }
+    seq.push(...arrows(cur, primary.submitIndex), ENTER)
+    sendKeys(primary.leafId, seq)
   }
 
-  // Esc cancels — every prompt footer offers it, so this is always safe.
+  // Send the typed free-text answer: select that row (entering Claude's text
+  // field), type the text, Enter.
+  const sendText = (): void => {
+    if (!primary || typing == null) return
+    const i = typing
+    const select =
+      !primary.multiSelect && i < 9 ? [String(i + 1)] : [...arrows(primary.cursorRow, i), ENTER]
+    sendKeys(primary.leafId, [...select, draft, ENTER])
+    setTyping(null)
+    setDraft('')
+  }
+
   const cancel = (): void => {
-    if (primary) sendKeys(primary.leafId, ['\x1b'])
+    if (primary) sendKeys(primary.leafId, [ESC])
   }
 
   return (
@@ -165,11 +199,11 @@ function Overlay() {
         onMouseEnter={() => setInteractive(true)}
         onMouseLeave={() => setInteractive(false)}
         onClick={() => {
-          if (!showCard) focus()
+          if (!showCard) focusTerminal()
         }}
         title="munu"
       >
-        <Munu state={g.state} size={showCard ? 34 : 48} />
+        <Munu state={g.state} size={showCard ? 42 : 56} />
         {showCard && primary && (
           <div className={`island__card${primary.multiSelect ? ' island__card--multi' : ''}`}>
             {primary.steps.length > 0 && (
@@ -183,72 +217,121 @@ function Overlay() {
               </div>
             )}
             {primary.title && <div className="island__title">{primary.title}</div>}
-            <div className="island__opts">
-              {options.map((opt, i) => {
-                const desc = primary.descriptions[i]
-                // Multi-select checkbox row: toggle live.
-                if (primary.multiSelect && primary.checkable[i]) {
-                  const on = selected.has(i)
-                  return (
-                    <button
-                      key={i}
-                      className={`ob ob--check${on ? ' ob--on' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleLive(i)
-                      }}
-                    >
-                      <span className="box">{on ? '✓' : ''}</span>
-                      <span className="lbl">
-                        {opt}
-                        {desc && <span className="desc">{desc}</span>}
-                      </span>
-                    </button>
-                  )
-                }
-                // Submit row → finalize; other rows → pick directly (single) or
-                // pick that action (multi).
-                const submit = isSubmitRow(i)
-                return (
+
+            {typing !== null ? (
+              <div className="island__type">
+                <input
+                  ref={inputRef}
+                  className="island__input"
+                  value={draft}
+                  placeholder="type your answer…"
+                  onChange={(e) => setDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      sendText()
+                    } else if (e.key === 'Escape') {
+                      setTyping(null)
+                    }
+                  }}
+                />
+                <div className="island__foot">
                   <button
-                    key={i}
-                    className={`ob${!primary.multiSelect && i === 0 ? ' ob--first' : ''}${submit ? ' ob--submit' : ''}`}
+                    className="ob ob--submit"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (submit) submitMulti()
-                      else if (primary.multiSelect) pickActionRow(i)
-                      else pickSingle(i)
+                      sendText()
                     }}
                   >
-                    {!primary.multiSelect && !submit && <span className="num">{i + 1}</span>}
-                    <span className="lbl">
-                      {opt}
-                      {desc && <span className="desc">{desc}</span>}
-                    </span>
+                    send
                   </button>
-                )
-              })}
-            </div>
-            <div className="island__foot">
-              <button
-                className="ob ob--ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  cancel()
-                }}
-              >
-                cancel (esc)
-              </button>
-              <button
-                className="ob ob--ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  focus()
-                }}
-              >
-                open terminal
-              </button>
-            </div>
+                  <button
+                    className="ob ob--ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setTyping(null)
+                    }}
+                  >
+                    back
+                  </button>
+                  <button
+                    className="ob ob--ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      focusTerminal()
+                    }}
+                  >
+                    open terminal
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="island__opts" style={{ maxHeight: optsMax }}>
+                  {options.map((opt, i) => {
+                    const desc = primary.descriptions[i]
+                    if (primary.multiSelect && primary.checkable[i]) {
+                      const on = selected.has(i)
+                      return (
+                        <button
+                          key={i}
+                          className={`ob ob--check${on ? ' ob--on' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleLocal(i)
+                          }}
+                        >
+                          <span className="box">{on ? '✓' : ''}</span>
+                          <span className="lbl">
+                            {opt}
+                            {desc && <span className="desc">{desc}</span>}
+                          </span>
+                        </button>
+                      )
+                    }
+                    const submit = primary.multiSelect && primary.submitIndex === i
+                    return (
+                      <button
+                        key={i}
+                        className={`ob${!primary.multiSelect && i === 0 ? ' ob--first' : ''}${submit ? ' ob--submit' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (submit) submitMulti()
+                          else pick(i)
+                        }}
+                      >
+                        {!primary.multiSelect && !submit && <span className="num">{i + 1}</span>}
+                        <span className="lbl">
+                          {opt}
+                          {desc && <span className="desc">{desc}</span>}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="island__foot">
+                  <button
+                    className="ob ob--ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      cancel()
+                    }}
+                  >
+                    cancel (esc)
+                  </button>
+                  <button
+                    className="ob ob--ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      focusTerminal()
+                    }}
+                  >
+                    open terminal
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

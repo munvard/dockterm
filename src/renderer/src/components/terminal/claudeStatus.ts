@@ -91,6 +91,8 @@ export function parseAsk(text: string): AskInfo | null {
   // multi-select, where it's a real navigation stop.
   const rows: { label: string; desc: string | null }[] = []
   let firstMenuIdx = -1
+  let cursorRow = 0
+  const hasCursorMark = (s: string): boolean => /^\s*[❯›>]/.test(s)
   for (let i = 0; i < raw.length; i++) {
     const stripped = raw[i].replace(BOX, ' ')
     const m = stripped.match(OPTION_RE)
@@ -98,6 +100,7 @@ export function parseAsk(text: string): AskInfo | null {
       const label = cleanLine(m[2])
       if (label) {
         if (firstMenuIdx < 0) firstMenuIdx = i
+        if (hasCursorMark(stripped)) cursorRow = rows.length
         // Capture up to two indented description lines beneath the option.
         const desc: string[] = []
         for (let j = i + 1; j < raw.length && desc.length < 2; j++) {
@@ -115,6 +118,7 @@ export function parseAsk(text: string): AskInfo | null {
       const a = cleanLine(stripped).match(ACTION_RE)
       if (a) {
         if (firstMenuIdx < 0) firstMenuIdx = i
+        if (hasCursorMark(stripped)) cursorRow = rows.length
         rows.push({ label: 'Submit', desc: null })
       }
     }
@@ -160,5 +164,16 @@ export function parseAsk(text: string): AskInfo | null {
   const hasNo = options.some((o) => /^no\b/i.test(o))
   const binary = !multiSelect && options.length > 0 && hasYes && hasNo
 
-  return { title, options, descriptions, steps, binary, multiSelect, checkable, checked, submitIndex }
+  return {
+    title,
+    options,
+    descriptions,
+    steps,
+    binary,
+    multiSelect,
+    checkable,
+    checked,
+    submitIndex,
+    cursorRow
+  }
 }

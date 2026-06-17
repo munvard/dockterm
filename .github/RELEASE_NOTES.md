@@ -3,13 +3,13 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.17.0 — munu handles the whole flow
+## 🎯 What's new in v0.18.0 — munu, everywhere and rock-solid
 
-- **Fixed the multi-select "Submit → Cancel" bug.** Claude's post-submit review screen was being misread as multi-select (it echoes "(multi select)"), so its Submit mapped to Cancel. munu now classifies by real checkboxes, so the review screen is a normal Submit/Cancel pick that works.
-- **Multi-step wizards.** Prompts with a step breadcrumb (Focus area › Change type › Submit) are now shown with their progress, and munu walks each step as Claude advances.
-- **Option descriptions.** The helper text under each option is now shown in the card, so you know what you're picking.
-- **Cancel from munu.** A cancel (Esc) action alongside "open terminal."
-- Plus everything from v0.16.0: paced keystrokes, number-key single-select, and live multi-select toggles.
+- **Visible over fullscreen apps.** Fixed the macOS setup that kept munu off another app's fullscreen Space — it now floats on every Space (the previous build skipped the process-type transform that makes this work).
+- **Bigger and always fully visible.** munu is a touch larger, the card is wider, and a long menu now scrolls inside a card sized to your actual screen — nothing clips.
+- **Multi-select can't mis-select anymore.** Toggling is now instant in the card and sends one clean, ordered sequence on Submit (computed from Claude's real cursor), so fast/random clicking always submits exactly what you picked.
+- **"Type something" → type right in munu.** Pick a free-text option and a text field opens in the card (or open the terminal to type there).
+- Plus everything from v0.17.0: wizard steps, option descriptions, the review-screen fix, and Cancel.
 
 ---
 

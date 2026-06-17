@@ -73,7 +73,7 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  width: 300px;
+  width: 332px;
   animation: card-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .island__title {
@@ -93,8 +93,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  /* Grow to fit; only scroll in the rare case the menu is taller than this. */
-  max-height: 620px;
+  /* max-height is set inline from the real screen height; scroll only if taller. */
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
@@ -195,6 +194,31 @@
   background: rgba(74, 222, 128, 0.25);
   color: #86efac;
 }
+/* Free-text ("Type something") input mode. */
+.island__type {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.island__input {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid rgba(124, 107, 255, 0.55);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text, #e8e8e3);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  outline: none;
+}
+.island__input::placeholder {
+  color: var(--faint, #6f6f67);
+}
+.island__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 107, 255, 0.25);
+}
+
 /* Footer row: cancel + open terminal. */
 .island__foot {
   display: flex;

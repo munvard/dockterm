@@ -5,8 +5,8 @@ import {
   createOverlayWindow,
   destroyOverlay,
   getOverlay,
-  reassertOverlayLevel,
   resizeOverlay,
+  setOverlayFocusable,
   setOverlayInteractive as setOverlayClickThrough
 } from '../overlayWindow'
 import type { MunuAsk, MunuGlobal, MunuState } from '@shared/types'
@@ -31,27 +31,20 @@ function inRevealZone(): boolean {
   return Math.abs(p.x - cx) <= 175 && p.y >= d.bounds.y && p.y <= d.bounds.y + 120
 }
 
-let pollTicks = 0
-
 function pollReveal(): void {
   const overlay = getOverlay()
   if (!overlay) return
-  // Periodically re-assert all-spaces/always-on-top (~every 2.8s) so munu keeps
-  // floating over fullscreen even after you switch into a fullscreen Space —
-  // macOS can silently drop that membership on a Space change.
-  if (++pollTicks % 20 === 0) reassertOverlayLevel()
-  // Keep munu revealed while there's an ask the user CAN'T currently see (its
-  // pane is on a background tab/window). When the asking pane is on-screen we
-  // don't force it down — a brief peek + sound on the state change is enough.
+  // The window is always present + always-on-top on every Space (set up once at
+  // creation); revealing is pure CSS. Keep munu revealed while there's an ask the
+  // user CAN'T currently see (its pane is on a background tab/window). When the
+  // asking pane is on-screen we don't force it down — a brief peek + sound on the
+  // state change is enough.
   const hasUnseenAsk = [...windowStates.values()].some((g) =>
     g.asks.some((a) => !a.visible)
   )
   const want = hasUnseenAsk || inRevealZone() || Date.now() < peekUntil
   if (want !== revealed) {
     revealed = want
-    // Re-assert all-spaces/always-on-top right before showing, so munu appears
-    // even on another app's fullscreen Space (macOS drops this otherwise).
-    if (want) reassertOverlayLevel()
     overlay.webContents.send('munu:reveal', want)
   }
 }
@@ -155,6 +148,10 @@ export function focusMunu(): void {
 
 export function setMunuInteractive(interactive: boolean): void {
   setOverlayClickThrough(interactive)
+}
+
+export function setMunuFocusable(focusable: boolean): void {
+  setOverlayFocusable(focusable)
 }
 
 function applyKeepAwake(state: MunuState): void {

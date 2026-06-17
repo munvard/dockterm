@@ -5,6 +5,7 @@ import {
   answerMunu,
   focusMunu,
   setMunuInteractive,
+  setMunuFocusable,
   resizeMunu
 } from '../../services/munuService'
 import type { Registrar } from '../register'
@@ -21,6 +22,7 @@ const askSchema = z.object({
   checkable: z.array(z.boolean()).max(32),
   checked: z.array(z.boolean()).max(32),
   submitIndex: z.number().int().min(0).max(32).nullable(),
+  cursorRow: z.number().int().min(0).max(64),
   visible: z.boolean()
 })
 const reportSchema = z.object({
@@ -30,7 +32,8 @@ const reportSchema = z.object({
 })
 const answerSchema = z.object({
   leafId: z.string(),
-  keys: z.array(z.string().max(8)).max(80)
+  // chunks are mostly tiny (arrows/Enter/digits); one may be typed free text.
+  keys: z.array(z.string().max(2000)).max(80)
 })
 const interactiveSchema = z.object({ interactive: z.boolean() })
 const resizeSchema = z.object({
@@ -56,6 +59,11 @@ export function registerMunuHandlers(reg: Registrar): void {
 
   reg('munu:setInteractive', interactiveSchema, (req) => {
     setMunuInteractive(req.interactive)
+    return ok(undefined)
+  })
+
+  reg('munu:setFocusable', z.object({ focusable: z.boolean() }), (req) => {
+    setMunuFocusable(req.focusable)
     return ok(undefined)
   })
 

@@ -38,10 +38,9 @@ export function createOverlayWindow(): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: false,
-    // Focusable so macOS will float it over ANOTHER app's fullscreen Space
-    // (non-focusable panels often won't appear there). It never steals focus:
-    // shown via showInactive() and click-through until you hover munu.
-    focusable: true,
+    // Non-activating panel: it floats over other apps (incl. their fullscreen
+    // Space) without ever stealing focus or pulling you out of that Space.
+    focusable: false,
     show: false,
     backgroundColor: '#00000000',
     roundedCorners: false,
@@ -76,18 +75,24 @@ export function getOverlay(): BrowserWindow | null {
 
 /**
  * Float above everything, on every Space, including other apps' fullscreen.
- * ORDER MATTERS: setAlwaysOnTop resets the window's macOS collectionBehavior, so
- * setVisibleOnAllWorkspaces must come AFTER it. Re-asserted right before reveal,
- * because macOS can drop all-spaces membership when a fullscreen Space activates.
+ *
+ * Called ONCE at setup (not on a timer): revealing munu is pure CSS, so the
+ * window itself just stays present and always-on-top everywhere.
+ *
+ * ORDER MATTERS: setAlwaysOnTop resets the macOS collectionBehavior, so
+ * setVisibleOnAllWorkspaces must come AFTER it.
+ *
+ * We deliberately do NOT pass skipTransformProcessType: the default process-type
+ * transform (briefly flipping the app to an accessory) is exactly what lets the
+ * window cross into ANOTHER app's fullscreen Space. Skipping it (to avoid a Dock
+ * flicker) is what previously kept munu from appearing over fullscreen. Calling
+ * this once means the one-time flicker is acceptable.
  */
 export function reassertOverlayLevel(): void {
   if (!overlay || overlay.isDestroyed()) return
   try {
     overlay.setAlwaysOnTop(true, 'screen-saver')
-    overlay.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true,
-      skipTransformProcessType: true
-    })
+    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   } catch {
     // window may be gone
   }
@@ -102,6 +107,14 @@ export function setOverlayInteractive(interactive: boolean): void {
   if (overlay && !overlay.isDestroyed()) {
     overlay.setIgnoreMouseEvents(!interactive, { forward: true })
   }
+}
+
+/** Temporarily make the overlay focusable so its text field can receive typing.
+ * (The window is non-focusable by default so it never steals focus.) */
+export function setOverlayFocusable(focusable: boolean): void {
+  if (!overlay || overlay.isDestroyed()) return
+  overlay.setFocusable(focusable)
+  if (focusable) overlay.focus()
 }
 
 /** Re-center on the primary display (call when displays change). */

@@ -1,6 +1,6 @@
 {
   "name": "dockterm",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Terminal-first workspace for Claude Code — files, Git, MCP, and skills panels on demand. No telemetry.",
   "author": "DockTerm contributors",
   "license": "MIT",

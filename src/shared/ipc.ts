@@ -219,6 +219,9 @@ export interface InvokeChannels {
   'munu:answer': (req: { leafId: string; keys: string[] }) => Result<void>
   'munu:focus': (req: void) => Result<void>
   'munu:setInteractive': (req: { interactive: boolean }) => Result<void>
+  /** Make the overlay focusable while the user types into munu's text field
+   * (the window is non-focusable by default so it never steals focus). */
+  'munu:setFocusable': (req: { focusable: boolean }) => Result<void>
   /** The overlay's content size changed — resize the floating window to fit. */
   'munu:resize': (req: { width: number; height: number }) => Result<void>
 }
@@ -300,6 +303,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:answer',
   'munu:focus',
   'munu:setInteractive',
+  'munu:setFocusable',
   'munu:resize'
 ]
 

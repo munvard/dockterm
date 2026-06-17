@@ -24,6 +24,8 @@ export interface AskInfo {
   checked: boolean[]
   /** index of the "Submit" row in `options`, or null */
   submitIndex: number | null
+  /** the row index Claude's menu cursor currently sits on (the ❯ marker) */
+  cursorRow: number
 }
 /** A pane that is waiting for the user's permission. */
 export interface MunuAsk extends AskInfo {

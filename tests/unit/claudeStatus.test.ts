@@ -118,6 +118,11 @@ describe('parseAsk', () => {
     expect(ask.title).toContain('Which area')
   })
 
+  it('reports the cursor row from the ❯ marker', () => {
+    const ask = parseAsk('Pick one:\n  1. a\n❯ 2. b\n  3. c')!
+    expect(ask.cursorRow).toBe(1)
+  })
+
   it('returns null when not asking', () => {
     expect(parseAsk('just output')).toBeNull()
   })
