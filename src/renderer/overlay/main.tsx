@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Munu } from '@renderer/components/munu/Munu'
-import type { MascotCharacter, MunuAsk, MunuGlobal, MunuState } from '@shared/types'
+import type { MascotCharacter, MunuAsk, MunuGlobal, MunuState, Settings } from '@shared/types'
 import { playAsk, playDone } from './sounds'
+import { MunuPopup } from './MunuPopup'
 import './overlay.css'
 
 const DOWN = '\x1b[B'
@@ -38,6 +39,9 @@ function Overlay() {
   const [sounds, setSounds] = useState(true)
   const [munuSize, setMunuSize] = useState(56)
   const [character, setCharacter] = useState<MascotCharacter>('munu')
+  const [pinned, setPinned] = useState(false)
+  const [popupOpen, setPopupOpen] = useState(false)
+  const [showHint, setShowHint] = useState(false)
   const [platform, setPlatform] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -48,6 +52,10 @@ function Overlay() {
   const islandRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const lastSize = useRef({ w: 0, h: 0 })
+  const munuRef = useRef<Settings['munu'] | null>(null)
+  const dragRef = useRef<{ sx: number; sy: number; wx: number; wy: number } | null>(null)
+  const movedRef = useRef(false)
+  const prevPinned = useRef(false)
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
   useEffect(() => window.dockterm.on('munu:reveal', setRevealed), [])
@@ -55,18 +63,28 @@ function Overlay() {
   useEffect(() => {
     void window.dockterm.invoke('settings:get', undefined).then((r) => {
       if (r.ok) {
+        munuRef.current = r.value.munu
         setSounds(r.value.munu.sounds)
         setMunuSize(r.value.munu.size)
         setCharacter(r.value.munu.character)
+        setPinned(r.value.munu.pinned)
+        prevPinned.current = r.value.munu.pinned
       }
     })
     void window.dockterm.invoke('app:getInfo', undefined).then((r) => {
       if (r.ok) setPlatform(r.value.platform)
     })
     return window.dockterm.on('settings:changed', (s) => {
+      munuRef.current = s.munu
       setSounds(s.munu.sounds)
       setMunuSize(s.munu.size)
       setCharacter(s.munu.character)
+      setPinned(s.munu.pinned)
+      if (s.munu.pinned && !prevPinned.current) {
+        setShowHint(true)
+        setTimeout(() => setShowHint(false), 5000)
+      }
+      prevPinned.current = s.munu.pinned
     })
   }, [])
 
@@ -201,23 +219,92 @@ function Overlay() {
     if (primary) sendKeys(primary.leafId, [ESC])
   }
 
+  const writeMunu = (patch: Partial<Settings['munu']>): void => {
+    const base = munuRef.current
+    if (!base) return
+    void window.dockterm.invoke('settings:set', { munu: { ...base, ...patch } } as never)
+  }
+
+  const showApp = (): void => {
+    void window.dockterm.invoke('munu:showApp', undefined)
+  }
+
+  const onPointerDown = (e: React.PointerEvent): void => {
+    if (showCard) return
+    movedRef.current = false
+    if (!pinned) return // only pinned munu drags
+    void window.dockterm.invoke('munu:getBounds', undefined).then((r) => {
+      if (r.ok) dragRef.current = { sx: e.screenX, sy: e.screenY, wx: r.value.x, wy: r.value.y }
+    })
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent): void => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = e.screenX - d.sx
+    const dy = e.screenY - d.sy
+    if (!movedRef.current && Math.hypot(dx, dy) < 4) return
+    movedRef.current = true
+    void window.dockterm.invoke('munu:move', { x: d.wx + dx, y: d.wy + dy })
+  }
+
+  const onPointerUp = (e: React.PointerEvent): void => {
+    const d = dragRef.current
+    dragRef.current = null
+    if (showCard) return
+    if (d && movedRef.current) {
+      const dx = e.screenX - d.sx
+      const dy = e.screenY - d.sy
+      writeMunu({ position: { x: d.wx + dx, y: d.wy + dy } })
+      return // a drag, not a click
+    }
+    // A real click: surface the terminal and toggle the popup.
+    showApp()
+    setPopupOpen((o) => !o)
+  }
+
   return (
     <div className={`ov ov--${platform}${revealed ? ' ov--revealed' : ' ov--hidden'}`}>
       <div
         ref={islandRef}
-        className={`island island--${g.state}${showCard ? ' island--card' : ''}`}
+        className={`island island--${g.state}${showCard ? ' island--card' : ''}${pinned ? ' island--pinned' : ''}`}
         onMouseEnter={() => setInteractive(true)}
         onMouseLeave={() => setInteractive(false)}
-        onClick={() => {
-          if (!showCard) focusTerminal()
-        }}
-        title="munu"
       >
-        <Munu
-          state={g.state}
-          character={character}
-          size={showCard ? Math.round(munuSize * 0.75) : munuSize}
-        />
+        <div
+          className="island__munu"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          title={pinned ? 'munu — drag to move · click for settings' : 'munu'}
+        >
+          {pinned && showHint && (
+            <>
+              <span className="movehint movehint--l">‹</span>
+              <span className="movehint movehint--r">›</span>
+              <span className="movehint__tip">drag me anywhere</span>
+            </>
+          )}
+          <Munu
+            state={g.state}
+            character={character}
+            size={showCard ? Math.round(munuSize * 0.75) : munuSize}
+          />
+        </div>
+
+        {popupOpen && !showCard && (
+          <MunuPopup
+            size={munuSize}
+            character={character}
+            pinned={pinned}
+            onSize={(n) => writeMunu({ size: n })}
+            onCharacter={(c) => writeMunu({ character: c })}
+            onPin={(p) => writeMunu({ pinned: p })}
+            onOpenApp={() => showApp()}
+          />
+        )}
+
         {showCard && primary && (
           <div className={`island__card${primary.multiSelect ? ' island__card--multi' : ''}`}>
             {primary.steps.length > 0 && (

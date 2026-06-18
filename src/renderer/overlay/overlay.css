@@ -407,3 +407,55 @@
   border-color: #7c6bff;
   background: #20202a;
 }
+
+.island__munu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.movehint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 22px;
+  line-height: 1;
+  color: #7c6bff;
+  animation: movehint-bob 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+.movehint--l {
+  left: -22px;
+}
+.movehint--r {
+  right: -22px;
+  animation-delay: 0.45s;
+}
+.movehint__tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: #cfcfd6;
+  background: #131319;
+  border: 1px solid #2a2a33;
+  border-radius: 6px;
+  padding: 3px 8px;
+  pointer-events: none;
+}
+@keyframes movehint-bob {
+  0%, 100% { transform: translateY(-50%) translateX(0); }
+  50% { transform: translateY(-50%) translateX(-3px); }
+}
+.movehint--r {
+  animation-name: movehint-bob-r;
+}
+@keyframes movehint-bob-r {
+  0%, 100% { transform: translateY(-50%) translateX(0); }
+  50% { transform: translateY(-50%) translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .movehint { animation: none; }
+}
