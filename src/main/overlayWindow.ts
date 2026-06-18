@@ -2,6 +2,8 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
+import { getSettings } from './services/settingsService'
+import { clampToAreas } from './overlayPlacement'
 
 /**
  * The munu overlay: a frameless, transparent, always-on-top, non-focusable
@@ -16,19 +18,29 @@ let overlay: BrowserWindow | null = null
 const W = 380
 const H = 260
 
-function topCenter(): { x: number; y: number } {
-  const d = screen.getPrimaryDisplay()
-  return { x: Math.round(d.bounds.x + (d.bounds.width - W) / 2), y: d.bounds.y }
+function placeOverlay(width: number, height: number): void {
+  if (!overlay || overlay.isDestroyed()) return
+  const m = getSettings().munu
+  const w = Math.round(Math.min(Math.max(width, 120), screen.getPrimaryDisplay().workArea.width - 16))
+  const h = Math.round(Math.min(Math.max(height, 80), screen.getPrimaryDisplay().bounds.height - 24))
+  if (m.pinned && m.position) {
+    const areas = screen.getAllDisplays().map((d) => d.workArea)
+    const { x, y } = clampToAreas({ x: m.position.x, y: m.position.y, width: w, height: h }, areas)
+    overlay.setBounds({ x, y, width: w, height: h })
+  } else {
+    const d = screen.getPrimaryDisplay()
+    const x = Math.round(d.bounds.x + (d.bounds.width - w) / 2)
+    overlay.setBounds({ x, y: d.bounds.y, width: w, height: h })
+  }
 }
 
 export function createOverlayWindow(): BrowserWindow {
   if (overlay && !overlay.isDestroyed()) return overlay
-  const { x, y } = topCenter()
   overlay = new BrowserWindow({
     width: W,
     height: H,
-    x,
-    y,
+    x: 0,
+    y: 0,
     // macOS: a 'panel' window gets the NSWindowStyleMaskNonactivatingPanel mask
     // at runtime, so it floats OVER other apps' fullscreen Spaces and joins all
     // desktops — the same mechanism native notch apps use (an NSPanel). This is
@@ -66,6 +78,7 @@ export function createOverlayWindow(): BrowserWindow {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   void overlay.loadURL(devUrl ? `${devUrl}/overlay.html` : OVERLAY_URL)
   overlay.once('ready-to-show', () => {
+    placeOverlay(W, H)
     overlay?.showInactive()
     reassertOverlayLevel()
   })
@@ -124,23 +137,30 @@ export function setOverlayFocusable(focusable: boolean): void {
   if (focusable) overlay.focus()
 }
 
-/** Re-center on the primary display (call when displays change). */
+/** Re-apply placement (call on display change or when pin/position settings change). */
 export function repositionOverlay(): void {
   if (!overlay || overlay.isDestroyed()) return
-  const { x, y } = topCenter()
-  overlay.setPosition(x, y)
+  const b = overlay.getBounds()
+  placeOverlay(b.width, b.height)
 }
 
-/**
- * Resize the floating window to fit its content (the renderer measures it) so
- * munu's card is shown fully — small when it fits small, taller when there are
- * many options. Clamped to the display so it can never run off-screen.
- */
+/** Resize to fit content; respects pinned position (won't recenter when pinned). */
 export function resizeOverlay(width: number, height: number): void {
+  placeOverlay(width, height)
+}
+
+/** Current screen bounds, or null if the overlay isn't up. */
+export function getOverlayBounds(): { x: number; y: number; width: number; height: number } | null {
+  if (!overlay || overlay.isDestroyed()) return null
+  const b = overlay.getBounds()
+  return { x: b.x, y: b.y, width: b.width, height: b.height }
+}
+
+/** Move to an absolute screen position, clamped to stay on a display. */
+export function moveOverlay(x: number, y: number): void {
   if (!overlay || overlay.isDestroyed()) return
-  const d = screen.getPrimaryDisplay()
-  const w = Math.min(Math.max(width, 120), d.workArea.width - 16)
-  const h = Math.min(Math.max(height, 80), d.bounds.height - 24)
-  const x = Math.round(d.bounds.x + (d.bounds.width - w) / 2)
-  overlay.setBounds({ x, y: d.bounds.y, width: Math.round(w), height: Math.round(h) })
+  const b = overlay.getBounds()
+  const areas = screen.getAllDisplays().map((d) => d.workArea)
+  const p = clampToAreas({ x, y, width: b.width, height: b.height }, areas)
+  overlay.setPosition(p.x, p.y)
 }
