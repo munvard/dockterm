@@ -132,6 +132,13 @@ export interface UpdateSettings {
   remindAfter: number
 }
 
+export interface UsageSettings {
+  /** Show the Usage panel + top-bar pill. (Auto-hides anyway with no data.) */
+  enabled: boolean
+  /** Plan bracket for the limit estimate; 'auto' detects it from ~/.claude. */
+  plan: 'auto' | 'pro' | 'max5x' | 'max20x'
+}
+
 /** Persisted terminal tabs for the window, restored on relaunch. `layout` is the
  * opaque tiling tree (validated/cast by the renderer). */
 export interface WorkspacePersist {
@@ -162,6 +169,7 @@ export interface Settings {
   git: GitSettings
   claude: ClaudeSettings
   update: UpdateSettings
+  usage: UsageSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

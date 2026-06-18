@@ -1,7 +1,9 @@
 import { BrowserWindow } from 'electron'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { readdir, stat, open } from 'node:fs/promises'
+import { getSettings } from './settingsService'
 import type { UsageSnapshot, UsageTotals, UsageBucket, UsageWindow } from '@shared/types'
 
 /**
@@ -132,8 +134,73 @@ function dayLabel(ms: number): string {
   return `${`${d.getMonth() + 1}`.padStart(2, '0')}/${`${d.getDate()}`.padStart(2, '0')}`
 }
 
-function recTokens(r: UsageRecord): number {
-  return r.input + r.output + r.cacheCreate + r.cacheRead
+/* ----------------------------- limit budgets ----------------------------- */
+
+// Cost-weighted token units. Cache reads are ~free and barely count toward usage
+// limits; output is the most expensive. Weighting like this makes the local
+// estimate track Claude's own accounting — raw token totals are dominated by
+// cache reads (often 10–100× the real input), which is what made the old
+// estimate wildly wrong (97% "left" when /status said 45% used).
+const WEIGHTS = { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
+
+function weighted(r: UsageRecord): number {
+  return (
+    r.input * WEIGHTS.input +
+    r.output * WEIGHTS.output +
+    r.cacheCreate * WEIGHTS.cacheWrite +
+    r.cacheRead * WEIGHTS.cacheRead
+  )
+}
+
+export interface PlanBudgets {
+  limit5h: number
+  limitWeek: number
+}
+
+// Weighted-unit budgets per plan, calibrated against Claude Code's own /status
+// ("Approximate, based on local sessions on this machine"): a Max 5x user's
+// 5-hour window measured ~43.7M weighted at 45% used → ~97M, and ~176M weekly at
+// 14% → ~1.26B. Pro is 1/5 of Max 5x; Max 20x is 4× it (20x ÷ 5x) — Anthropic's
+// own plan ratios. These are estimates; /status remains the source of truth.
+const PLAN: Record<'pro' | 'max5x' | 'max20x', PlanBudgets> = {
+  pro: { limit5h: 19_400_000, limitWeek: 251_000_000 },
+  max5x: { limit5h: 97_000_000, limitWeek: 1_257_000_000 },
+  max20x: { limit5h: 388_000_000, limitWeek: 5_028_000_000 }
+}
+
+/** Map a Claude rate-limit tier string to a budget bracket. */
+function budgetsForTier(tier: string | null): PlanBudgets {
+  const t = (tier ?? '').toLowerCase()
+  if (t.includes('20x')) return PLAN.max20x
+  if (t.includes('5x') || t.includes('max')) return PLAN.max5x
+  return PLAN.pro // pro / free / unknown — the conservative default
+}
+
+/** The user's Claude plan tier, read from local config (null if not found). */
+export function readPlanTier(): string | null {
+  const tryJson = (p: string): Record<string, unknown> | null => {
+    try {
+      return JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+  const cfg = tryJson(join(homedir(), '.claude.json'))
+  const acct = cfg?.oauthAccount as
+    | { organizationRateLimitTier?: string; userRateLimitTier?: string }
+    | undefined
+  if (acct?.userRateLimitTier) return acct.userRateLimitTier
+  if (acct?.organizationRateLimitTier) return acct.organizationRateLimitTier
+  const creds = tryJson(join(homedir(), '.claude', '.credentials.json'))
+  const oauth = creds?.claudeAiOauth as { rateLimitTier?: string } | undefined
+  return oauth?.rateLimitTier ?? null
+}
+
+/** Resolve the budgets to use now: the user's chosen plan, or auto-detected. */
+function currentBudgets(): PlanBudgets {
+  const sel = getSettings().usage.plan
+  if (sel !== 'auto' && sel in PLAN) return PLAN[sel as 'pro' | 'max5x' | 'max20x']
+  return budgetsForTier(readPlanTier())
 }
 
 function floorTo(ms: number, unit: 'hour' | 'day'): number {
@@ -144,21 +211,21 @@ function floorTo(ms: number, unit: 'hour' | 'day'): number {
 }
 
 /**
- * Model one rolling usage window (the way Claude's limits behave): group activity
+ * Model one rolling usage window the way Claude's limits behave: group activity
  * into fixed blocks that anchor at the first message and run for `windowMs`, with
  * a fresh block after a gap longer than the window. The current block's reset is
- * `anchor + windowMs` (a real time, not a guess). Since the plan's true token
- * quota isn't knowable from disk, the percentage is measured against an
- * auto-calibrated `limit` = the busiest comparable past block (which ≈ the real
- * quota once you've ever hit your rate limit), floored so a brand-new user isn't
- * pinned at 100%. Pure / unit-testable.
+ * `anchor + windowMs` (a real time, not a guess). `used` is in cost-weighted
+ * units and `limit` is the plan budget, so `percentUsed = used / limit` tracks
+ * Claude's own /status (which is itself "based on local sessions"). Pure /
+ * unit-testable.
  */
 export function computeWindow(
   records: UsageRecord[],
   now: number,
   windowMs: number,
-  floorLimit: number,
-  anchorUnit: 'hour' | 'day'
+  limit: number,
+  anchorUnit: 'hour' | 'day',
+  auto = true
 ): UsageWindow {
   const sorted = records.filter((r) => r.ts > 0).sort((a, b) => a.ts - b.ts)
   interface Block {
@@ -173,33 +240,32 @@ export function computeWindow(
       cur = { anchor: floorTo(r.ts, anchorUnit), lastTs: r.ts, used: 0 }
       blocks.push(cur)
     }
-    cur.used += recTokens(r)
+    cur.used += weighted(r)
     cur.lastTs = r.ts
   }
   const last = blocks[blocks.length - 1]
   const active = !!last && now < last.anchor + windowMs
   const used = active ? last!.used : 0
   const resetAt = active ? last!.anchor + windowMs : null
-  let peak = 0
-  for (let i = 0; i < blocks.length; i++) {
-    if (active && i === blocks.length - 1) continue // exclude the in-progress block
-    if (blocks[i].used > peak) peak = blocks[i].used
-  }
-  const limit = Math.max(peak, used, floorLimit)
-  const percentUsed = Math.min(100, Math.max(0, Math.round((used / limit) * 100)))
+  const safeLimit = Math.max(1, limit)
+  const percentUsed = Math.min(100, Math.max(0, Math.round((used / safeLimit) * 100)))
   return {
     windowMs,
     used,
-    limit,
+    limit: safeLimit,
     percentUsed,
     percentLeft: 100 - percentUsed,
     resetAt,
-    auto: true
+    auto
   }
 }
 
 /** Build the aggregated snapshot from raw records relative to `now`. Pure. */
-export function buildSnapshot(records: UsageRecord[], now: number): UsageSnapshot {
+export function buildSnapshot(
+  records: UsageRecord[],
+  now: number,
+  budgets: PlanBudgets = PLAN.max5x
+): UsageSnapshot {
   const today = emptyTotals()
   const last5h = emptyTotals()
   const last7d = emptyTotals()
@@ -261,8 +327,8 @@ export function buildSnapshot(records: UsageRecord[], now: number): UsageSnapsho
 
   return {
     updatedAt: now,
-    fiveHour: computeWindow(records, now, 5 * 3_600_000, 1_000_000, 'hour'),
-    weekly: computeWindow(records, now, 7 * DAY_MS, 10_000_000, 'day'),
+    fiveHour: computeWindow(records, now, 5 * 3_600_000, budgets.limit5h, 'hour'),
+    weekly: computeWindow(records, now, 7 * DAY_MS, budgets.limitWeek, 'day'),
     today,
     last5h,
     last7d,
@@ -377,31 +443,41 @@ function scan(): Promise<boolean> {
   return scanning
 }
 
+/** An all-zero snapshot (Usage turned off — nothing read, nothing shown). */
+function emptySnapshot(): UsageSnapshot {
+  return buildSnapshot([], Date.now())
+}
+
 function broadcast(): void {
-  const snap = buildSnapshot(records, Date.now())
+  const snap = getSettings().usage.enabled
+    ? buildSnapshot(records, Date.now(), currentBudgets())
+    : emptySnapshot()
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('usage:changed', snap)
   }
 }
 
-/** Current snapshot, after ensuring at least one (de-duped) scan has run. */
+/** Current snapshot, after ensuring at least one (de-duped) scan has run. Returns
+ * an empty snapshot (and reads nothing) when the user has turned Usage off. */
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
+  if (!getSettings().usage.enabled) return emptySnapshot()
   await scan()
-  return buildSnapshot(records, Date.now())
+  return buildSnapshot(records, Date.now(), currentBudgets())
 }
 
-/** Start tailing transcripts: once shortly after launch, then every few seconds. */
+/** Start tailing transcripts: once shortly after launch, then every few seconds.
+ * Skips entirely while Usage is disabled, so nothing is read from disk. */
 export function startUsageWatcher(): void {
   if (started) return
   started = true
-  void scan().then((c) => {
-    if (c) broadcast()
-  })
-  timer = setInterval(() => {
+  const tick = (): void => {
+    if (!getSettings().usage.enabled) return
     void scan().then((c) => {
       if (c) broadcast()
     })
-  }, POLL_MS)
+  }
+  tick()
+  timer = setInterval(tick, POLL_MS)
 }
 
 export function stopUsageWatcher(): void {

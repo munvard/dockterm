@@ -363,6 +363,37 @@ export function SettingsPanel() {
           </div>
         </Section>
 
+        <Section title="Usage">
+          <Field label="Show usage">
+            <Toggle
+              checked={s.usage.enabled}
+              onChange={(v) => void update({ usage: { ...s.usage, enabled: v } })}
+            />
+          </Field>
+          <Field label="Plan">
+            <select
+              className="settings-select"
+              value={s.usage.plan}
+              disabled={!s.usage.enabled}
+              onChange={(e) =>
+                void update({
+                  usage: { ...s.usage, plan: e.target.value as Settings['usage']['plan'] }
+                })
+              }
+            >
+              <option value="auto">Auto-detect</option>
+              <option value="pro">Pro</option>
+              <option value="max5x">Max 5×</option>
+              <option value="max20x">Max 20×</option>
+            </select>
+          </Field>
+          <div className="settings-note">
+            Shows how much of your 5-hour and weekly limits is left, read from your local Claude
+            sessions on this machine. Percentages are an estimate — run <code>/status</code> in
+            Claude Code for exact figures. Turn this off if you don’t use Claude Code here.
+          </div>
+        </Section>
+
         <Section title="Updates">
           <Field label="Check automatically">
             <Toggle

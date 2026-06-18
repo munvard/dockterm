@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Activity, RefreshCw, Clock } from 'lucide-react'
 import { useUsageStore } from '../../state/useUsageStore'
+import { useAppStore } from '../../state/useAppStore'
 import type { UsageWindow, UsageBucket } from '@shared/types'
 import { Ring } from './Ring'
 import { useNowTick } from './useNowTick'
@@ -37,7 +38,6 @@ function WindowCard({ title, w, now }: { title: string; w: UsageWindow; now: num
             style={{ width: `${w.percentUsed}%`, background: tone }}
           />
         </div>
-        {w.auto && <div className="usage-win__note">Calibrated to your busiest window</div>}
       </div>
     </div>
   )
@@ -91,10 +91,11 @@ function Bars({ rows }: { rows: UsageBucket[] }) {
 export function UsagePanel() {
   const snap = useUsageStore((s) => s.snapshot)
   const load = useUsageStore((s) => s.load)
+  const enabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
   const now = useNowTick()
   useEffect(() => {
-    void load()
-  }, [load])
+    if (enabled) void load()
+  }, [load, enabled])
 
   return (
     <div className="panel">
@@ -107,15 +108,26 @@ export function UsagePanel() {
         </div>
       </div>
       <div className="panel__body">
-        {!snap || snap.empty ? (
+        {!enabled ? (
           <div className="mcp-empty">
-            <Activity size={15} /> No Claude usage yet. As you run Claude in DockTerm&apos;s
-            terminals, your remaining limits show up here — live.
+            <Activity size={15} /> Usage is turned off. Turn it back on in{' '}
+            <b>Settings → Usage</b>.
+          </div>
+        ) : !snap || snap.empty ? (
+          <div className="mcp-empty">
+            <Activity size={15} /> No Claude usage found yet. As you run Claude in a terminal,
+            your remaining limits show up here — live. (If you don&apos;t use Claude Code on this
+            machine, there&apos;s nothing to show.)
           </div>
         ) : (
           <>
             <WindowCard title="5-hour limit" w={snap.fiveHour} now={now} />
             <WindowCard title="Weekly limit" w={snap.weekly} now={now} />
+
+            <div className="usage-note">
+              Estimated from your local sessions — for exact figures, run <code>/status</code> in
+              Claude Code.
+            </div>
 
             <div className="usage-section">
               <div className="usage-section__head">

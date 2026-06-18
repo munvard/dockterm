@@ -11,15 +11,16 @@ import { fmtCountdown, toneColor } from './format'
 export function UsagePill() {
   const snap = useUsageStore((s) => s.snapshot)
   const load = useUsageStore((s) => s.load)
+  const enabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
   const openPanel = useAppStore((s) => s.openPanel)
   const toggle = useAppStore((s) => s.togglePanel)
   const now = useNowTick()
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (enabled) void load()
+  }, [load, enabled])
 
-  if (!snap || snap.empty) return null
+  if (!enabled || !snap || snap.empty) return null
 
   const w = snap.fiveHour
   const left = w.percentLeft

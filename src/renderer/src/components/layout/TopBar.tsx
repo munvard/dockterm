@@ -11,7 +11,11 @@ export function TopBar() {
   const togglePanel = useAppStore((s) => s.togglePanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const toggleMini = useAppStore((s) => s.toggleMiniTerm)
+  const usageEnabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
   const status = useGitStore((s) => s.status)
+
+  // Hide the Usage dock icon when the user has turned Usage off.
+  const panels = PANELS.filter((p) => p.id !== 'usage' || usageEnabled)
 
   const dirty = status
     ? status.staged.length + status.unstaged.length + status.untracked.length + status.conflicted.length
@@ -67,7 +71,7 @@ export function TopBar() {
       </div>
       <div className="topbar__right">
         <UsagePill />
-        {PANELS.map((panel) => {
+        {panels.map((panel) => {
           const Icon = panel.icon
           return (
             <button

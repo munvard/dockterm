@@ -157,7 +157,16 @@ export interface GitOutput {
 export type SettingsPatch = Partial<
   Pick<
     Settings,
-    'terminal' | 'editor' | 'ui' | 'git' | 'claude' | 'update' | 'munu' | 'workspace' | 'theme'
+    | 'terminal'
+    | 'editor'
+    | 'ui'
+    | 'git'
+    | 'claude'
+    | 'update'
+    | 'usage'
+    | 'munu'
+    | 'workspace'
+    | 'theme'
   >
 >
 

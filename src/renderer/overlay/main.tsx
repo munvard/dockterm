@@ -151,7 +151,9 @@ function Overlay() {
       ro.disconnect()
       cancelAnimationFrame(raf)
     }
-  }, [platform, showCard, typing])
+    // popupOpen is included so the window resizes immediately when the quick
+    // settings popup opens/closes, instead of lagging a beat behind its content.
+  }, [platform, showCard, typing, popupOpen])
 
   // Cap the option list to the real screen height so a long menu scrolls inside
   // the card instead of running off-screen.
@@ -264,11 +266,12 @@ function Overlay() {
     setPopupOpen((o) => !o)
   }
 
-  // While the settings popup is open, keep munu revealed even if the cursor
-  // leaves the top reveal zone — otherwise reaching down to the popup would tuck
-  // munu (and the popup) away. (The Claude ask-card manages its own reveal, so
-  // this only applies when no card is showing.)
-  const shown = revealed || (popupOpen && !showCard)
+  // When pinned, munu is always shown — decided locally so it never flickers
+  // waiting on the main-process reveal round-trip after a pin/unpin. While the
+  // settings popup is open, keep munu revealed even if the cursor leaves the top
+  // reveal zone (so reaching down to the popup doesn't tuck it away). The Claude
+  // ask-card manages its own reveal, so the popup clause only applies with no card.
+  const shown = pinned || revealed || (popupOpen && !showCard)
 
   return (
     <div className={`ov ov--${platform}${shown ? ' ov--revealed' : ' ov--hidden'}`}>

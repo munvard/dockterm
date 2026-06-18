@@ -3,23 +3,16 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — usage at a glance, native-feeling terminals, friends for munu
+## 🎯 What's new in v__VER__ — accurate usage, smoother munu
 
-**See your Claude limits, live**
-- A new **Usage** panel (plus a compact top-bar pill) shows **how much of your 5-hour and weekly windows is left** and **when they reset** — not a wall of token counts. It updates live as you work.
+**Usage that matches `/status`**
+- The Usage panel + pill now show **% used and reset times that line up with Claude Code's own `/status`** — calibrated against your plan (auto-detected) and cost-weighted, so cache reads no longer skew the numbers. It's still read entirely from your local sessions; run `/status` for the exact figures.
+- **Turn it off** anytime in **Settings → Usage** (with a plan picker), and it **auto-hides** if you don't use Claude Code on this machine.
 
-**Terminals that feel native**
-- **Smooth, native scrolling** — instant and consistent like Terminal.app / GNOME Terminal, with no laggy easing.
-- **The default shortcuts you already know:** New tab, New window, Close tab — ⌘T / ⌘N / ⌘W on macOS, and Ctrl+Shift+T / N / W on Windows & Linux.
-- **Rearrange your grid** — drag a pane by its grip onto another to swap their places; the running shells stay alive.
-- Split controls are **always within reach** on every pane, and dropping a **folder** onto a terminal now types its path (just like a file).
+**munu polish**
+- **No more flicker** when you pin/unpin munu, and the quick-settings popup opens and closes snappily.
 
-**A fresh coat of paint**
-- New themes, including an Ubuntu-style **Aubergine** and **Gruvbox Dark**, plus a warmer **DockTerm Paper** light theme.
-
-**munu grows up**
-- New mascot characters to choose from, and you can now **pin munu and drag it anywhere** on screen — it stays visible wherever you put it.
-- **Linux fix:** munu now shows up reliably (it was landing off-position on some window managers).
+Plus everything from v0.24.0: the Usage panel, native terminal scrolling, default tab/window shortcuts (⌘T/⌘N/⌘W ↔ Ctrl+Shift+T/N/W), drag-to-reorder panes, new themes (Aubergine, Gruvbox Dark, Paper), and pinnable munu with new characters.
 
 ---
 

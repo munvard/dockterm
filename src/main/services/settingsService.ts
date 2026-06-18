@@ -80,6 +80,12 @@ const preference = {
       remindAfter: z.number().default(0)
     })
     .default({}),
+  usage: z
+    .object({
+      enabled: z.boolean().default(true),
+      plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto')
+    })
+    .default({}),
   munu: z
     .object({
       enabled: z.boolean().default(true),
@@ -108,6 +114,7 @@ const settingsSchema = z.object({
   git: preference.git,
   claude: preference.claude,
   update: preference.update,
+  usage: preference.usage,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   workspace: workspaceSchema,
@@ -122,6 +129,7 @@ export const settingsPatchSchema = z.object({
   git: preference.git.optional(),
   claude: preference.claude.optional(),
   update: preference.update.optional(),
+  usage: preference.usage.optional(),
   munu: preference.munu.optional(),
   theme: z.string().optional(),
   workspace: workspaceSchema.optional()

@@ -132,8 +132,8 @@ describe('computeWindow', () => {
     cacheRead: 0
   })
 
-  it('reports % left and a real reset time for an active block', () => {
-    // 720 tokens used; floor limit 1000 → 72% used, 28% left.
+  it('reports % used vs the budget and a real reset time for an active block', () => {
+    // input-only ⇒ weighted == raw: 400 + 320 = 720 used; budget 1000 → 72% used.
     const recs = [rec(now - 90 * 60_000, 400), rec(now - HOUR, 320)]
     const w = computeWindow(recs, now, FIVE_H, 1000, 'hour')
     expect(w.used).toBe(720)
@@ -147,6 +147,25 @@ describe('computeWindow', () => {
     expect(w.resetAt).toBe(anchor.getTime() + FIVE_H)
   })
 
+  it('weights tokens by cost (output 5×, cache-read 0.1×) not raw counts', () => {
+    // One record: 100 input + 100 output + 1000 cache-read.
+    const r: UsageRecord = {
+      id: 'x',
+      ts: now - HOUR,
+      model: 'Opus',
+      project: '/p',
+      projectLabel: 'p',
+      input: 100,
+      output: 100,
+      cacheCreate: 0,
+      cacheRead: 1000
+    }
+    // weighted = 100*1 + 100*5 + 1000*0.1 = 700 (raw would be 1200).
+    const w = computeWindow([r], now, FIVE_H, 7000, 'hour')
+    expect(w.used).toBe(700)
+    expect(w.percentUsed).toBe(10)
+  })
+
   it('is idle (100% left, no reset) when the last activity is older than the window', () => {
     const w = computeWindow([rec(now - 6 * HOUR, 999)], now, FIVE_H, 1000, 'hour')
     expect(w.used).toBe(0)
@@ -154,10 +173,8 @@ describe('computeWindow', () => {
     expect(w.resetAt).toBeNull()
   })
 
-  it('calibrates the limit to the busiest past block', () => {
-    // A heavy past block (2000) sets the reference; the current block uses 500.
-    const recs = [rec(now - 10 * HOUR, 2000), rec(now - 30 * 60_000, 500)]
-    const w = computeWindow(recs, now, FIVE_H, 100, 'hour')
+  it('uses the provided plan budget as the limit (no busiest-block guessing)', () => {
+    const w = computeWindow([rec(now - 30 * 60_000, 500)], now, FIVE_H, 2000, 'hour')
     expect(w.used).toBe(500)
     expect(w.limit).toBe(2000)
     expect(w.percentUsed).toBe(25)
