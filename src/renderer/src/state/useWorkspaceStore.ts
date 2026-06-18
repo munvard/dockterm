@@ -57,6 +57,8 @@ interface WorkspaceStore {
    * and kept separate from leaf.cwd (which keys the terminal) so a `cd` never
    * respawns the shell. */
   paneCwd: Record<string, string>
+  /** leafId -> live terminal title (OSC 0/2). Not persisted. */
+  paneTitle: Record<string, string>
   ready: boolean
 
   init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null, isPrimary: boolean) => void
@@ -80,6 +82,8 @@ interface WorkspaceStore {
   swapLeaves: (tabId: string, aLeafId: string, bLeafId: string) => void
   /** Record a pane's live working directory (from OSC 7). */
   setPaneCwd: (leafId: string, cwd: string) => void
+  /** Record a pane's live terminal title (from OSC 0/2). */
+  setPaneTitle: (leafId: string, title: string) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
@@ -100,6 +104,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     activeId: '',
     activity: {},
     paneCwd: {},
+    paneTitle: {},
     ready: false,
 
     init: (cwd, restored, isPrimary) => {
@@ -165,8 +170,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         const activity = { ...s.activity }
         delete activity[tabId]
         const paneCwd = { ...s.paneCwd }
-        if (closing) for (const l of allLeaves(closing.layout)) delete paneCwd[l.id]
-        return { activity, paneCwd }
+        const paneTitle = { ...s.paneTitle }
+        if (closing)
+          for (const l of allLeaves(closing.layout)) {
+            delete paneCwd[l.id]
+            delete paneTitle[l.id]
+          }
+        return { activity, paneCwd, paneTitle }
       })
     },
 
@@ -215,10 +225,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       )
       commit(next, activeId)
       set((s) => {
-        if (!(closingLeafId in s.paneCwd)) return s
         const paneCwd = { ...s.paneCwd }
+        const paneTitle = { ...s.paneTitle }
         delete paneCwd[closingLeafId]
-        return { paneCwd }
+        delete paneTitle[closingLeafId]
+        return { paneCwd, paneTitle }
       })
     },
 
@@ -284,6 +295,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     },
 
     setPaneCwd: (leafId, cwd) =>
-      set((s) => (s.paneCwd[leafId] === cwd ? s : { paneCwd: { ...s.paneCwd, [leafId]: cwd } }))
+      set((s) => (s.paneCwd[leafId] === cwd ? s : { paneCwd: { ...s.paneCwd, [leafId]: cwd } })),
+
+    setPaneTitle: (leafId, title) =>
+      set((s) =>
+        s.paneTitle[leafId] === title ? s : { paneTitle: { ...s.paneTitle, [leafId]: title } }
+      )
   }
 })

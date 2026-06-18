@@ -21,15 +21,12 @@ function quotePath(p: string): string {
 function TerminalPane({
   leaf,
   tabId,
-  tabTitle,
   focused,
   canClose,
   hideBar
 }: {
   leaf: LeafNode
   tabId: string
-  /** The tab's title — used to drop a pane title that merely repeats it. */
-  tabTitle: string
   focused: boolean
   canClose: boolean
   /** Single-pane tab: skip the per-pane title bar (the tab already names it). */
@@ -41,6 +38,7 @@ function TerminalPane({
   const closeFocused = useWorkspaceStore((s) => s.closeFocused)
   const markActivity = useWorkspaceStore((s) => s.markActivity)
   const swapLeaves = useWorkspaceStore((s) => s.swapLeaves)
+  const paneTitle = useWorkspaceStore((s) => s.paneTitle[leaf.id])
   const pasteRef = useRef<(text: string) => void>(() => {})
   const [dragOver, setDragOver] = useState(false)
   const [reorderOver, setReorderOver] = useState(false)
@@ -127,9 +125,10 @@ function TerminalPane({
     if (text) pasteRef.current(quotePath(text))
   }
 
-  // Only show the per-pane title bar when the pane sits somewhere other than the
-  // tab's folder (a `cd`'d grid cell) — otherwise it just repeats the tab.
-  const showTitle = !hideBar && !!leaf.title && leaf.title !== tabTitle
+  // Every split (non-root) pane shows its own label: the live terminal title
+  // (Claude Code / shell, via OSC 0/2) when present, else its folder name.
+  const label = paneTitle ?? leaf.title
+  const showTitle = !hideBar && !!label
   return (
     <div
       className={`pane${focused && !hideBar ? ' pane--focused' : ''}${dragOver ? ' pane--drop' : ''}${reorderOver ? ' pane--reorder' : ''}`}
@@ -140,7 +139,7 @@ function TerminalPane({
     >
       {showTitle && (
         <div className="pane__bar">
-          <span className="pane__title">{leaf.title}</span>
+          <span className="pane__title">{label}</span>
         </div>
       )}
       {/* Always-visible pane controls: split right/down (and close). A grip lets
@@ -191,6 +190,7 @@ function TerminalPane({
             paneWriters.register(leaf.id, p)
           }}
           onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
+          onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
           onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
           onOpenPath={(raw, line) => {
             // Resolve a path clicked in output to a project-relative path and open it.
@@ -221,7 +221,6 @@ function TerminalPane({
 export function PaneTree({
   node,
   tabId,
-  tabTitle,
   focusedLeafId,
   tabActive,
   canClose,
@@ -229,7 +228,6 @@ export function PaneTree({
 }: {
   node: LayoutNode
   tabId: string
-  tabTitle: string
   focusedLeafId: string
   tabActive: boolean
   canClose: boolean
@@ -241,7 +239,6 @@ export function PaneTree({
       <TerminalPane
         leaf={node}
         tabId={tabId}
-        tabTitle={tabTitle}
         focused={tabActive && node.id === focusedLeafId}
         canClose={canClose}
         hideBar={depth === 0}
@@ -265,7 +262,6 @@ export function PaneTree({
             <PaneTree
               node={child}
               tabId={tabId}
-              tabTitle={tabTitle}
               focusedLeafId={focusedLeafId}
               tabActive={tabActive}
               canClose

@@ -28,6 +28,8 @@ export interface TerminalOptions {
   onActivity?: () => void
   /** Called with the shell's live working directory (from OSC 7), when reported. */
   onCwd?: (cwd: string) => void
+  /** The terminal's live title from OSC 0/2 (what Claude Code / the shell sets). */
+  onTitle?: (title: string) => void
   /** Reports the pane's inferred Claude state from the rendered buffer. */
   onStatus?: (state: ClaudeState, ask: AskInfo | null) => void
   /** Open a file path clicked in the terminal output (with optional 1-based line). */

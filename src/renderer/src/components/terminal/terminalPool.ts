@@ -160,6 +160,12 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     return true
   })
 
+  // Track the terminal's title (OSC 0/2) so each pane can show its own label
+  // (Claude Code sets this to a short task summary; shells often set the cwd).
+  const titleSub = term.onTitleChange((title) => {
+    if (title) p.opts.onTitle?.(title)
+  })
+
   // Make file paths in output clickable → open them in the editor.
   const pathLinks = term.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
@@ -361,6 +367,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     resizeSub.dispose()
     observer.disconnect()
     osc7.dispose()
+    titleSub.dispose()
     pathLinks.dispose()
     if (fitTimer) clearTimeout(fitTimer)
     if (statusTimer) clearTimeout(statusTimer)
