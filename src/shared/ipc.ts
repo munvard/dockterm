@@ -192,6 +192,7 @@ export interface InvokeChannels {
   'project:setActiveRoot': (req: PathReq) => Result<{ root: string }>
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
+  'fs:search': (req: { query: string }) => Result<TreeNode[]>
   'fs:readFile': (req: RelPathReq) => Result<ReadFileResult>
   'fs:writeFile': (req: WriteFileReq) => Result<WriteFileResult>
   'fs:createFile': (req: RelPathReq) => Result<void>
@@ -313,6 +314,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'project:gitInit',
   'project:setActiveRoot',
   'fs:readTree',
+  'fs:search',
   'fs:readFile',
   'fs:writeFile',
   'fs:createFile',

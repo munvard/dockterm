@@ -4,6 +4,7 @@ import { JailViolation } from '../../services/pathJail'
 import { rootFor } from '../../services/activeRoot'
 import {
   readTree,
+  searchTree,
   readFile,
   writeFile,
   createFile,
@@ -19,6 +20,7 @@ import type { Registrar } from '../register'
 
 const relSchema = z.object({ relPath: z.string().min(1).max(4096) })
 const treeSchema = z.object({ relPath: z.string().max(4096) })
+const searchSchema = z.object({ query: z.string().max(200) })
 const writeSchema = z.object({
   relPath: z.string().min(1).max(4096),
   content: z.string().max(Math.ceil(MAX_EDIT_FILE_BYTES * 1.2)),
@@ -41,6 +43,14 @@ export function registerFsHandlers(reg: Registrar): void {
   reg('fs:readTree', treeSchema, async (req, event) => {
     try {
       return ok(await readTree(rootFor(event), req.relPath))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  reg('fs:search', searchSchema, async (req, event) => {
+    try {
+      return ok(await searchTree(rootFor(event), req.query))
     } catch (e) {
       return fail(e)
     }

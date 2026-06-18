@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
-  FolderInput
+  FolderInput,
+  Search,
+  X
 } from 'lucide-react'
 import type { TreeNode } from '@shared/ipc'
 import { useEditorStore } from '../../state/useEditorStore'
@@ -40,6 +42,9 @@ export function FileTree() {
   const [children, setChildren] = useState<Record<string, TreeNode[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [menu, setMenu] = useState<Menu | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<TreeNode[]>([])
   const expandedRef = useRef(expanded)
   expandedRef.current = expanded
 
@@ -77,6 +82,42 @@ export function FileTree() {
   }, [activeRoot, load])
 
   useEffect(() => window.dockterm.on('fs:watch', refresh), [refresh])
+
+  // Live file search (debounced): a jailed, bounded recursive name match in main,
+  // shown as a flat result list while there's a query.
+  useEffect(() => {
+    const q = query.trim()
+    if (!searchOpen || !q) {
+      setResults([])
+      return
+    }
+    const t = setTimeout(() => {
+      void window.dockterm.invoke('fs:search', { query: q }).then((res) => {
+        if (res.ok) setResults(res.value)
+      })
+    }, 160)
+    return () => clearTimeout(t)
+  }, [query, searchOpen, activeRoot])
+
+  const openResult = (node: TreeNode): void => {
+    if (node.type === 'file') {
+      void openFile(node.relPath, node.name)
+      return
+    }
+    // Expand the folder + its ancestors in the tree, then leave search mode.
+    const parts = node.relPath.split('/')
+    const ancestors = parts.map((_, i) => parts.slice(0, i + 1).join('/'))
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (const a of ancestors) {
+        next.add(a)
+        if (!children[a]) void load(a)
+      }
+      return next
+    })
+    setSearchOpen(false)
+    setQuery('')
+  }
 
   useEffect(() => {
     if (!menu) return
@@ -241,6 +282,16 @@ export function FileTree() {
       <div className="panel__head">
         <span className="panel__title">{headerName}</span>
         <div className="panel__actions">
+          <button
+            className={`iconbtn iconbtn--sm${searchOpen ? ' iconbtn--active' : ''}`}
+            title="Search files"
+            onClick={() => {
+              setSearchOpen((o) => !o)
+              setQuery('')
+            }}
+          >
+            <Search size={14} />
+          </button>
           <button className="iconbtn iconbtn--sm" title="New file" onClick={() => void newFile('')}>
             <FilePlus size={14} />
           </button>
@@ -252,8 +303,56 @@ export function FileTree() {
           </button>
         </div>
       </div>
+      {searchOpen && (
+        <div className="tree__search">
+          <Search size={13} className="tree__search-icon" />
+          <input
+            className="tree__search-input"
+            value={query}
+            placeholder="Search files…"
+            autoFocus
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchOpen(false)
+                setQuery('')
+              }
+            }}
+          />
+          {query && (
+            <button className="tree__search-clear" title="Clear" onClick={() => setQuery('')}>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="panel__body tree" onContextMenu={(e) => onContext(e, null)}>
-        {renderNodes('', 0)}
+        {searchOpen && query.trim() ? (
+          results.length === 0 ? (
+            <div className="tree__empty">No matches</div>
+          ) : (
+            results.map((node) => (
+              <div
+                key={node.relPath}
+                className="tree__row tree__row--result"
+                onClick={() => openResult(node)}
+                title={node.relPath}
+              >
+                <span className="tree__chev" />
+                {node.type === 'dir' ? (
+                  <Folder size={14} className="tree__icon tree__icon--dir" />
+                ) : (
+                  <FileIcon size={14} className="tree__icon" />
+                )}
+                <span className="tree__name">{node.name}</span>
+                <span className="tree__path">{node.relPath}</span>
+              </div>
+            ))
+          )
+        ) : (
+          renderNodes('', 0)
+        )}
       </div>
       {menu && (
         <div className="ctxmenu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>

@@ -22,6 +22,56 @@ export async function readTree(root: string, relPath: string): Promise<TreeNode[
   return nodes
 }
 
+const MAX_SEARCH_RESULTS = 200
+const MAX_SEARCH_DIRS = 4000
+
+/**
+ * Recursively find files/dirs whose name matches `query` (case-insensitive),
+ * pruning IGNORED_ENTRIES + symlinks and staying inside `root`. Bounded on both
+ * results and directories visited so a huge tree can't hang the search.
+ */
+export async function searchTree(root: string, query: string): Promise<TreeNode[]> {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const out: TreeNode[] = []
+  let dirsVisited = 0
+
+  const walk = async (relPath: string): Promise<void> => {
+    if (out.length >= MAX_SEARCH_RESULTS || dirsVisited >= MAX_SEARCH_DIRS) return
+    dirsVisited++
+    const abs = relPath ? resolveInside(root, relPath) : root
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await fs.readdir(abs, { withFileTypes: true })
+    } catch {
+      return
+    }
+    const subdirs: string[] = []
+    for (const entry of entries) {
+      if (IGNORED_ENTRIES.includes(entry.name)) continue
+      if (entry.isSymbolicLink()) continue
+      const childRel = relPath ? `${relPath}/${entry.name}` : entry.name
+      const isDir = entry.isDirectory()
+      if (entry.name.toLowerCase().includes(q)) {
+        out.push({ name: entry.name, relPath: childRel, type: isDir ? 'dir' : 'file' })
+        if (out.length >= MAX_SEARCH_RESULTS) return
+      }
+      if (isDir) subdirs.push(childRel)
+    }
+    for (const d of subdirs) {
+      if (out.length >= MAX_SEARCH_RESULTS || dirsVisited >= MAX_SEARCH_DIRS) return
+      await walk(d)
+    }
+  }
+
+  await walk('')
+  // Files first, then folders; each alphabetical by path — predictable results.
+  out.sort((a, b) =>
+    a.type !== b.type ? (a.type === 'file' ? -1 : 1) : a.relPath.localeCompare(b.relPath)
+  )
+  return out.slice(0, MAX_SEARCH_RESULTS)
+}
+
 export async function readFile(root: string, relPath: string): Promise<ReadFileResult> {
   const abs = resolveInside(root, relPath)
   const stat = await fs.stat(abs)
