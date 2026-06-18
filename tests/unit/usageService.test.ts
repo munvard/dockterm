@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseUsageLine,
+  parseResetClock,
+  parseLimitLine,
+  calibrate5hLimit,
   buildSnapshot,
   computeWindow,
   prettyModel,
@@ -54,6 +57,86 @@ describe('parseUsageLine', () => {
     expect(prettyModel('claude-sonnet-4-6')).toBe('Sonnet')
     expect(prettyModel('claude-haiku-4-5')).toBe('Haiku')
     expect(prettyModel('claude-future-9')).toBe('future-9')
+  })
+})
+
+describe('parseResetClock', () => {
+  const base = new Date(2026, 5, 18, 13, 0, 0, 0).getTime() // local 1:00pm
+
+  it('parses an on-the-hour pm reset to the next occurrence', () => {
+    const r = parseResetClock('You’ve hit your session limit · resets 7pm', base)
+    expect(r).not.toBeNull()
+    expect(new Date(r!).getHours()).toBe(19)
+    expect(new Date(r!).getMinutes()).toBe(0)
+    expect(r!).toBeGreaterThan(base)
+  })
+
+  it('parses a minute-precise am reset and rolls to the next day when already past', () => {
+    const r = parseResetClock('resets 7:40am (Asia/Yerevan)', base)
+    expect(new Date(r!).getHours()).toBe(7)
+    expect(new Date(r!).getMinutes()).toBe(40)
+    expect(r!).toBeGreaterThan(base) // 7:40am already passed today -> tomorrow
+    expect(r! - base).toBeLessThan(24 * 3600_000)
+  })
+
+  it('returns null when no reset clock is present', () => {
+    expect(parseResetClock('some unrelated text', base)).toBeNull()
+  })
+})
+
+describe('parseLimitLine', () => {
+  it('extracts ts + resetAt from a 429 session-limit line', () => {
+    const ts = new Date(2026, 5, 18, 13, 0, 0, 0).getTime()
+    const lim = JSON.stringify({
+      type: 'assistant',
+      error: 'rate_limit',
+      apiErrorStatus: 429,
+      timestamp: new Date(ts).toISOString(),
+      message: { content: [{ type: 'text', text: "You've hit your session limit · resets 7pm" }] }
+    })
+    const rec = parseLimitLine(lim)
+    expect(rec).not.toBeNull()
+    expect(rec!.kind).toBe('session')
+    expect(new Date(rec!.resetAt).getHours()).toBe(19)
+    expect(rec!.ts).toBe(ts)
+  })
+
+  it('ignores non-rate-limit lines', () => {
+    expect(parseLimitLine(JSON.stringify({ type: 'assistant', message: { content: [] } }))).toBeNull()
+    expect(parseLimitLine('not json')).toBeNull()
+  })
+})
+
+describe('calibrate5hLimit', () => {
+  const mk = (ts: number, output: number): UsageRecord => ({
+    id: `m${ts}:r`,
+    ts,
+    model: 'Opus',
+    project: 'p',
+    projectLabel: 'p',
+    input: 0,
+    output,
+    cacheCreate: 0,
+    cacheRead: 0
+  })
+
+  it('uses the weighted usage at the most recent hit as the limit (within clamp band)', () => {
+    const hitTs = new Date(2026, 5, 18, 13, 0, 0, 0).getTime()
+    // output is weighted x5; 200 output -> 1000 weighted, inside [fallback/4, fallback*4].
+    const records = [mk(hitTs - 3600_000, 200), mk(hitTs - 100, 0)]
+    const hits = [{ ts: hitTs, resetAt: hitTs + 5 * 3600_000, kind: 'session' as const }]
+    expect(calibrate5hLimit(records, hits, 2000)).toBe(1000)
+  })
+
+  it('falls back when there are no hits', () => {
+    expect(calibrate5hLimit([], [], 97_000_000)).toBe(97_000_000)
+  })
+
+  it('clamps wild calibrations to the fallback band', () => {
+    const hitTs = new Date(2026, 5, 18, 13, 0, 0, 0).getTime()
+    const records = [mk(hitTs - 100, 1_000_000_000)] // absurdly large
+    const hits = [{ ts: hitTs, resetAt: hitTs + 1, kind: 'session' as const }]
+    expect(calibrate5hLimit(records, hits, 1000)).toBe(4000) // fallback * 4
   })
 })
 
@@ -135,16 +218,14 @@ describe('computeWindow', () => {
   it('reports % used vs the budget and a real reset time for an active block', () => {
     // input-only ⇒ weighted == raw: 400 + 320 = 720 used; budget 1000 → 72% used.
     const recs = [rec(now - 90 * 60_000, 400), rec(now - HOUR, 320)]
-    const w = computeWindow(recs, now, FIVE_H, 1000, 'hour')
+    const w = computeWindow(recs, now, FIVE_H, 1000)
     expect(w.used).toBe(720)
     expect(w.limit).toBe(1000)
     expect(w.percentUsed).toBe(72)
     expect(w.percentLeft).toBe(28)
     expect(w.resetAt).not.toBeNull()
-    // resets at the block anchor (floored to the hour of first activity) + 5h
-    const anchor = new Date(now - 90 * 60_000)
-    anchor.setMinutes(0, 0, 0)
-    expect(w.resetAt).toBe(anchor.getTime() + FIVE_H)
+    // resets at the first message's timestamp + 5h (minute-precise, not floored)
+    expect(w.resetAt).toBe(now - 90 * 60_000 + FIVE_H)
   })
 
   it('weights tokens by cost (output 5×, cache-read 0.1×) not raw counts', () => {
@@ -161,20 +242,20 @@ describe('computeWindow', () => {
       cacheRead: 1000
     }
     // weighted = 100*1 + 100*5 + 1000*0.1 = 700 (raw would be 1200).
-    const w = computeWindow([r], now, FIVE_H, 7000, 'hour')
+    const w = computeWindow([r], now, FIVE_H, 7000)
     expect(w.used).toBe(700)
     expect(w.percentUsed).toBe(10)
   })
 
   it('is idle (100% left, no reset) when the last activity is older than the window', () => {
-    const w = computeWindow([rec(now - 6 * HOUR, 999)], now, FIVE_H, 1000, 'hour')
+    const w = computeWindow([rec(now - 6 * HOUR, 999)], now, FIVE_H, 1000)
     expect(w.used).toBe(0)
     expect(w.percentLeft).toBe(100)
     expect(w.resetAt).toBeNull()
   })
 
   it('uses the provided plan budget as the limit (no busiest-block guessing)', () => {
-    const w = computeWindow([rec(now - 30 * 60_000, 500)], now, FIVE_H, 2000, 'hour')
+    const w = computeWindow([rec(now - 30 * 60_000, 500)], now, FIVE_H, 2000)
     expect(w.used).toBe(500)
     expect(w.limit).toBe(2000)
     expect(w.percentUsed).toBe(25)
@@ -182,7 +263,7 @@ describe('computeWindow', () => {
   })
 
   it('returns full headroom for no records', () => {
-    const w = computeWindow([], now, FIVE_H, 1000, 'hour')
+    const w = computeWindow([], now, FIVE_H, 1000)
     expect(w.used).toBe(0)
     expect(w.percentLeft).toBe(100)
     expect(w.resetAt).toBeNull()

@@ -100,6 +100,67 @@ export function parseUsageLine(line: string): UsageRecord | null {
   }
 }
 
+/** A locally-observed rate-limit (429) hit from a Claude Code transcript. */
+export interface LimitRecord {
+  /** When the limit was hit (ms). */
+  ts: number
+  /** Absolute ms when the window resets (parsed from the human reset clock). */
+  resetAt: number
+  /** Only the 5-hour "session" limit is ever surfaced in transcripts. */
+  kind: 'session'
+}
+
+/**
+ * Parse a "resets 7:40am" / "resets 3pm" clock time out of a 429 message into an
+ * absolute ms timestamp — the next occurrence of that wall-clock at or after
+ * `fromMs`. Local timezone is the user's timezone (DockTerm runs on their
+ * machine), which matches the tz the message is rendered in. Pure / testable.
+ */
+export function parseResetClock(text: string, fromMs: number): number | null {
+  const m = text.match(/resets?\s+(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i)
+  if (!m) return null
+  let hour = parseInt(m[1], 10)
+  const min = m[2] ? parseInt(m[2], 10) : 0
+  if (hour === 12) hour = 0
+  if (m[3].toLowerCase() === 'pm') hour += 12
+  const d = new Date(fromMs)
+  d.setHours(hour, min, 0, 0)
+  let t = d.getTime()
+  if (t <= fromMs) t += 86_400_000 // the reset is always in the future of the hit
+  return t
+}
+
+/**
+ * Parse a 429 "you've hit your session limit" transcript line into a LimitRecord,
+ * or null if the line isn't a rate-limit error. Pure / testable.
+ */
+export function parseLimitLine(line: string, now = Date.now()): LimitRecord | null {
+  const s = line.trim()
+  if (!s || s.indexOf('rate_limit') === -1) return null // cheap reject
+  let o: { error?: string; apiErrorStatus?: number; timestamp?: string; message?: { content?: unknown } }
+  try {
+    o = JSON.parse(s)
+  } catch {
+    return null
+  }
+  if (o.error !== 'rate_limit' && o.apiErrorStatus !== 429) return null
+  let text = ''
+  const content = o.message?.content
+  if (Array.isArray(content)) {
+    for (const c of content) {
+      if (c && typeof c === 'object' && typeof (c as { text?: unknown }).text === 'string') {
+        text += (c as { text: string }).text
+      }
+    }
+  }
+  if (!/limit/i.test(text)) return null
+  const parsedTs = Date.parse(o.timestamp ?? '')
+  const ts = Number.isFinite(parsedTs) ? parsedTs : now
+  const resetAt = parseResetClock(text, ts)
+  if (resetAt == null) return null
+  return { ts, resetAt, kind: 'session' }
+}
+
 function emptyTotals(): UsageTotals {
   return {
     inputTokens: 0,
@@ -150,6 +211,28 @@ function weighted(r: UsageRecord): number {
     r.cacheCreate * WEIGHTS.cacheWrite +
     r.cacheRead * WEIGHTS.cacheRead
   )
+}
+
+/**
+ * Estimate the real 5-hour budget for THIS user/machine from an observed 429: at
+ * the moment the limit was hit, the weighted usage in the preceding 5-hour window
+ * equals 100% of the limit. Clamp to a sane band around the plan default so a
+ * fluke can't wildly distort the bar. Pure / testable.
+ */
+export function calibrate5hLimit(
+  records: UsageRecord[],
+  hits: LimitRecord[],
+  fallback: number
+): number {
+  if (hits.length === 0) return fallback
+  const hit = hits[hits.length - 1]
+  const windowMs = 5 * 3_600_000
+  let used = 0
+  for (const r of records) {
+    if (r.ts > 0 && r.ts <= hit.ts && r.ts > hit.ts - windowMs) used += weighted(r)
+  }
+  if (used <= 0) return fallback
+  return Math.min(fallback * 4, Math.max(fallback / 4, used))
 }
 
 export interface PlanBudgets {
@@ -203,13 +286,6 @@ function currentBudgets(): PlanBudgets {
   return budgetsForTier(readPlanTier())
 }
 
-function floorTo(ms: number, unit: 'hour' | 'day'): number {
-  const d = new Date(ms)
-  d.setMinutes(0, 0, 0)
-  if (unit === 'day') d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-
 /**
  * Model one rolling usage window the way Claude's limits behave: group activity
  * into fixed blocks that anchor at the first message and run for `windowMs`, with
@@ -224,7 +300,7 @@ export function computeWindow(
   now: number,
   windowMs: number,
   limit: number,
-  anchorUnit: 'hour' | 'day',
+  resetOverride: number | null = null,
   auto = true
 ): UsageWindow {
   const sorted = records.filter((r) => r.ts > 0).sort((a, b) => a.ts - b.ts)
@@ -237,7 +313,9 @@ export function computeWindow(
   let cur: Block | null = null
   for (const r of sorted) {
     if (!cur || r.ts - cur.anchor >= windowMs || r.ts - cur.lastTs >= windowMs) {
-      cur = { anchor: floorTo(r.ts, anchorUnit), lastTs: r.ts, used: 0 }
+      // Anchor at the first message of the block (NOT floored to the hour) so the
+      // reset (anchor + windowMs) matches Claude's minute-precise reset times.
+      cur = { anchor: r.ts, lastTs: r.ts, used: 0 }
       blocks.push(cur)
     }
     cur.used += weighted(r)
@@ -246,7 +324,9 @@ export function computeWindow(
   const last = blocks[blocks.length - 1]
   const active = !!last && now < last.anchor + windowMs
   const used = active ? last!.used : 0
-  const resetAt = active ? last!.anchor + windowMs : null
+  // Prefer a real, observed reset time when one is still in the future.
+  const computedReset = active ? last!.anchor + windowMs : null
+  const resetAt = resetOverride && resetOverride > now ? resetOverride : computedReset
   const safeLimit = Math.max(1, limit)
   const percentUsed = Math.min(100, Math.max(0, Math.round((used / safeLimit) * 100)))
   return {
@@ -264,7 +344,8 @@ export function computeWindow(
 export function buildSnapshot(
   records: UsageRecord[],
   now: number,
-  budgets: PlanBudgets = PLAN.max5x
+  budgets: PlanBudgets = PLAN.max5x,
+  limitHits: LimitRecord[] = []
 ): UsageSnapshot {
   const today = emptyTotals()
   const last5h = emptyTotals()
@@ -325,10 +406,19 @@ export function buildSnapshot(
     .sort((a, b) => b.totalTokens - a.totalTokens)
     .slice(0, 8)
 
+  // Calibrate the 5h budget from observed 429s; pin the real reset when the
+  // newest hit's reset is still in the future.
+  const limit5h = calibrate5hLimit(records, limitHits, budgets.limit5h)
+  const futureReset =
+    limitHits
+      .map((h) => h.resetAt)
+      .filter((t) => t > now)
+      .sort((a, b) => b - a)[0] ?? null
+
   return {
     updatedAt: now,
-    fiveHour: computeWindow(records, now, 5 * 3_600_000, budgets.limit5h, 'hour'),
-    weekly: computeWindow(records, now, 7 * DAY_MS, budgets.limitWeek, 'day'),
+    fiveHour: computeWindow(records, now, 5 * 3_600_000, limit5h, futureReset),
+    weekly: computeWindow(records, now, 7 * DAY_MS, budgets.limitWeek, null),
     today,
     last5h,
     last7d,
@@ -344,7 +434,9 @@ export function buildSnapshot(
 /* --------------------------- live file scanning --------------------------- */
 
 let records: UsageRecord[] = []
+let limitHits: LimitRecord[] = []
 const seen = new Set<string>()
+const seenLimits = new Set<string>()
 const offsets = new Map<string, number>()
 let started = false
 let timer: ReturnType<typeof setInterval> | null = null
@@ -420,16 +512,28 @@ async function scanOnce(): Promise<boolean> {
     offsets.set(path, start + Buffer.byteLength(complete, 'utf8') + 1)
     for (const line of complete.split('\n')) {
       const rec = parseUsageLine(line)
-      if (!rec) continue
-      if (rec.id !== ':' && seen.has(rec.id)) continue
-      if (rec.id !== ':') seen.add(rec.id)
-      records.push(rec)
-      changed = true
+      if (rec) {
+        if (rec.id === ':' || !seen.has(rec.id)) {
+          if (rec.id !== ':') seen.add(rec.id)
+          records.push(rec)
+          changed = true
+        }
+      }
+      const lim = parseLimitLine(line)
+      if (lim) {
+        const key = `${lim.ts}:${lim.resetAt}`
+        if (!seenLimits.has(key)) {
+          seenLimits.add(key)
+          limitHits.push(lim)
+          changed = true
+        }
+      }
     }
   }
   if (changed) {
     const keep = Date.now() - KEEP_DAYS * DAY_MS
     records = records.filter((r) => r.ts >= keep || r.ts === 0)
+    limitHits = limitHits.filter((h) => h.ts >= keep)
   }
   return changed
 }
@@ -450,7 +554,7 @@ function emptySnapshot(): UsageSnapshot {
 
 function broadcast(): void {
   const snap = getSettings().usage.enabled
-    ? buildSnapshot(records, Date.now(), currentBudgets())
+    ? buildSnapshot(records, Date.now(), currentBudgets(), limitHits)
     : emptySnapshot()
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('usage:changed', snap)
@@ -462,7 +566,7 @@ function broadcast(): void {
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
   if (!getSettings().usage.enabled) return emptySnapshot()
   await scan()
-  return buildSnapshot(records, Date.now(), currentBudgets())
+  return buildSnapshot(records, Date.now(), currentBudgets(), limitHits)
 }
 
 /** Start tailing transcripts: once shortly after launch, then every few seconds.
