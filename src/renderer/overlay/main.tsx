@@ -261,8 +261,8 @@ function Overlay() {
       writeMunu({ position: { x: d.wx + dx, y: d.wy + dy } })
       return // a drag, not a click
     }
-    // A real click: surface the terminal and toggle the popup.
-    showApp()
+    // A real click just toggles munu's popup — it must NOT surface/open the
+    // terminal (the popup itself has an "open terminal" button for that).
     setPopupOpen((o) => !o)
   }
 
