@@ -5,10 +5,12 @@ import {
   createOverlayWindow,
   destroyOverlay,
   getOverlay,
+  repositionOverlay,
   resizeOverlay,
   setOverlayFocusable,
   setOverlayInteractive as setOverlayClickThrough
 } from '../overlayWindow'
+import { wantReveal } from './munuReveal'
 import type { MunuAsk, MunuGlobal, MunuState } from '@shared/types'
 
 /** Per-window aggregate, keyed by webContents id. */
@@ -42,7 +44,12 @@ function pollReveal(): void {
   const hasUnseenAsk = [...windowStates.values()].some((g) =>
     g.asks.some((a) => !a.visible)
   )
-  const want = hasUnseenAsk || inRevealZone() || Date.now() < peekUntil
+  const want = wantReveal({
+    pinned: getSettings().munu.pinned,
+    cursorInZone: inRevealZone(),
+    hasUnseenAsk,
+    peekActive: Date.now() < peekUntil
+  })
   if (want !== revealed) {
     revealed = want
     overlay.webContents.send('munu:reveal', want)
@@ -184,6 +191,18 @@ function maybeNotify(state: MunuState): void {
   lastNotified = state
 }
 
+/** Bring DockTerm's real window(s) to the front — used when munu is clicked.
+ * Excludes the overlay itself (which is never focusable). */
+export function showMainWindows(): void {
+  const ov = getOverlay()
+  const wins = BrowserWindow.getAllWindows().filter((w) => w !== ov && !w.isDestroyed())
+  for (const w of wins) {
+    if (w.isMinimized()) w.restore()
+    w.show()
+  }
+  wins[wins.length - 1]?.focus()
+}
+
 /** Create or tear down the overlay to match settings. Called at startup, on
  * activate, and whenever settings change. */
 export function syncOverlay(): void {
@@ -191,6 +210,7 @@ export function syncOverlay(): void {
   try {
     if (m.enabled && m.overlay) {
       createOverlayWindow()
+      repositionOverlay()
       startCursorPoll()
       pushGlobal()
     } else {

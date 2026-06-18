@@ -1,13 +1,15 @@
 import { z } from 'zod'
-import { ok } from '@shared/result'
+import { ok, err } from '@shared/result'
 import {
   reportMunu,
   answerMunu,
   focusMunu,
   setMunuInteractive,
   setMunuFocusable,
-  resizeMunu
+  resizeMunu,
+  showMainWindows
 } from '../../services/munuService'
+import { getOverlayBounds, moveOverlay } from '../../overlayWindow'
 import type { Registrar } from '../register'
 
 const askSchema = z.object({
@@ -69,6 +71,22 @@ export function registerMunuHandlers(reg: Registrar): void {
 
   reg('munu:resize', resizeSchema, (req) => {
     resizeMunu(req.width, req.height)
+    return ok(undefined)
+  })
+
+  reg('munu:showApp', z.void(), () => {
+    showMainWindows()
+    return ok(undefined)
+  })
+
+  reg('munu:getBounds', z.void(), () => {
+    const b = getOverlayBounds()
+    if (!b) return err('NOT_FOUND', 'overlay not present')
+    return ok(b)
+  })
+
+  reg('munu:move', z.object({ x: z.number(), y: z.number() }), (req) => {
+    moveOverlay(req.x, req.y)
     return ok(undefined)
   })
 }
