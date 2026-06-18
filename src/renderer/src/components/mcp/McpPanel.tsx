@@ -4,6 +4,7 @@ import { useClaudeStore } from '../../state/useClaudeStore'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useToastStore } from '../../state/useToastStore'
+import { PathOverride } from '../common/PathOverride'
 import type { McpServerView } from '@shared/types'
 
 const MASK = '••••'
@@ -37,6 +38,11 @@ export function McpPanel() {
   const toggleUser = async () => {
     if (!settings) return
     await updatePrefs({ claude: { ...settings.claude, readUserConfig: !readUserConfig } })
+    await read()
+  }
+  const setMcpPath = async (v: string): Promise<void> => {
+    if (!settings) return
+    await updatePrefs({ claude: { ...settings.claude, paths: { ...settings.claude.paths, mcpConfig: v } } })
     await read()
   }
 
@@ -116,6 +122,17 @@ export function McpPanel() {
             </div>
           ))
         )}
+
+        <div className="panel-custom">
+          <div className="panel-custom__title">Custom config</div>
+          <PathOverride
+            label="Extra .mcp.json"
+            value={settings?.claude.paths.mcpConfig ?? ''}
+            placeholder="path to a .mcp.json"
+            pickDir={false}
+            onChange={(v) => void setMcpPath(v)}
+          />
+        </div>
       </div>
       <div className="git-commit">
         {hasProjectFile ? (

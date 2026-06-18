@@ -11,6 +11,8 @@ interface AppState {
   /** Resolved project root of the focused pane — used to build absolute paths. */
   activeRoot: string | null
   recent: RecentProject[]
+  /** The user's home directory (for "open a terminal here"). */
+  homeDir: string
   openPanel: PanelId | null
   miniTermOpen: boolean
   paletteOpen: boolean
@@ -38,6 +40,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   project: null,
   activeRoot: null,
   recent: [],
+  homeDir: '',
   openPanel: null,
   miniTermOpen: false,
   paletteOpen: false,

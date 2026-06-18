@@ -30,7 +30,10 @@ export default function App() {
 
   useEffect(() => {
     void window.dockterm.invoke('app:getInfo', undefined).then((r) => {
-      if (r.ok) document.documentElement.dataset.platform = r.value.platform
+      if (r.ok) {
+        document.documentElement.dataset.platform = r.value.platform
+        useAppStore.setState({ homeDir: r.value.home })
+      }
     })
   }, [])
 

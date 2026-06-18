@@ -41,6 +41,8 @@ export interface AppInfo {
   name: string
   version: string
   platform: string
+  /** The user's home directory — for "open a terminal here" quick starts. */
+  home: string
 }
 
 /* ----------------------------------- PTY ---------------------------------- */

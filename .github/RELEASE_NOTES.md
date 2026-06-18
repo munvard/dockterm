@@ -3,16 +3,12 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.22.1 — agents, smarter panels, a real settings pass
+## 🎯 What's new in v0.23.0 — open a terminal anywhere, tidier panels
 
-- **Skills & Commands now actually show up.** They're scanned from your installed **plugins** and user config too (not just the project) — fixing the "No skills & commands found" you'd hit in a fresh folder.
-- **New Agents panel.** See your Claude Code subagents (`.claude/agents`) — project, user, and plugin — with descriptions.
-- **Pick your terminal font from a list.** No more typing font names — choose from a dropdown (with a live preview), or "Custom…" for anything else.
-- **Resize munu.** A size control in Settings (Small → Extra large); the default is unchanged.
-- **Point DockTerm at custom config folders.** If you keep skills, commands, agents, or an MCP config somewhere non-standard, set the paths in Settings.
-- **Update notifications.** DockTerm now checks GitHub on launch (and every few hours) and shows a popup when a new version is out — with Update now / Remind me later / Skip. It never installs anything on its own.
-- **Clearer settings** with plain-language help under each option (what *beginner mode* and *read user config* actually do).
-- **Calmer grids.** A pane's title no longer repeats the tab's folder name in a same-project grid.
+- **"Open a terminal" — no project needed.** On the welcome screen and in the top bar, a new action opens a terminal straight in your home folder, so you can `cd` anywhere or start a new project on the spot.
+- **Custom config folders live in their panels now.** Set a custom Skills/Commands folder in the **Skills** panel, an Agents folder in **Agents**, and an extra `.mcp.json` in **MCP** — right next to what they configure (not buried in Settings).
+- **Simpler tab bar.** Removed the little dropdown arrow next to "+" — the "+" just opens a new terminal in the current project.
+- Plus everything from v0.22: the Agents panel, plugin/user skills + commands (fixes "none found"), the font picker, adjustable munu size, the update popup, and clearer settings copy.
 
 ---
 

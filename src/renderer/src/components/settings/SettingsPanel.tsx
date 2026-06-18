@@ -62,18 +62,11 @@ export function SettingsPanel() {
   const setMunu = (patch: Partial<Settings['munu']>) => void update({ munu: { ...s.munu, ...patch } })
   const setClaude = (patch: Partial<Settings['claude']>) =>
     void update({ claude: { ...s.claude, ...patch } })
-  const setPaths = (patch: Partial<Settings['claude']['paths']>) =>
-    setClaude({ paths: { ...s.claude.paths, ...patch } })
 
   // Font picker: a known stack matches a preset; anything else is "custom".
   const fontValue = s.terminal.fontFamily
   const matchedFont = FONT_CHOICES.find((f) => f.value === (fontValue ?? ''))
   const [customFont, setCustomFont] = useState(fontValue !== null && !matchedFont)
-
-  const browseDir = async (key: 'skills' | 'commands' | 'agents'): Promise<void> => {
-    const res = await window.dockterm.invoke('project:openDialog', undefined)
-    if (res.ok && 'path' in res.value) setPaths({ [key]: res.value.path })
-  }
 
   const checkUpdates = async (): Promise<void> => {
     const res = await window.dockterm.invoke('update:check', undefined)
@@ -329,62 +322,8 @@ export function SettingsPanel() {
           <div className="settings-note">
             Off by default. When on, DockTerm also reads your global <code>~/.claude</code> and
             installed plugins so the MCP, Skills, and Agents panels show your user-scope and
-            plugin items — read-only, with secrets always masked.
-          </div>
-          <Field label="Skills folder">
-            <div className="settings-pathrow">
-              <input
-                className="settings-input"
-                value={s.claude.paths.skills}
-                placeholder="default locations"
-                spellCheck={false}
-                onChange={(e) => setPaths({ skills: e.target.value })}
-              />
-              <button className="btn btn--ghost btn--sm" onClick={() => void browseDir('skills')}>
-                Browse
-              </button>
-            </div>
-          </Field>
-          <Field label="Commands folder">
-            <div className="settings-pathrow">
-              <input
-                className="settings-input"
-                value={s.claude.paths.commands}
-                placeholder="default locations"
-                spellCheck={false}
-                onChange={(e) => setPaths({ commands: e.target.value })}
-              />
-              <button className="btn btn--ghost btn--sm" onClick={() => void browseDir('commands')}>
-                Browse
-              </button>
-            </div>
-          </Field>
-          <Field label="Agents folder">
-            <div className="settings-pathrow">
-              <input
-                className="settings-input"
-                value={s.claude.paths.agents}
-                placeholder="default locations"
-                spellCheck={false}
-                onChange={(e) => setPaths({ agents: e.target.value })}
-              />
-              <button className="btn btn--ghost btn--sm" onClick={() => void browseDir('agents')}>
-                Browse
-              </button>
-            </div>
-          </Field>
-          <Field label="Extra MCP config file">
-            <input
-              className="settings-input"
-              value={s.claude.paths.mcpConfig}
-              placeholder="path to a .mcp.json"
-              spellCheck={false}
-              onChange={(e) => setPaths({ mcpConfig: e.target.value })}
-            />
-          </Field>
-          <div className="settings-note">
-            Optional. Point these at custom locations if you keep your skills, commands, agents,
-            or MCP config somewhere other than <code>.claude</code> / <code>~/.claude</code>.
+            plugin items — read-only, with secrets always masked. Set a custom folder for each
+            right inside its panel (Skills, Agents, MCP).
           </div>
         </Section>
 

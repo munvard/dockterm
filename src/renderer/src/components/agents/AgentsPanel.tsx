@@ -3,6 +3,7 @@ import { RefreshCw, Bot } from 'lucide-react'
 import { useClaudeStore } from '../../state/useClaudeStore'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
+import { PathOverride } from '../common/PathOverride'
 
 function fileName(path: string): string {
   return path.split('/').pop() ?? path
@@ -23,6 +24,11 @@ export function AgentsPanel() {
   const toggleUser = async (): Promise<void> => {
     if (!settings) return
     await updatePrefs({ claude: { ...settings.claude, readUserConfig: !readUserConfig } })
+    await read()
+  }
+  const setAgentsPath = async (v: string): Promise<void> => {
+    if (!settings) return
+    await updatePrefs({ claude: { ...settings.claude, paths: { ...settings.claude.paths, agents: v } } })
     await read()
   }
 
@@ -76,6 +82,15 @@ export function AgentsPanel() {
             </div>
           </div>
         ))}
+
+        <div className="panel-custom">
+          <div className="panel-custom__title">Custom folder</div>
+          <PathOverride
+            label="Agents folder"
+            value={settings?.claude.paths.agents ?? ''}
+            onChange={(v) => void setAgentsPath(v)}
+          />
+        </div>
       </div>
     </div>
   )

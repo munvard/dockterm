@@ -1,11 +1,14 @@
-import { GitBranch, FolderOpen, SquareTerminal, ArrowUp, ArrowDown } from 'lucide-react'
+import { GitBranch, FolderOpen, SquareTerminal, Terminal, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
+import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useGitStore } from '../../state/useGitStore'
 import { PANELS } from './panels'
 
 export function TopBar() {
   const project = useAppStore((s) => s.project)
   const openDialog = useAppStore((s) => s.openProjectDialog)
+  const homeDir = useAppStore((s) => s.homeDir)
+  const openTab = useWorkspaceStore((s) => s.open)
   const openPanel = useAppStore((s) => s.openPanel)
   const togglePanel = useAppStore((s) => s.togglePanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
@@ -27,6 +30,14 @@ export function TopBar() {
           aria-label="Open another project"
         >
           <FolderOpen size={15} />
+        </button>
+        <button
+          className="iconbtn"
+          onClick={() => homeDir && openTab(homeDir)}
+          title="Open a terminal in your home folder"
+          aria-label="Open a terminal in your home folder"
+        >
+          <Terminal size={15} />
         </button>
         {project?.branch && (
           <span className="topbar__branch">

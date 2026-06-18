@@ -2081,3 +2081,45 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Welcome screen: side-by-side primary actions. */
+.empty__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Per-panel "custom folder" override (Skills / Agents / MCP panels). */
+.panel-custom {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.panel-custom__title {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint, #6f6f67);
+}
+.pathoverride {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pathoverride__label {
+  font-size: 12px;
+  color: var(--text-dim, #a2a29a);
+}
+.pathoverride__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pathoverride__row .settings-input {
+  flex: 1;
+  min-width: 0;
+}

@@ -16,7 +16,12 @@ function broadcastSettings(next: Settings): void {
 
 export function registerAppHandlers(reg: Registrar): void {
   reg('app:getInfo', z.void(), () =>
-    ok({ name: APP_NAME, version: app.getVersion(), platform: process.platform })
+    ok({
+      name: APP_NAME,
+      version: app.getVersion(),
+      platform: process.platform,
+      home: app.getPath('home')
+    })
   )
 
   reg('app:openExternal', z.object({ url: z.string().max(2048) }), (req) => {

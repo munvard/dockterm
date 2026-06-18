@@ -4,6 +4,7 @@ import { useClaudeStore } from '../../state/useClaudeStore'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useDialogStore } from '../../state/useDialogStore'
+import { PathOverride } from '../common/PathOverride'
 import type { SkillTemplate } from '@shared/types'
 
 const TEMPLATES: { id: SkillTemplate; label: string }[] = [
@@ -36,6 +37,13 @@ export function SkillsPanel() {
   const toggleUser = async () => {
     if (!settings) return
     await updatePrefs({ claude: { ...settings.claude, readUserConfig: !readUserConfig } })
+    await read()
+  }
+  const setPath = async (key: 'skills' | 'commands', v: string) => {
+    if (!settings) return
+    await updatePrefs({
+      claude: { ...settings.claude, paths: { ...settings.claude.paths, [key]: v } }
+    })
     await read()
   }
 
@@ -158,6 +166,20 @@ export function SkillsPanel() {
             ))}
           </div>
         )}
+
+        <div className="panel-custom">
+          <div className="panel-custom__title">Custom folders</div>
+          <PathOverride
+            label="Skills folder"
+            value={settings?.claude.paths.skills ?? ''}
+            onChange={(v) => void setPath('skills', v)}
+          />
+          <PathOverride
+            label="Commands folder"
+            value={settings?.claude.paths.commands ?? ''}
+            onChange={(v) => void setPath('commands', v)}
+          />
+        </div>
       </div>
       <div className="git-commit skill-actions">
         <div className="skill-newmenu-wrap">
