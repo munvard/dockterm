@@ -18,7 +18,9 @@ describe('countDirsBounded', () => {
     // node_modules is huge but must be pruned and never descended into:
     '/p/node_modules': ['x', 'y', 'z']
   }
-  const read = (p: string): string[] => tree[p] ?? []
+  // countDirsBounded builds child paths with path.join, which uses '\' on
+  // Windows — normalize to '/' so the in-memory tree lookup is OS-independent.
+  const read = (p: string): string[] => tree[p.split(/[\\/]/).join('/')] ?? []
 
   it('counts dirs but prunes IGNORED_ENTRIES (node_modules)', () => {
     // /p, /p/src, /p/src/inner, /p/a = 4 (node_modules pruned)
@@ -28,7 +30,7 @@ describe('countDirsBounded', () => {
   it('stops early once the cap is exceeded', () => {
     const big: Record<string, string[]> = { '/big': Array.from({ length: 50 }, (_, i) => `d${i}`) }
     for (let i = 0; i < 50; i++) big[`/big/d${i}`] = []
-    const r = (p: string): string[] => big[p] ?? []
+    const r = (p: string): string[] => big[p.split(/[\\/]/).join('/')] ?? []
     expect(countDirsBounded('/big', 10, r)).toBeGreaterThan(10)
   })
 })
