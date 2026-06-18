@@ -2183,3 +2183,47 @@
   border-radius: 6px;
   transition: width 0.2s ease;
 }
+
+/* Hover tooltips for icon-only chrome buttons (data-tip="…"). Shows a small
+   label below the icon after a short delay so users learn what each icon does.
+   .tip--end right-anchors the bubble (for the right-edge dock rail) so it never
+   spills off the window. */
+[data-tip] {
+  position: relative;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--overlay, #1b1b23);
+  color: var(--text, #e8e8e3);
+  border: 1px solid var(--border, #34342f);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1000;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 0.4s;
+}
+[data-tip].tip--end::after {
+  left: auto;
+  right: 0;
+  transform: translateX(0) translateY(3px);
+}
+[data-tip].tip--end:hover::after,
+[data-tip].tip--end:focus-visible::after {
+  transform: translateX(0) translateY(0);
+}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Plus, X, LayoutGrid, AppWindow } from 'lucide-react'
+import { Plus, X, LayoutGrid } from 'lucide-react'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useAppStore } from '../../state/useAppStore'
 import { firstLeaf } from '../../state/layout'
@@ -85,7 +85,8 @@ export function TabStrip() {
       </div>
       <button
         className="tabstrip__add"
-        title="New terminal (⌘T)"
+        data-tip="New terminal (⌘T)"
+        aria-label="New terminal"
         onClick={() => projectPath && open(projectPath)}
       >
         <Plus size={14} />
@@ -93,7 +94,8 @@ export function TabStrip() {
       <div className="tabstrip__grid">
         <button
           className="tabstrip__add"
-          title="Arrange this tab as a grid"
+          data-tip="Split into a grid"
+          aria-label="Split into a grid"
           onClick={() => setGridOpen((o) => !o)}
         >
           <LayoutGrid size={14} />
@@ -116,13 +118,6 @@ export function TabStrip() {
           </div>
         )}
       </div>
-      <button
-        className="tabstrip__add"
-        title="New window (⌘N)"
-        onClick={() => void window.dockterm.invoke('window:new', undefined)}
-      >
-        <AppWindow size={14} />
-      </button>
     </div>
   )
 }

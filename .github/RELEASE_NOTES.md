@@ -3,11 +3,11 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.23.1 — updates install themselves
+## 🎯 What's new in v0.23.2 — hover an icon, see what it does
 
-- **"Update now" downloads and installs in-app.** It fetches the right installer for your platform with a progress bar, then launches it — no more bouncing to a browser.
-- **Cleaner update popup.** It now shows just the "What's new" notes (no stray header text, no mid-sentence cut-off).
-- Plus everything from v0.23.0: open-a-terminal (home) from the welcome + top bar, per-panel config folders, and a simpler tab bar.
+- **Tooltips everywhere in the chrome.** Hover any top-bar or tab-bar icon and a small label tells you exactly what it does — no more guessing.
+- **Tidier toolbar.** "New window" now lives in the top bar next to "Open project," and the extra terminal icon is gone. The tab bar is just New terminal + grid.
+- Plus everything from v0.23.1: in-app downloads + install for "Update now," and a cleaner update popup.
 
 ---
 

@@ -1,14 +1,11 @@
-import { GitBranch, FolderOpen, SquareTerminal, Terminal, ArrowUp, ArrowDown } from 'lucide-react'
+import { GitBranch, FolderOpen, AppWindow, SquareTerminal, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
-import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useGitStore } from '../../state/useGitStore'
 import { PANELS } from './panels'
 
 export function TopBar() {
   const project = useAppStore((s) => s.project)
   const openDialog = useAppStore((s) => s.openProjectDialog)
-  const homeDir = useAppStore((s) => s.homeDir)
-  const openTab = useWorkspaceStore((s) => s.open)
   const openPanel = useAppStore((s) => s.openPanel)
   const togglePanel = useAppStore((s) => s.togglePanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
@@ -26,18 +23,18 @@ export function TopBar() {
         <button
           className="iconbtn"
           onClick={() => void openDialog()}
-          title="Open another project"
-          aria-label="Open another project"
+          data-tip="Open project"
+          aria-label="Open project"
         >
           <FolderOpen size={15} />
         </button>
         <button
           className="iconbtn"
-          onClick={() => homeDir && openTab(homeDir)}
-          title="Open a terminal in your home folder"
-          aria-label="Open a terminal in your home folder"
+          onClick={() => void window.dockterm.invoke('window:new', undefined)}
+          data-tip="New window"
+          aria-label="New window"
         >
-          <Terminal size={15} />
+          <AppWindow size={15} />
         </button>
         {project?.branch && (
           <span className="topbar__branch">
@@ -73,8 +70,8 @@ export function TopBar() {
           return (
             <button
               key={panel.id}
-              className={`iconbtn${openPanel === panel.id ? ' iconbtn--active' : ''}`}
-              title={panel.label}
+              className={`iconbtn tip--end${openPanel === panel.id ? ' iconbtn--active' : ''}`}
+              data-tip={panel.label}
               aria-label={panel.label}
               onClick={() => togglePanel(panel.id)}
             >
@@ -84,9 +81,9 @@ export function TopBar() {
         })}
         <span className="topbar__divider" />
         <button
-          className={`iconbtn${miniTermOpen ? ' iconbtn--active' : ''}`}
-          title="Toggle mini terminal"
-          aria-label="Toggle mini terminal"
+          className={`iconbtn tip--end${miniTermOpen ? ' iconbtn--active' : ''}`}
+          data-tip="Mini terminal"
+          aria-label="Mini terminal"
           onClick={toggleMini}
         >
           <SquareTerminal size={15} />
