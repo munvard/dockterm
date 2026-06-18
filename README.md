@@ -8,8 +8,8 @@
 
 <p align="center">
   <b>Run Claude Code, then go do something else.</b><br>
-  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with diffs, Git, files &amp; MCP one keypress away.<br>
-  And <b>munu</b>, a face in your notch, tells you the moment Claude needs you — even in a fullscreen app on another desktop.
+  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with diffs, Git, files, MCP &amp; usage one keypress away.<br>
+  And <b>munu</b>, a face in your notch — or pinned anywhere on screen — tells you the moment Claude needs you, even in a fullscreen app on another desktop.
 </p>
 
 <p align="center">
@@ -37,32 +37,66 @@
 
 ---
 
-- 🔔 **munu** — a notch mascot that reads Claude's state from the terminal and surfaces permission prompts, even when you're in another window or a fullscreen app.
+- 🔔 **munu** — a notch mascot (or pin it anywhere) that reads Claude's state and surfaces permission prompts, even over a fullscreen app on another desktop. Pick your face: munu, nvurd, guru, or adanana.
+- 📊 **Usage at a glance** — how much of your **5-hour and weekly limits** is left, and exactly **when they reset** — live, in a panel and a top-bar pill.
 - 🔍 **Diff review + safe Git** — see exactly what changed, then stage and commit, without leaving the terminal.
-- 🗂️ **Files, editor & MCP, on demand** — a file tree, Monaco editor, image previews, and a read-only MCP view that appear when you ask and vanish when you don't.
-- 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus.
+- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't.
+- 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus. Drag panes to reorder.
 - 🔒 **Local-only** — no accounts, no telemetry; it never calls an AI of its own.
 
 Running Claude Code means living next to a terminal — alt-tabbing to read a diff, to commit, to check whether it's stuck on a `[y/n]`. DockTerm keeps that terminal central and brings the rest to you, so you can let Claude work and actually step away. Claude Code does the work; DockTerm is the calm window around it.
 
 **It keeps your real `claude` — it doesn't replace it.** Unlike Claude Code GUIs that swap your terminal for a custom chat UI (Claudia/Opcode), DockTerm wraps your actual session and builds views around it. Nothing to relearn, and it stays compatible as Claude Code evolves.
 
-**Why not just iTerm or VS Code?** A terminal alone can't show a highlighted diff of what Claude changed, or let you commit safely without raw `git` gymnastics — and it can't tell you Claude is waiting on you while you're in another window. Opening a full IDE to review three lines breaks the flow. DockTerm sits in between.
+### How it compares
+
+|  | Raw terminal | Full IDE | Claude GUIs | **DockTerm** |
+|---|:---:|:---:|:---:|:---:|
+| Keeps your real `claude` session | ✅ | ✅ | ❌ replaces it | ✅ |
+| Highlighted diff review of Claude's changes | ❌ | ✅ | ~ | ✅ |
+| Stage & commit without raw `git` | ❌ | ~ | ~ | ✅ |
+| Tells you when Claude needs you (even fullscreen) | ❌ | ❌ | ❌ | ✅ **munu** |
+| Usage limits & reset times at a glance | ❌ | ❌ | ❌ | ✅ |
+| Stays out of the way | ✅ | ❌ heavy | ~ | ✅ |
+| No telemetry, local-only | ~ | ❌ | ~ | ✅ |
+
+*A terminal alone can't show a highlighted diff of what Claude changed, or let you commit safely, or tell you Claude is waiting while you're in another window. Opening a full IDE to review three lines breaks the flow. DockTerm sits in between.*
 
 ## munu
 
-DockTerm reads Claude's state from the terminal output and shows it as **munu**, a small face near your menu bar — in the notch, on a MacBook. At a glance you can tell whether Claude is working, finished, or waiting for a `[y/n]`, even when DockTerm is behind another window. When Claude pauses to ask permission, munu surfaces the prompt so you can answer with one click and never lose your flow. It infers everything from the terminal; it never auto-answers and never calls an API.
+DockTerm reads Claude's state from the terminal output and shows it as **munu**, a small face near your menu bar — in the notch, on a MacBook. At a glance you can tell whether Claude is working, finished, or waiting for a `[y/n]`, even when DockTerm is behind another window. When Claude pauses to ask permission, munu surfaces the prompt so you can answer with one click — including multi-choice and free-text answers — and never lose your flow. It infers everything from the terminal; it **never auto-answers** and **never calls an API**.
 
 <p align="center"><img src="docs/screenshots/fullscreen.png" alt="munu surfacing a Claude permission prompt over a fullscreen video" width="900"></p>
 <p align="center"><sub>Go watch something fullscreen — munu floats over it (even on another desktop/Space) and brings Claude's prompt to you, so you never miss it.</sub></p>
 
+By default munu tucks into the notch, slides out on hover, and peeks for a few seconds when Claude's state changes. Prefer it always in view? **Pin it and drag it anywhere on screen** — it stays put and visible wherever you put it. On Windows and Linux it's a small auto-hiding (or pinned) pill at the top of the screen.
+
+#### Choose your companion
+
 <table align="center">
   <tr>
-    <td align="center" width="136"><img src="assets/brand/munu.svg"         width="104"></td>
-    <td align="center" width="136"><img src="assets/brand/munu-working.svg"  width="104"></td>
-    <td align="center" width="136"><img src="assets/brand/munu-asking.svg"   width="104"></td>
-    <td align="center" width="136"><img src="assets/brand/munu-happy.svg"    width="104"></td>
-    <td align="center" width="136"><img src="assets/brand/munu-sleeping.svg" width="104"></td>
+    <td align="center" width="130"><img src="assets/brand/munu.svg"   width="92"></td>
+    <td align="center" width="130"><img src="assets/nvurd/nvurd.svg"   width="92"></td>
+    <td align="center" width="130"><img src="assets/guru/guru.svg"     width="92"></td>
+    <td align="center" width="130"><img src="assets/adanana/adanana.svg" width="92"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>munu</b></td>
+    <td align="center"><b>nvurd</b></td>
+    <td align="center"><b>guru</b></td>
+    <td align="center"><b>adanana</b></td>
+  </tr>
+</table>
+
+#### …in every state
+
+<table align="center">
+  <tr>
+    <td align="center" width="136"><img src="assets/brand/munu.svg"         width="100"></td>
+    <td align="center" width="136"><img src="assets/brand/munu-working.svg"  width="100"></td>
+    <td align="center" width="136"><img src="assets/brand/munu-asking.svg"   width="100"></td>
+    <td align="center" width="136"><img src="assets/brand/munu-happy.svg"    width="100"></td>
+    <td align="center" width="136"><img src="assets/brand/munu-sleeping.svg" width="100"></td>
   </tr>
   <tr>
     <td align="center">resting</td>
@@ -73,23 +107,43 @@ DockTerm reads Claude's state from the terminal output and shows it as **munu**,
   </tr>
 </table>
 
-It tucks into the notch and slides out on hover, peeks for a few seconds when Claude's state changes, and stays out while Claude needs you. On Windows and Linux it's a small auto-hiding pill at the top of the screen.
-
 ## What you get
 
-- **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, smooth scrolling.
+- **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, and native, instant scrolling. Drag a pane to reorder the grid.
+- **Usage limits, live** — a Usage panel and a top-bar pill show how much of your rolling **5-hour** and **weekly** windows remain and **when each resets**, calibrated from your own history. Read locally; tokens-only; nothing leaves your machine.
 - **Diff review** — see exactly what changed since your last commit, this session, or a pinned checkpoint, and open a side-by-side diff for any file before you trust it.
 - **Beginner-safe Git** — grouped status, stage/discard, commit, push/pull, branches, with confirmations that show the exact command they'll run.
-- **Files, editor & previews** — file tree, Monaco editor with a save-conflict guard, image and binary previews, drag a file into a terminal to insert its path.
-- **MCP & skills** — read-only view of your MCP servers (project, user, claude.ai connectors, and plugin-provided), with secrets masked; browse and scaffold skills.
+- **Files, editor & previews** — file tree, Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path.
+- **MCP, skills & agents** — read-only views of your MCP servers (project, user, claude.ai connectors, and plugin-provided) with secrets masked, plus your skills, slash-commands and subagents; browse and scaffold skills.
 - **A project per pane** — a grid where each pane is a different repo; focus a pane and the side panels follow it, including a live `cd`.
-- **Themes & zoom** — seven themes plus follow-system, and `⌘`/`Ctrl` `+ / − / 0` to scale the whole UI.
+- **Command palette** — `⌘K` / `Ctrl Shift P` to jump anywhere.
+- **Themes & zoom** — ten themes (incl. Tokyo Night, Catppuccin, Nord, Rosé Pine, an Ubuntu-style Aubergine, and Gruvbox) plus follow-system, and `⌘`/`Ctrl` `+ / − / 0` to scale the whole UI.
+- **In-app updates** — DockTerm checks for new releases and can download and install the latest for your platform in one click.
 
 #### Review what Claude changed, then commit when you're ready
 <p align="center"><img src="docs/screenshots/review.png" alt="Side-by-side diff review with a commit box" width="880"></p>
 
 #### One window, many projects
 <p align="center"><img src="docs/screenshots/grid.png" alt="A grid of terminals, each a different project" width="880"></p>
+
+## Keyboard shortcuts
+
+DockTerm uses the shortcuts you already know from each platform's default terminal, and never steals keys the shell needs (plain `Ctrl C`/`Ctrl W` always go to the shell).
+
+| Action | macOS | Windows / Linux |
+|---|---|---|
+| New tab | `⌘T` | `Ctrl Shift T` |
+| New window | `⌘N` | `Ctrl Shift N` |
+| Close tab | `⌘W` | `Ctrl Shift W` |
+| Command palette | `⌘K` | `Ctrl Shift P` |
+| Open project | `⌘O` | `Ctrl Shift O` |
+| Files / Git / Review panel | `⌘B` / `⌘G` / `⌘R` | `Ctrl Shift B / G / R` |
+| MCP panel | `⌘⇧M` | `Ctrl Shift M` |
+| Mini terminal | `⌘J` | `Ctrl Shift J` |
+| Settings | `⌘,` | `Ctrl ,` |
+| Zoom in / out / reset | `⌘ + / − / 0` | `Ctrl + / − / 0` |
+| Scroll to top / bottom | `⌘↑ / ⌘↓` | `Shift PageUp / PageDown` |
+| Summon / hide DockTerm (global) | `⌘⇧\`` | `Ctrl Shift \`` |
 
 ## Install
 
@@ -102,12 +156,14 @@ Download from [Releases](../../releases):
 | Windows 10/11 | `DockTerm-<version>-Windows.exe` |
 | Linux (x86-64) | `DockTerm-<version>-Linux.AppImage` |
 
-macOS builds are **signed and notarized**, so they open normally. Windows builds are unsigned for now — if SmartScreen appears, choose *More info → Run anyway*. Installs per-user, no admin.
+macOS builds are **signed and notarized**, so they open normally. Windows builds are unsigned for now — if SmartScreen appears, choose *More info → Run anyway*. Installs per-user, no admin. After that, DockTerm can keep itself up to date from inside the app.
 
-## Security
+## Privacy & security
 
 DockTerm is built to be trusted with your code:
 
+- **No telemetry, no accounts, no AI of its own.** It only ever runs *your* `claude`.
+- Usage stats are read from your local `~/.claude` transcripts, **read-only** — token counts only, never message content, and nothing is uploaded.
 - `contextIsolation` and `sandbox` are on; production loads over a custom protocol with a strict CSP and no remote content.
 - Every IPC channel is an explicit, schema-validated verb with a sender check.
 - Filesystem access is jailed to the open project (symlink-safe). Reading `~/.claude` is a separate opt-in.
@@ -115,6 +171,23 @@ DockTerm is built to be trusted with your code:
 - MCP and skill config is read-only and never executed; secrets are shown as key names only.
 
 More in [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
+
+## FAQ
+
+**Does my code or any data leave my machine?**
+No. DockTerm has no telemetry and never calls an AI of its own. Usage stats come from your local `~/.claude` transcripts, read-only.
+
+**Do I keep using my normal `claude`?**
+Yes — DockTerm wraps your real Claude Code session in a real shell. Nothing to relearn, and it stays compatible as Claude Code evolves.
+
+**Are the usage percentages exact to my plan?**
+Anthropic doesn't expose your exact quota locally, so DockTerm calibrates the percentage from your own history — it tracks your real limits closely (especially once you've hit one), and the **reset times are exact**.
+
+**Windows says "unknown publisher."**
+The Windows build is unsigned for now: choose *More info → Run anyway*. macOS is signed and notarized.
+
+**Does munu ever answer Claude for me?**
+Never. It only surfaces the prompt; you click. It infers state from the terminal and never calls an API.
 
 ## Build from source
 
@@ -126,11 +199,11 @@ npm test           # unit tests (vitest)
 npm run build      # production bundles
 ```
 
-Requires Node 20+. Architecture notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Requires Node 22+. Architecture notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status
 
-Early but actively developed, and used daily. It's an Electron app, so the download is fairly large. macOS builds are notarized; Windows is unsigned for now. Bugs and rough edges are expected — issues and PRs are welcome.
+Early but actively developed, and used daily. It's an Electron app, so the download is fairly large. macOS builds are notarized; Windows is unsigned for now. Bugs and rough edges are expected — [issues](../../issues) and PRs are welcome.
 
 ## License
 
