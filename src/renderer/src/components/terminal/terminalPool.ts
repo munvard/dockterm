@@ -103,6 +103,9 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     scrollback: opts.scrollback ?? 5000,
     allowProposedApi: true,
     macOptionIsMeta: true,
+    // Conservatively rescale glyphs that would overlap the next cell — prevents
+    // the "letters printed on letters" artifact under GPU acceleration.
+    rescaleOverlappingGlyphs: true,
     theme: useThemeStore.getState().xterm,
     fontWeightBold: '600',
     // Native-style scrolling: instant, no easing. An animated scroll
@@ -227,18 +230,31 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   })
 
   // WebGL is loaded lazily on first attach (it needs the canvas in the DOM with
-  // real dimensions); falls back to the DOM renderer if unavailable.
+  // real dimensions); falls back to the DOM renderer if unavailable. On context
+  // loss we dispose AND reload a fresh addon next frame, otherwise the renderer
+  // stays degraded and prints garbled / overlapping glyphs.
   let webglTried = false
-  const tryWebgl = (): void => {
-    if (webglTried || (opts.renderer ?? 'auto') !== 'auto') return
-    webglTried = true
+  let webglAddon: WebglAddon | null = null
+  const loadWebgl = (): void => {
     try {
       const webgl = new WebglAddon()
-      webgl.onContextLoss(() => webgl.dispose())
+      webgl.onContextLoss(() => {
+        webgl.dispose()
+        if (webglAddon === webgl) webglAddon = null
+        requestAnimationFrame(() => {
+          if (host.clientWidth > 0 && host.clientHeight > 0) loadWebgl()
+        })
+      })
       term.loadAddon(webgl)
+      webglAddon = webgl
     } catch {
       // WebGL unavailable -> DOM renderer
     }
+  }
+  const tryWebgl = (): void => {
+    if (webglTried || (opts.renderer ?? 'auto') !== 'auto') return
+    webglTried = true
+    loadWebgl()
   }
 
   // Only fit when actually visible. A hidden/detached pane collapses to 0×0;
@@ -324,29 +340,41 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   })
   observer.observe(host)
 
-  void window.dockterm
-    .invoke('pty:create', { kind: opts.kind, cols: term.cols, rows: term.rows, cwd: opts.cwd })
-    .then((res) => {
-      if (!res.ok) {
-        term.writeln(`\x1b[31mFailed to start shell: ${res.error.message}\x1b[0m`)
-        return
-      }
-      sessionId = res.value.sessionId
-      for (const e of pending) {
-        if (e.sessionId === sessionId) writeChunk(e.data)
-      }
-      pending.length = 0
-      if (pasteQueue) {
-        void window.dockterm.invoke('pty:write', { sessionId, data: pasteQueue })
-        pasteQueue = ''
-      }
-      term.focus()
-    })
+  // Create the PTY only AFTER the first fit, so it spawns at the correctly-sized
+  // cols/rows. Spawning at the 80×24 default and resizing a frame later makes
+  // Claude's full-screen TUI redraw at the wrong width → overlapping/garbled
+  // output. One-shot: a detach/reattach never respawns the shell.
+  let ptyStarted = false
+  const startPty = (): void => {
+    if (ptyStarted) return
+    ptyStarted = true
+    void window.dockterm
+      .invoke('pty:create', { kind: opts.kind, cols: term.cols, rows: term.rows, cwd: opts.cwd })
+      .then((res) => {
+        if (!res.ok) {
+          term.writeln(`\x1b[31mFailed to start shell: ${res.error.message}\x1b[0m`)
+          return
+        }
+        sessionId = res.value.sessionId
+        for (const e of pending) {
+          if (e.sessionId === sessionId) writeChunk(e.data)
+        }
+        pending.length = 0
+        if (pasteQueue) {
+          void window.dockterm.invoke('pty:write', { sessionId, data: pasteQueue })
+          pasteQueue = ''
+        }
+        term.focus()
+      })
+  }
 
   p.attach = (container) => {
     container.appendChild(host)
     tryWebgl()
-    requestAnimationFrame(() => safeFit())
+    requestAnimationFrame(() => {
+      safeFit()
+      startPty()
+    })
   }
   p.detach = () => {
     if (host.parentElement) host.parentElement.removeChild(host)
