@@ -245,6 +245,12 @@ export interface InvokeChannels {
   'munu:setFocusable': (req: { focusable: boolean }) => Result<void>
   /** The overlay's content size changed — resize the floating window to fit. */
   'munu:resize': (req: { width: number; height: number }) => Result<void>
+  /** Bring the DockTerm window(s) to the front (used when munu is clicked). */
+  'munu:showApp': (req: void) => Result<void>
+  /** Read the overlay window's current screen bounds (drag start reference). */
+  'munu:getBounds': (req: void) => Result<{ x: number; y: number; width: number; height: number }>
+  /** Move the overlay window to an absolute screen position (clamped on-screen). */
+  'munu:move': (req: { x: number; y: number }) => Result<void>
 }
 
 export interface EventChannels {
@@ -336,7 +342,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:focus',
   'munu:setInteractive',
   'munu:setFocusable',
-  'munu:resize'
+  'munu:resize',
+  'munu:showApp',
+  'munu:getBounds',
+  'munu:move'
 ]
 
 /** Runtime allowlist mirrored from `EventChannels`. */
