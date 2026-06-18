@@ -7,6 +7,7 @@ import { Shell } from './components/layout/Shell'
 import { EmptyState } from './components/common/EmptyState'
 import { Toaster } from './components/common/Toaster'
 import { DialogHost } from './components/common/DialogHost'
+import { UpdatePopup } from './components/common/UpdatePopup'
 import { CommandPalette } from './components/command-palette/CommandPalette'
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
       {!ready ? <div className="app app--loading" /> : project ? <Shell /> : <EmptyState />}
       <Toaster />
       <DialogHost />
+      <UpdatePopup />
       <CommandPalette />
     </>
   )

@@ -4,6 +4,7 @@ import { ok } from '@shared/result'
 import { APP_NAME } from '@shared/constants'
 import { createWindow, isPrimaryWindow, applyZoomToAllWindows } from '../../window'
 import { applySettingsPatch, getSettings } from '../../services/settingsService'
+import { checkForUpdate, snoozeUpdate, skipUpdate } from '../../services/updateChecker'
 import type { Settings } from '@shared/types'
 import type { Registrar } from '../register'
 
@@ -20,6 +21,21 @@ export function registerAppHandlers(reg: Registrar): void {
 
   reg('app:openExternal', z.object({ url: z.string().max(2048) }), (req) => {
     if (/^https?:\/\//i.test(req.url)) void shell.openExternal(req.url)
+    return ok(undefined)
+  })
+
+  reg('update:check', z.void(), async () => {
+    const found = await checkForUpdate(true)
+    return ok({ upToDate: !found })
+  })
+
+  reg('update:snooze', z.object({ hours: z.number().min(0).max(720) }), (req) => {
+    snoozeUpdate(req.hours)
+    return ok(undefined)
+  })
+
+  reg('update:skip', z.object({ version: z.string().max(40) }), (req) => {
+    skipUpdate(req.version)
     return ok(undefined)
   })
 

@@ -173,6 +173,7 @@ export function Shell() {
                   <PaneTree
                     node={tab.layout}
                     tabId={tab.id}
+                    tabTitle={tab.title}
                     focusedLeafId={tab.focusedLeafId}
                     tabActive={tab.id === activeId}
                     canClose={allLeaves(tab.layout).length > 1 || terminals.length > 1}

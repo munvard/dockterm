@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { McpReadResult, SkillsReadResult, SkillTemplate } from '@shared/types'
+import type { McpReadResult, SkillsReadResult, AgentsReadResult, SkillTemplate } from '@shared/types'
 import { useAppStore } from './useAppStore'
 import { useToastStore } from './useToastStore'
 
@@ -10,9 +10,11 @@ function includeUser(): boolean {
 interface ClaudeState {
   mcp: McpReadResult | null
   skills: SkillsReadResult | null
+  agents: AgentsReadResult | null
   readMcp: () => Promise<void>
   createMcpTemplate: () => Promise<string | null>
   readSkills: () => Promise<void>
+  readAgents: () => Promise<void>
   createSkill: (
     name: string,
     kind: 'skill' | 'command',
@@ -23,6 +25,7 @@ interface ClaudeState {
 export const useClaudeStore = create<ClaudeState>((set) => ({
   mcp: null,
   skills: null,
+  agents: null,
 
   readMcp: async () => {
     const res = await window.dockterm.invoke('claude:mcpRead', { includeUser: includeUser() })
@@ -43,6 +46,12 @@ export const useClaudeStore = create<ClaudeState>((set) => ({
   readSkills: async () => {
     const res = await window.dockterm.invoke('claude:skillsRead', { includeUser: includeUser() })
     if (res.ok) set({ skills: res.value })
+    else useToastStore.getState().push(res.error.message, 'error')
+  },
+
+  readAgents: async () => {
+    const res = await window.dockterm.invoke('claude:agentsRead', { includeUser: includeUser() })
+    if (res.ok) set({ agents: res.value })
     else useToastStore.getState().push(res.error.message, 'error')
   },
 

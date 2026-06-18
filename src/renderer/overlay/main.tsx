@@ -36,6 +36,7 @@ const isFreeText = (label: string): boolean =>
 function Overlay() {
   const [g, setG] = useState<MunuGlobal>({ state: 'idle', asks: [] })
   const [sounds, setSounds] = useState(true)
+  const [munuSize, setMunuSize] = useState(56)
   const [platform, setPlatform] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -52,12 +53,18 @@ function Overlay() {
 
   useEffect(() => {
     void window.dockterm.invoke('settings:get', undefined).then((r) => {
-      if (r.ok) setSounds(r.value.munu.sounds)
+      if (r.ok) {
+        setSounds(r.value.munu.sounds)
+        setMunuSize(r.value.munu.size)
+      }
     })
     void window.dockterm.invoke('app:getInfo', undefined).then((r) => {
       if (r.ok) setPlatform(r.value.platform)
     })
-    return window.dockterm.on('settings:changed', (s) => setSounds(s.munu.sounds))
+    return window.dockterm.on('settings:changed', (s) => {
+      setSounds(s.munu.sounds)
+      setMunuSize(s.munu.size)
+    })
   }, [])
 
   useEffect(() => {
@@ -203,7 +210,7 @@ function Overlay() {
         }}
         title="munu"
       >
-        <Munu state={g.state} size={showCard ? 42 : 56} />
+        <Munu state={g.state} size={showCard ? Math.round(munuSize * 0.75) : munuSize} />
         {showCard && primary && (
           <div className={`island__card${primary.multiSelect ? ' island__card--multi' : ''}`}>
             {primary.steps.length > 0 && (

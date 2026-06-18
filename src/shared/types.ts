@@ -1,6 +1,17 @@
 /** Domain types shared between main and renderer. Extended per milestone. */
 
-export type PanelId = 'files' | 'git' | 'review' | 'mcp' | 'skills' | 'info' | 'settings'
+export type PanelId =
+  | 'files'
+  | 'git'
+  | 'review'
+  | 'mcp'
+  | 'skills'
+  | 'agents'
+  | 'info'
+  | 'settings'
+
+/** Where a skill/command/agent was found. */
+export type ItemScope = 'project' | 'user' | 'plugin'
 
 /** munu (the mascot) state, aggregated across panes/windows. */
 export type MunuState = 'idle' | 'working' | 'asking' | 'done'
@@ -48,6 +59,8 @@ export type MunuSettings = {
   attention: boolean
   keepAwake: boolean
   notifications: boolean
+  /** Overlay munu face size in px (the notch pill). Default 56. */
+  size: number
 }
 
 export type AccentName = 'violet' | 'blue' | 'teal'
@@ -90,6 +103,24 @@ export interface GitSettings {
 export interface ClaudeSettings {
   /** Opt-in (default false): allow reading user-scope ~/.claude config for MCP/skills panels. */
   readUserConfig: boolean
+  /** Optional override directories, for users who keep their config elsewhere.
+   * Scanned in addition to the default locations. Empty string = unset. */
+  paths: {
+    skills: string
+    commands: string
+    agents: string
+    /** Extra MCP config file (.mcp.json shape) to read. */
+    mcpConfig: string
+  }
+}
+
+export interface UpdateSettings {
+  /** Poll GitHub for new releases (on launch + every ~6h). */
+  checkAutomatically: boolean
+  /** A version the user chose to skip; never prompt for it again. */
+  dismissedVersion: string | null
+  /** Epoch ms before which we won't prompt again ("remind me later"). */
+  remindAfter: number
 }
 
 /** Persisted terminal tabs for the window, restored on relaunch. `layout` is the
@@ -121,6 +152,7 @@ export interface Settings {
   ui: UiSettings
   git: GitSettings
   claude: ClaudeSettings
+  update: UpdateSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings
@@ -171,7 +203,7 @@ export interface McpReadResult {
 export interface SkillView {
   slashName: string
   description: string
-  scope: 'project' | 'user'
+  scope: ItemScope
   sourcePath: string
   canOpen: boolean
   disableModelInvocation: boolean
@@ -180,7 +212,7 @@ export interface SkillView {
 export interface CommandView {
   slashName: string
   description: string
-  scope: 'project' | 'user'
+  scope: ItemScope
   sourcePath: string
   canOpen: boolean
 }
@@ -188,6 +220,19 @@ export interface CommandView {
 export interface SkillsReadResult {
   skills: SkillView[]
   commands: CommandView[]
+}
+
+/** A Claude Code subagent (`.claude/agents/*.md`). */
+export interface AgentView {
+  name: string
+  description: string
+  scope: ItemScope
+  sourcePath: string
+  canOpen: boolean
+}
+
+export interface AgentsReadResult {
+  agents: AgentView[]
 }
 
 export type SkillTemplate =

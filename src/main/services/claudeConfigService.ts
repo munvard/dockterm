@@ -2,6 +2,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { safeUrl, keysOf } from './secretMask'
+import { listInstalledPlugins } from './pluginDirs'
+import { getSettings } from './settingsService'
 import type { McpServerView, McpSource, McpReadResult, McpTransport, McpScope } from '@shared/types'
 
 const MCP_TEMPLATE = `{
@@ -137,31 +139,17 @@ function readUserConfig(
 /** Reads MCP servers contributed by installed Claude Code plugins. Each plugin's
  * `<installPath>/.mcp.json` is a direct `{ name: def }` map. */
 function readPluginMcp(sources: McpSource[], servers: McpServerView[]): void {
-  const file = join(homedir(), '.claude', 'plugins', 'installed_plugins.json')
-  if (!existsSync(file)) {
-    sources.push({ path: file, scope: 'plugin', exists: false, ok: true })
-    return
-  }
-  try {
-    const text = readFileSync(file, 'utf8').replace(/^﻿/, '')
-    const json = JSON.parse(text) as { plugins?: Record<string, Array<{ installPath?: string }>> }
-    const plugins = json.plugins ?? {}
-    for (const [pluginKey, installs] of Object.entries(plugins)) {
-      const installPath = Array.isArray(installs) ? installs[installs.length - 1]?.installPath : null
-      if (!installPath) continue
-      const mcpFile = join(installPath, '.mcp.json')
-      if (!existsSync(mcpFile)) continue
-      const short = pluginKey.split('@')[0]
-      try {
-        const map = JSON.parse(readFileSync(mcpFile, 'utf8').replace(/^﻿/, ''))
-        servers.push(...serversFromMap(map, 'plugin', mcpFile, `${short}:`))
-      } catch {
-        // skip a plugin with an unparseable .mcp.json
-      }
+  const registry = join(homedir(), '.claude', 'plugins', 'installed_plugins.json')
+  sources.push({ path: registry, scope: 'plugin', exists: existsSync(registry), ok: true })
+  for (const plugin of listInstalledPlugins()) {
+    const mcpFile = join(plugin.path, '.mcp.json')
+    if (!existsSync(mcpFile)) continue
+    try {
+      const map = JSON.parse(readFileSync(mcpFile, 'utf8').replace(/^﻿/, ''))
+      servers.push(...serversFromMap(map, 'plugin', mcpFile, `${plugin.name}:`))
+    } catch {
+      // skip a plugin with an unparseable .mcp.json
     }
-    sources.push({ path: file, scope: 'plugin', exists: true, ok: true })
-  } catch {
-    sources.push({ path: file, scope: 'plugin', exists: true, ok: false, error: 'Could not parse JSON' })
   }
 }
 
@@ -172,6 +160,8 @@ export function readMcp(root: string, includeUser: boolean): McpReadResult {
   const sources: McpSource[] = []
   const servers: McpServerView[] = []
   readInto(join(root, '.mcp.json'), 'project', sources, servers)
+  const customMcp = getSettings().claude.paths.mcpConfig
+  if (customMcp) readInto(customMcp, 'user', sources, servers)
   if (includeUser) {
     readUserConfig(join(homedir(), '.claude.json'), root, sources, servers)
     readPluginMcp(sources, servers)

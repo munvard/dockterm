@@ -3,11 +3,16 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v0.21.0 — a calmer, less-repetitive header
+## 🎯 What's new in v0.22.0 — agents, smarter panels, a real settings pass
 
-- **No more triple-printed folder name.** The project name used to appear three times stacked above the terminal (top bar, tab, *and* the pane bar). Now it shows once — in the tab. The top bar keeps the open-project button, branch, and change-count; the per-pane title bar only appears when a tab actually has **2+ panes** (where it's useful).
-- **More terminal, less chrome.** A single-pane tab drops the per-pane bar entirely, reclaiming a row of vertical space.
-- Plus everything from v0.20.0: munu floats over fullscreen, instant state on answer, and the correct project in the dock.
+- **Skills & Commands now actually show up.** They're scanned from your installed **plugins** and user config too (not just the project) — fixing the "No skills & commands found" you'd hit in a fresh folder.
+- **New Agents panel.** See your Claude Code subagents (`.claude/agents`) — project, user, and plugin — with descriptions.
+- **Pick your terminal font from a list.** No more typing font names — choose from a dropdown (with a live preview), or "Custom…" for anything else.
+- **Resize munu.** A size control in Settings (Small → Extra large); the default is unchanged.
+- **Point DockTerm at custom config folders.** If you keep skills, commands, agents, or an MCP config somewhere non-standard, set the paths in Settings.
+- **Update notifications.** DockTerm now checks GitHub on launch (and every few hours) and shows a popup when a new version is out — with Update now / Remind me later / Skip. It never installs anything on its own.
+- **Clearer settings** with plain-language help under each option (what *beginner mode* and *read user config* actually do).
+- **Calmer grids.** A pane's title no longer repeats the tab's folder name in a same-project grid.
 
 ---
 

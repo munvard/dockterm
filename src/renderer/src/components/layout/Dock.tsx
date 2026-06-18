@@ -4,6 +4,7 @@ import { GitPanel } from '../git/GitPanel'
 import { ReviewPanel } from '../review/ReviewPanel'
 import { McpPanel } from '../mcp/McpPanel'
 import { SkillsPanel } from '../skills/SkillsPanel'
+import { AgentsPanel } from '../agents/AgentsPanel'
 import { ProjectInfoPanel } from '../info/ProjectInfoPanel'
 import { SettingsPanel } from '../settings/SettingsPanel'
 
@@ -18,6 +19,7 @@ export function Dock() {
       {openPanel === 'review' && <ReviewPanel />}
       {openPanel === 'mcp' && <McpPanel />}
       {openPanel === 'skills' && <SkillsPanel />}
+      {openPanel === 'agents' && <AgentsPanel />}
       {openPanel === 'info' && <ProjectInfoPanel />}
       {openPanel === 'settings' && <SettingsPanel />}
     </aside>

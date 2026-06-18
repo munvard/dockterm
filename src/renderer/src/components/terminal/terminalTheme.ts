@@ -27,3 +27,21 @@ export const terminalTheme: ITheme = {
 
 export const DEFAULT_MONO =
   '"JetBrains Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace'
+
+/** Curated monospace fonts for the Settings font picker. `value` is the CSS
+ * font stack (`''` = use the bundled default, stored as null). */
+export const FONT_CHOICES: { label: string; value: string }[] = [
+  { label: 'Default (bundled mono)', value: '' },
+  { label: 'JetBrains Mono', value: "'JetBrains Mono', monospace" },
+  { label: 'Cascadia Code', value: "'Cascadia Code', 'Cascadia Mono', monospace" },
+  { label: 'SF Mono', value: "'SF Mono', monospace" },
+  { label: 'Menlo', value: 'Menlo, monospace' },
+  { label: 'Monaco', value: 'Monaco, monospace' },
+  { label: 'Consolas', value: 'Consolas, monospace' },
+  { label: 'Fira Code', value: "'Fira Code', monospace" },
+  { label: 'Hack', value: "'Hack', monospace" },
+  { label: 'Source Code Pro', value: "'Source Code Pro', monospace" },
+  { label: 'IBM Plex Mono', value: "'IBM Plex Mono', monospace" },
+  { label: 'Ubuntu Mono', value: "'Ubuntu Mono', monospace" },
+  { label: 'Courier New', value: "'Courier New', monospace" }
+]

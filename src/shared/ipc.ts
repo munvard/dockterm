@@ -25,10 +25,17 @@ import type {
   CheckpointStatus,
   McpReadResult,
   SkillsReadResult,
+  AgentsReadResult,
   SkillTemplate,
   ProjectInfoData,
   MunuGlobal
 } from './types'
+
+export interface UpdateAvailable {
+  latestVersion: string
+  releaseUrl: string
+  notes: string
+}
 
 export interface AppInfo {
   name: string
@@ -143,7 +150,10 @@ export interface GitOutput {
 /* -------------------------------- settings -------------------------------- */
 
 export type SettingsPatch = Partial<
-  Pick<Settings, 'terminal' | 'editor' | 'ui' | 'git' | 'claude' | 'munu' | 'workspace' | 'theme'>
+  Pick<
+    Settings,
+    'terminal' | 'editor' | 'ui' | 'git' | 'claude' | 'update' | 'munu' | 'workspace' | 'theme'
+  >
 >
 
 /* ------------------------------- channel maps ----------------------------- */
@@ -198,6 +208,7 @@ export interface InvokeChannels {
   'claude:mcpRead': (req: { includeUser: boolean }) => Result<McpReadResult>
   'claude:mcpCreateTemplate': (req: void) => Result<{ relPath: string }>
   'claude:skillsRead': (req: { includeUser: boolean }) => Result<SkillsReadResult>
+  'claude:agentsRead': (req: { includeUser: boolean }) => Result<AgentsReadResult>
   'claude:skillCreate': (req: {
     name: string
     kind: 'skill' | 'command'
@@ -206,6 +217,11 @@ export interface InvokeChannels {
 
   'info:get': (req: void) => Result<ProjectInfoData>
   'app:openExternal': (req: { url: string }) => Result<void>
+
+  // updates — manual check + snooze/skip for the "update available" popup.
+  'update:check': (req: void) => Result<{ upToDate: boolean }>
+  'update:snooze': (req: { hours: number }) => Result<void>
+  'update:skip': (req: { version: string }) => Result<void>
 
   'window:new': (req: void) => Result<void>
   'window:isPrimary': (req: void) => Result<boolean>
@@ -240,6 +256,8 @@ export interface EventChannels {
   'munu:doAnswer': { leafId: string; keys: string[] }
   /** main → the window owning an asking pane: focus that pane. */
   'munu:doFocus': { tabId: string; leafId: string }
+  /** main → renderer: a newer release is available (poll-based). */
+  'update:available': UpdateAvailable
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -292,9 +310,13 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'claude:mcpRead',
   'claude:mcpCreateTemplate',
   'claude:skillsRead',
+  'claude:agentsRead',
   'claude:skillCreate',
   'info:get',
   'app:openExternal',
+  'update:check',
+  'update:snooze',
+  'update:skip',
   'window:new',
   'window:isPrimary',
   'app:recover',
@@ -316,7 +338,8 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'munu:state',
   'munu:reveal',
   'munu:doAnswer',
-  'munu:doFocus'
+  'munu:doFocus',
+  'update:available'
 ]
 
 export interface DockTermApi {

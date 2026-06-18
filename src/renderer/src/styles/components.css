@@ -1999,3 +1999,85 @@
 .toggle--on .toggle__knob {
   left: 18px;
 }
+
+/* Inline text-button (e.g. empty-state CTAs). */
+.linkbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+.linkbtn:hover {
+  opacity: 0.85;
+}
+
+/* Settings: path field + browse button, and the font preview line. */
+.settings-pathrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.settings-pathrow .settings-input {
+  flex: 1;
+  min-width: 0;
+}
+.settings-fontpreview {
+  font-size: 13px;
+  color: var(--text);
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Update-available popup. */
+.update-pop {
+  padding: 18px;
+  width: 380px;
+  max-width: 86vw;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.update-pop__head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.update-pop__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.update-pop__sub {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.update-pop__notes {
+  margin: 0;
+  max-height: 168px;
+  overflow: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 10px 11px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+}
+.update-pop__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}

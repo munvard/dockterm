@@ -49,7 +49,7 @@ const preference = {
       editorRatio: z.number().min(0.2).max(0.8).default(0.5),
       miniTermHeight: z.number().min(80).max(600).default(160),
       openPanel: z
-        .enum(['files', 'git', 'review', 'mcp', 'skills', 'info', 'settings'])
+        .enum(['files', 'git', 'review', 'mcp', 'skills', 'agents', 'info', 'settings'])
         .nullable()
         .default(null),
       miniTermOpen: z.boolean().default(false),
@@ -60,7 +60,26 @@ const preference = {
   git: z
     .object({ beginnerMode: z.boolean().default(true), confirmDanger: z.boolean().default(true) })
     .default({}),
-  claude: z.object({ readUserConfig: z.boolean().default(false) }).default({}),
+  claude: z
+    .object({
+      readUserConfig: z.boolean().default(false),
+      paths: z
+        .object({
+          skills: z.string().default(''),
+          commands: z.string().default(''),
+          agents: z.string().default(''),
+          mcpConfig: z.string().default('')
+        })
+        .default({})
+    })
+    .default({}),
+  update: z
+    .object({
+      checkAutomatically: z.boolean().default(true),
+      dismissedVersion: z.string().nullable().default(null),
+      remindAfter: z.number().default(0)
+    })
+    .default({}),
   munu: z
     .object({
       enabled: z.boolean().default(true),
@@ -68,7 +87,8 @@ const preference = {
       sounds: z.boolean().default(true),
       attention: z.boolean().default(true),
       keepAwake: z.boolean().default(true),
-      notifications: z.boolean().default(true)
+      notifications: z.boolean().default(true),
+      size: z.number().int().min(36).max(120).default(56)
     })
     .default({})
 }
@@ -84,6 +104,7 @@ const settingsSchema = z.object({
   ui: preference.ui,
   git: preference.git,
   claude: preference.claude,
+  update: preference.update,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   workspace: workspaceSchema,
@@ -97,6 +118,7 @@ export const settingsPatchSchema = z.object({
   ui: preference.ui.optional(),
   git: preference.git.optional(),
   claude: preference.claude.optional(),
+  update: preference.update.optional(),
   munu: preference.munu.optional(),
   theme: z.string().optional(),
   workspace: workspaceSchema.optional()

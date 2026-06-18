@@ -91,11 +91,22 @@ export function SkillsPanel() {
       <div className="panel__body">
         <label className="mcp-toggle">
           <input type="checkbox" checked={readUserConfig} onChange={() => void toggleUser()} />
-          Include my user skills (~/.claude)
+          Include user &amp; plugin skills (~/.claude)
         </label>
 
         {empty && (
-          <div className="mcp-empty">No skills or commands found{readUserConfig ? '' : ' in this project'}.</div>
+          <div className="mcp-empty">
+            No skills or commands found{readUserConfig ? '' : ' in this project'}.
+            {!readUserConfig && (
+              <>
+                {' '}
+                <button className="linkbtn" onClick={() => void toggleUser()}>
+                  Include your user &amp; plugin items
+                </button>{' '}
+                to see global ones.
+              </>
+            )}
+          </div>
         )}
 
         {skillsList.length > 0 && (

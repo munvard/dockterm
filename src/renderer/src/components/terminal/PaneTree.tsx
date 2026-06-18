@@ -21,12 +21,15 @@ function quotePath(p: string): string {
 function TerminalPane({
   leaf,
   tabId,
+  tabTitle,
   focused,
   canClose,
   hideBar
 }: {
   leaf: LeafNode
   tabId: string
+  /** The tab's title — used to drop a pane title that merely repeats it. */
+  tabTitle: string
   focused: boolean
   canClose: boolean
   /** Single-pane tab: skip the per-pane title bar (the tab already names it). */
@@ -108,7 +111,7 @@ function TerminalPane({
     >
       {!hideBar && (
         <div className="pane__bar">
-          <span className="pane__title">{leaf.title}</span>
+          <span className="pane__title">{leaf.title === tabTitle ? '' : leaf.title}</span>
           <div className="pane__actions">
             <button title="Split right" onMouseDown={act(() => split('row'))}>
               <SplitSquareHorizontal size={12} />
@@ -167,6 +170,7 @@ function TerminalPane({
 export function PaneTree({
   node,
   tabId,
+  tabTitle,
   focusedLeafId,
   tabActive,
   canClose,
@@ -174,6 +178,7 @@ export function PaneTree({
 }: {
   node: LayoutNode
   tabId: string
+  tabTitle: string
   focusedLeafId: string
   tabActive: boolean
   canClose: boolean
@@ -185,6 +190,7 @@ export function PaneTree({
       <TerminalPane
         leaf={node}
         tabId={tabId}
+        tabTitle={tabTitle}
         focused={tabActive && node.id === focusedLeafId}
         canClose={canClose}
         hideBar={depth === 0}
@@ -208,6 +214,7 @@ export function PaneTree({
             <PaneTree
               node={child}
               tabId={tabId}
+              tabTitle={tabTitle}
               focusedLeafId={focusedLeafId}
               tabActive={tabActive}
               canClose

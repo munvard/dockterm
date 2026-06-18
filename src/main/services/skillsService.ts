@@ -1,7 +1,17 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { homedir } from 'node:os'
-import type { SkillView, CommandView, SkillsReadResult, SkillTemplate } from '@shared/types'
+import type {
+  SkillView,
+  CommandView,
+  SkillsReadResult,
+  SkillTemplate,
+  AgentView,
+  AgentsReadResult,
+  ItemScope
+} from '@shared/types'
+import { listInstalledPlugins } from './pluginDirs'
+import { getSettings } from './settingsService'
 
 function parseFrontmatter(text: string): { fm: Record<string, string>; body: string } {
   const match = text.replace(/^﻿/, '').match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
@@ -33,7 +43,7 @@ function toRel(root: string, file: string): string {
   return relative(root, file).split(sep).join('/')
 }
 
-function readSkillsDir(root: string, dir: string, scope: 'project' | 'user'): SkillView[] {
+function readSkillsDir(root: string, dir: string, scope: ItemScope): SkillView[] {
   if (!existsSync(dir)) return []
   const out: SkillView[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -53,7 +63,7 @@ function readSkillsDir(root: string, dir: string, scope: 'project' | 'user'): Sk
   return out
 }
 
-function readCommandsDir(root: string, dir: string, scope: 'project' | 'user'): CommandView[] {
+function readCommandsDir(root: string, dir: string, scope: ItemScope): CommandView[] {
   if (!existsSync(dir)) return []
   const out: CommandView[] = []
   const walk = (current: string, prefix: string): void => {
@@ -78,17 +88,58 @@ function readCommandsDir(root: string, dir: string, scope: 'project' | 'user'): 
   return out
 }
 
+function readAgentsDir(root: string, dir: string, scope: ItemScope): AgentView[] {
+  if (!existsSync(dir)) return []
+  const out: AgentView[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+    const file = join(dir, entry.name)
+    const { fm, body } = parseFrontmatter(readFileSync(file, 'utf8'))
+    out.push({
+      name: fm.name || entry.name.slice(0, -3),
+      description: describe(fm, body),
+      scope,
+      sourcePath: scope === 'project' ? toRel(root, file) : file,
+      canOpen: scope === 'project'
+    })
+  }
+  return out
+}
+
 export function readSkills(root: string, includeUser: boolean): SkillsReadResult {
   const skills = readSkillsDir(root, join(root, '.claude', 'skills'), 'project')
   const commands = readCommandsDir(root, join(root, '.claude', 'commands'), 'project')
+  // User-set override directories (always scanned — the user opted in by setting them).
+  const custom = getSettings().claude.paths
+  if (custom.skills) skills.push(...readSkillsDir(root, custom.skills, 'user'))
+  if (custom.commands) commands.push(...readCommandsDir(root, custom.commands, 'user'))
   if (includeUser) {
     const userClaude = join(homedir(), '.claude')
     skills.push(...readSkillsDir(root, join(userClaude, 'skills'), 'user'))
     commands.push(...readCommandsDir(root, join(userClaude, 'commands'), 'user'))
+    // Plugin-provided skills/commands (superpowers etc.) — this is what was missing.
+    for (const p of listInstalledPlugins()) {
+      skills.push(...readSkillsDir(root, join(p.path, 'skills'), 'plugin'))
+      commands.push(...readCommandsDir(root, join(p.path, 'commands'), 'plugin'))
+    }
   }
   skills.sort((a, b) => a.slashName.localeCompare(b.slashName))
   commands.sort((a, b) => a.slashName.localeCompare(b.slashName))
   return { skills, commands }
+}
+
+export function readAgents(root: string, includeUser: boolean): AgentsReadResult {
+  const agents = readAgentsDir(root, join(root, '.claude', 'agents'), 'project')
+  const custom = getSettings().claude.paths
+  if (custom.agents) agents.push(...readAgentsDir(root, custom.agents, 'user'))
+  if (includeUser) {
+    agents.push(...readAgentsDir(root, join(homedir(), '.claude', 'agents'), 'user'))
+    for (const p of listInstalledPlugins()) {
+      agents.push(...readAgentsDir(root, join(p.path, 'agents'), 'plugin'))
+    }
+  }
+  agents.sort((a, b) => a.name.localeCompare(b.name))
+  return { agents }
 }
 
 const SKILL_TEMPLATES: Record<SkillTemplate, (name: string) => string> = {

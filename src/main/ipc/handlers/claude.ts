@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ok, err } from '@shared/result'
 import { readMcp, createMcpTemplate } from '../../services/claudeConfigService'
-import { readSkills, createSkill } from '../../services/skillsService'
+import { readSkills, readAgents, createSkill } from '../../services/skillsService'
 import { getSettings } from '../../services/settingsService'
 import { rootFor } from '../../services/activeRoot'
 import type { Registrar } from '../register'
@@ -36,6 +36,15 @@ export function registerClaudeHandlers(reg: Registrar): void {
       return ok(readSkills(rootFor(event), allowUser))
     } catch (e) {
       return err('IO', e instanceof Error ? e.message : 'Could not read skills')
+    }
+  })
+
+  reg('claude:agentsRead', z.object({ includeUser: z.boolean() }), (req, event) => {
+    const allowUser = req.includeUser && getSettings().claude.readUserConfig
+    try {
+      return ok(readAgents(rootFor(event), allowUser))
+    } catch (e) {
+      return err('IO', e instanceof Error ? e.message : 'Could not read agents')
     }
   })
 
