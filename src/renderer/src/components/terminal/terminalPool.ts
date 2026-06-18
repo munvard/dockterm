@@ -7,6 +7,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import type { PtyDataEvent } from '@shared/ipc'
 import { DEFAULT_MONO } from './terminalTheme'
 import { parseOsc7 } from './osc7'
+import { resolveTermKey } from './terminalKeys'
 import { classify, parseAsk } from './claudeStatus'
 import { findPathLinks } from './pathLinks'
 import { useThemeStore } from '../../state/useThemeStore'
@@ -179,25 +180,42 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     }
   })
 
-  // Scroll shortcuts (intercepted, not sent to the shell). ⌘↓/⌘↑ jump to
-  // bottom/top; Shift+PageUp/Down page.
+  // Scroll/clipboard shortcuts (intercepted, not sent to the shell). Pure key
+  // mapping lives in terminalKeys.ts; here we just perform the chosen action.
+  // ⌘↓/⌘↑ jump to bottom/top; Shift+PageUp/Down page; on Linux/Windows
+  // Ctrl+Shift+C/V copy the selection / paste the clipboard.
+  const platform = document.documentElement.dataset.platform ?? ''
   term.attachCustomKeyEventHandler((e) => {
-    if (e.type !== 'keydown') return true
-    if (e.metaKey && e.key === 'ArrowDown') {
-      term.scrollToBottom()
-      return false
-    }
-    if (e.metaKey && e.key === 'ArrowUp') {
-      term.scrollToTop()
-      return false
-    }
-    if (e.shiftKey && e.key === 'PageUp') {
-      term.scrollPages(-1)
-      return false
-    }
-    if (e.shiftKey && e.key === 'PageDown') {
-      term.scrollPages(1)
-      return false
+    const action = resolveTermKey(e, platform)
+    if (!action) return true
+    switch (action) {
+      case 'scroll-bottom':
+        term.scrollToBottom()
+        return false
+      case 'scroll-top':
+        term.scrollToTop()
+        return false
+      case 'page-up':
+        term.scrollPages(-1)
+        return false
+      case 'page-down':
+        term.scrollPages(1)
+        return false
+      case 'copy': {
+        const sel = term.getSelection()
+        if (sel) void navigator.clipboard.writeText(sel)
+        return false
+      }
+      case 'paste':
+        void navigator.clipboard
+          .readText()
+          .then((text) => {
+            if (text) p.paste(text)
+          })
+          .catch(() => {
+            // clipboard read denied / empty — nothing to paste
+          })
+        return false
     }
     return true
   })
