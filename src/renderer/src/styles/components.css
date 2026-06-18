@@ -133,6 +133,16 @@
 .topbar__project:hover {
   background: var(--raised);
 }
+.topbar__name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+}
 .topbar__branch {
   display: inline-flex;
   align-items: center;
@@ -509,18 +519,22 @@
    anchored top-right over the terminal. Dimmed at rest, full on hover/focus. */
 .pane__controls {
   position: absolute;
-  top: 4px;
-  right: 6px;
+  top: 5px;
+  right: 7px;
   z-index: 6;
   display: flex;
-  gap: 1px;
-  padding: 2px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--panel) 78%, transparent);
-  border: 1px solid var(--border);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
   backdrop-filter: blur(8px);
-  opacity: 0.5;
-  transition: opacity 0.12s ease;
+  /* Clearly visible at rest so new users notice the split/close controls. */
+  opacity: 0.92;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease;
 }
 .pane:hover .pane__controls,
 .pane--focused .pane__controls {
@@ -530,17 +544,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: none;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--text-dim);
   cursor: pointer;
 }
 .pane__controls button:hover {
-  background: var(--border-strong);
-  color: var(--text);
+  background: var(--accent);
+  color: #fff;
 }
 .pane__grip {
   cursor: grab;

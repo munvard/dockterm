@@ -41,6 +41,11 @@ export function TopBar() {
         >
           <AppWindow size={15} />
         </button>
+        {project && (
+          <span className="topbar__name" title={project.path}>
+            {project.name}
+          </span>
+        )}
         {project?.branch && (
           <span className="topbar__branch">
             <GitBranch size={12} />
