@@ -9,6 +9,7 @@ import {
   closeLeaf,
   setSizes,
   setLeafCwd,
+  swapLeaves,
   isValidLayout,
   gridPreset
 } from '@renderer/state/layout'
@@ -119,6 +120,21 @@ describe('layout tree', () => {
         sizes: [50, 50]
       })
     ).toBe(false)
+  })
+
+  it('swapLeaves exchanges two panes positions, preserving their content', () => {
+    let r: LayoutNode = splitLeaf(leaf('a'), 'a', 'row', leaf('b'), 's1')
+    r = splitLeaf(r, 'b', 'row', leaf('c'), 's2') // [a, b, c]
+    const swapped = swapLeaves(r, 'a', 'c') // -> [c, b, a]
+    expect(allLeaves(swapped).map((l) => l.id)).toEqual(['c', 'b', 'a'])
+    // The whole leaf node moves, so its cwd/title travel with it.
+    expect(findLeaf(swapped, 'a')).toMatchObject({ cwd: '/p', title: 'a' })
+  })
+
+  it('swapLeaves is a no-op for same id or a missing id', () => {
+    const r = splitLeaf(leaf('a'), 'a', 'row', leaf('b'), 's1')
+    expect(allLeaves(swapLeaves(r, 'a', 'a')).map((l) => l.id)).toEqual(['a', 'b'])
+    expect(allLeaves(swapLeaves(r, 'a', 'z')).map((l) => l.id)).toEqual(['a', 'b'])
   })
 
   it('findLeaf and firstLeaf locate leaves', () => {

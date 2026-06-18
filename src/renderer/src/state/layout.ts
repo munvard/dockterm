@@ -121,6 +121,26 @@ export function setSizes(root: LayoutNode, splitId: string, sizes: number[]): La
   return { ...root, children: root.children.map((c) => setSizes(c, splitId, sizes)) }
 }
 
+/** Swap the positions of two leaves in the tree (drag-to-reorder). The whole
+ * leaf nodes are exchanged, so each terminal keeps its id+cwd and the pool keeps
+ * its running shell alive — only their slots in the layout change. No-op if
+ * either id is missing or they're the same. */
+export function swapLeaves(root: LayoutNode, aId: string, bId: string): LayoutNode {
+  if (aId === bId) return root
+  const a = findLeaf(root, aId)
+  const b = findLeaf(root, bId)
+  if (!a || !b) return root
+  const replace = (node: LayoutNode): LayoutNode => {
+    if (node.type === 'leaf') {
+      if (node.id === aId) return b
+      if (node.id === bId) return a
+      return node
+    }
+    return { ...node, children: node.children.map(replace) }
+  }
+  return replace(root)
+}
+
 /** Build a `rows`×`cols` grid of fresh leaves. */
 export function gridPreset(
   rows: number,

@@ -7,6 +7,7 @@ export type PanelId =
   | 'mcp'
   | 'skills'
   | 'agents'
+  | 'usage'
   | 'info'
   | 'settings'
 
@@ -241,6 +242,44 @@ export interface AgentView {
 
 export interface AgentsReadResult {
   agents: AgentView[]
+}
+
+/* --------------------------------- Usage --------------------------------- */
+
+export interface UsageTotals {
+  inputTokens: number
+  outputTokens: number
+  cacheCreateTokens: number
+  cacheReadTokens: number
+  /** input + output + cache-write + cache-read */
+  totalTokens: number
+  /** assistant messages counted in this bucket */
+  messages: number
+}
+
+export interface UsageBucket extends UsageTotals {
+  /** stable key (date / model / project path) */
+  key: string
+  /** display label */
+  label: string
+}
+
+/** Aggregated, tokens-only view of local Claude Code usage (from ~/.claude
+ * transcripts), computed relative to a moment in time. */
+export interface UsageSnapshot {
+  updatedAt: number
+  today: UsageTotals
+  last5h: UsageTotals
+  last7d: UsageTotals
+  last30d: UsageTotals
+  allTime: UsageTotals
+  /** per-day for the last 30 days, oldest → newest (sparkline) */
+  daily: UsageBucket[]
+  /** by model, desc by total tokens */
+  byModel: UsageBucket[]
+  /** by project, desc by total tokens (top 8) */
+  byProject: UsageBucket[]
+  empty: boolean
 }
 
 export type SkillTemplate =

@@ -7,16 +7,41 @@ import { clampToAreas } from './overlayPlacement'
 
 /**
  * The munu overlay: a frameless, transparent, always-on-top, non-focusable
- * window pinned to the top-center of the display with the menu bar (over the
- * notch on a MacBook). It floats above other apps and all Spaces — including
- * fullscreen — so munu's state is visible even when DockTerm is in the
- * background. The window is click-through except where the renderer reports the
- * cursor is over munu (toggled via setOverlayInteractive).
+ * window. By default it sits at the top-center of the display with the menu bar
+ * (over the notch on a MacBook); when the user pins munu it moves to their saved
+ * position anywhere on screen (see placeOverlay). It floats above other apps and
+ * all Spaces — including fullscreen — so munu's state is visible even when
+ * DockTerm is in the background. The window is click-through except where the
+ * renderer reports the cursor is over munu (toggled via setOverlayInteractive).
  */
 let overlay: BrowserWindow | null = null
 
 const W = 380
 const H = 260
+const isLinux = process.platform === 'linux'
+
+/**
+ * Re-apply placement a few times after a short beat — Linux only.
+ *
+ * On X11, window managers frequently move a frameless, transparent,
+ * non-focusable, always-on-top window right after it maps (and again right after
+ * `setAlwaysOnTop`), ignoring our requested bounds — so munu lands at the screen
+ * edge instead of the top-center where the cursor-reveal zone lives, which makes
+ * it look like it never appears. Re-running placement once the WM has settled
+ * puts it back. Reuses placeOverlay, so a pinned position is still honored.
+ * (Wayland forbids client-side window positioning outright; an X11/XWayland
+ * session is required there for the overlay to sit correctly.)
+ */
+function repinLinux(): void {
+  if (!isLinux) return
+  for (const delay of [60, 200, 500]) {
+    setTimeout(() => {
+      if (!overlay || overlay.isDestroyed()) return
+      const b = overlay.getBounds()
+      placeOverlay(b.width, b.height)
+    }, delay)
+  }
+}
 
 function placeOverlay(width: number, height: number): void {
   if (!overlay || overlay.isDestroyed()) return
@@ -81,6 +106,7 @@ export function createOverlayWindow(): BrowserWindow {
     placeOverlay(W, H)
     overlay?.showInactive()
     reassertOverlayLevel()
+    repinLinux()
   })
   overlay.on('closed', () => {
     overlay = null
@@ -113,6 +139,8 @@ export function reassertOverlayLevel(): void {
       visibleOnFullScreen: true,
       skipTransformProcessType: true
     })
+    // X11 WMs re-place the window right after always-on-top is set; re-pin it.
+    repinLinux()
   } catch {
     // window may be gone
   }

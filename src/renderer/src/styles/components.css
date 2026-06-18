@@ -505,17 +505,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.pane__actions {
+/* Floating, always-visible pane controls (split / close / reorder grip),
+   anchored top-right over the terminal. Dimmed at rest, full on hover/focus. */
+.pane__controls {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 6;
   display: flex;
   gap: 1px;
-  opacity: 0;
+  padding: 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  opacity: 0.5;
   transition: opacity 0.12s ease;
 }
-.pane:hover .pane__actions,
-.pane--focused .pane__actions {
+.pane:hover .pane__controls,
+.pane--focused .pane__controls {
   opacity: 1;
 }
-.pane__actions button {
+.pane__controls button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -523,13 +534,36 @@
   height: 20px;
   border: none;
   background: none;
-  border-radius: 4px;
+  border-radius: 5px;
   color: var(--text-dim);
   cursor: pointer;
 }
-.pane__actions button:hover {
+.pane__controls button:hover {
   background: var(--border-strong);
   color: var(--text);
+}
+.pane__grip {
+  cursor: grab;
+}
+.pane__grip:active {
+  cursor: grabbing;
+}
+/* Subtle focus ring so the active pane is clear even with no title bar. */
+.pane--focused {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* Drop target while dragging a pane onto another to swap them. */
+.pane--reorder {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.pane--reorder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  pointer-events: none;
+  z-index: 5;
 }
 .pane__term {
   flex: 1 1 auto;
@@ -2265,4 +2299,238 @@
 }
 .settings-note--inline {
   font-size: 11px;
+}
+
+/* --------------------------------- Usage --------------------------------- */
+.usage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  margin-right: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.usage-pill:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.usage-pill--active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-soft);
+}
+.usage-pill svg {
+  color: var(--accent);
+}
+
+.usage-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 2px 12px;
+}
+.usage-donut {
+  position: relative;
+  flex: 0 0 auto;
+  width: 118px;
+  height: 118px;
+}
+.usage-donut__track {
+  stroke: var(--border);
+}
+.usage-donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.usage-donut__num {
+  font-size: 20px;
+  font-weight: 650;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.usage-donut__cap {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.usage-legend {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.usage-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.usage-legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+.usage-legend__label {
+  flex: 1 1 auto;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.usage-legend__val {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.usage-stat {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+  background: var(--raised);
+}
+.usage-stat__val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.usage-stat__label {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.usage-section {
+  margin-top: 14px;
+}
+.usage-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin-bottom: 7px;
+}
+.usage-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+.usage-live__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 60%, transparent);
+  animation: usage-pulse 1.8s ease-out infinite;
+}
+@keyframes usage-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.usage-spark {
+  display: block;
+  width: 100%;
+}
+.usage-spark__area {
+  fill: var(--accent-soft);
+}
+.usage-spark__line {
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.usage-cache {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.usage-cache__pct {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.usage-cache__cap {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+.usage-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.usage-bar {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.usage-bar__label {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.usage-bar__track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.usage-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  transition: width 0.3s ease;
+}
+.usage-bar__val {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }

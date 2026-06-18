@@ -123,16 +123,18 @@ export const THEMES: Theme[] = [
     brBlack: '#3a3a45', brRed: '#fb9a9a', brGreen: '#86efac', brYellow: '#fde68a',
     brBlue: '#93b4ff', brMagenta: '#c4b5fd', brCyan: '#5eead4', brWhite: '#f4f4f7'
   }),
-  make('dockterm-light', 'DockTerm Light', {
+  // A warm "paper" light — intentionally NOT white, so it reads distinctly from
+  // the cool GitHub Light. Cream surfaces, soft taupe borders, violet accent.
+  make('dockterm-light', 'DockTerm Paper', {
     appearance: 'light',
-    bg: '#ffffff', panel: '#f5f5f7', raised: '#ececef', overlay: '#e4e4e8',
-    border: '#d8d8de', borderStrong: '#c2c2cc',
-    text: '#1c1c22', textDim: '#5a5a66', textFaint: '#8a8a96',
-    accent: '#6a5cff', accentHover: '#5a4cf0', onAccent: '#ffffff',
-    black: '#2a2a32', red: '#d83a52', green: '#2faf5e', yellow: '#b07e00',
-    blue: '#3b6ef0', magenta: '#8b5cf6', cyan: '#0f9b8e', white: '#5a5a66',
-    brBlack: '#8a8a96', brRed: '#e05570', brGreen: '#3cc878', brYellow: '#c79400',
-    brBlue: '#5a86f5', brMagenta: '#a07bf8', brCyan: '#1cb3a4', brWhite: '#1c1c22'
+    bg: '#f7f3ea', panel: '#efe9db', raised: '#e7dfcd', overlay: '#ded4be',
+    border: '#ddd2bc', borderStrong: '#c6b89c',
+    text: '#2c271d', textDim: '#6c6353', textFaint: '#9a907c',
+    accent: '#7c5cff', accentHover: '#6a4cf0', onAccent: '#ffffff',
+    black: '#2c271d', red: '#c4453f', green: '#5a8f3c', yellow: '#a87a00',
+    blue: '#3b6ad8', magenta: '#8b5cf6', cyan: '#0e8f86', white: '#6c6353',
+    brBlack: '#9a907c', brRed: '#d8574f', brGreen: '#6fa84e', brYellow: '#bd8c00',
+    brBlue: '#5a86f5', brMagenta: '#a07bf8', brCyan: '#1cae9f', brWhite: '#2c271d'
   }),
   make('tokyo-night', 'Tokyo Night', {
     appearance: 'dark',
@@ -177,6 +179,30 @@ export const THEMES: Theme[] = [
     blue: '#9ccfd8', magenta: '#c4a7e7', cyan: '#ebbcba', white: '#e0def4',
     brBlack: '#6e6a86', brRed: '#eb6f92', brGreen: '#3e8fb0', brYellow: '#f6c177',
     brBlue: '#9ccfd8', brMagenta: '#c4a7e7', brCyan: '#ebbcba', brWhite: '#e0def4'
+  }),
+  // Linux/Ubuntu "Aubergine": the classic #300924 deep-plum desktop with the
+  // Ubuntu-orange accent. Warm purple surfaces, vivid orange highlights.
+  make('aubergine', 'Aubergine', {
+    appearance: 'dark',
+    bg: '#300924', panel: '#3a0f2c', raised: '#471637', overlay: '#551d44',
+    border: '#4d1a3d', borderStrong: '#642a54',
+    text: '#f5e6ef', textDim: '#cba6bd', textFaint: '#9a7589',
+    accent: '#e95420', accentHover: '#f26a3a', onAccent: '#ffffff',
+    black: '#3a0f2c', red: '#ff6188', green: '#7bd88f', yellow: '#ffd866',
+    blue: '#7aa2f7', magenta: '#c792ea', cyan: '#5ad4c4', white: '#e8d3df',
+    brBlack: '#7a5068', brRed: '#ff7a9c', brGreen: '#97e6a8', brYellow: '#ffe08a',
+    brBlue: '#9ab8ff', brMagenta: '#d8aef0', brCyan: '#7fe3d6', brWhite: '#fbeff5'
+  }),
+  make('gruvbox-dark', 'Gruvbox Dark', {
+    appearance: 'dark',
+    bg: '#1d2021', panel: '#282828', raised: '#32302f', overlay: '#3c3836',
+    border: '#3c3836', borderStrong: '#504945',
+    text: '#ebdbb2', textDim: '#bdae93', textFaint: '#928374',
+    accent: '#fabd2f', accentHover: '#fcc847', onAccent: '#1d2021',
+    black: '#282828', red: '#fb4934', green: '#b8bb26', yellow: '#fabd2f',
+    blue: '#83a598', magenta: '#d3869b', cyan: '#8ec07c', white: '#d5c4a1',
+    brBlack: '#504945', brRed: '#fb4934', brGreen: '#b8bb26', brYellow: '#fabd2f',
+    brBlue: '#83a598', brMagenta: '#d3869b', brCyan: '#8ec07c', brWhite: '#ebdbb2'
   }),
   make('github-light', 'GitHub Light', {
     appearance: 'light',

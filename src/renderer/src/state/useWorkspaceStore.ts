@@ -5,6 +5,7 @@ import {
   closeLeaf,
   setSizes,
   setLeafCwd,
+  swapLeaves,
   firstLeaf,
   findLeaf,
   allLeaves,
@@ -75,6 +76,8 @@ interface WorkspaceStore {
   makeGrid: (rows: number, cols: number) => void
   /** Point one pane at a different folder; its shell respawns there. */
   retargetLeaf: (tabId: string, leafId: string, cwd: string) => void
+  /** Swap two panes' positions in a tab's layout (drag-to-reorder). */
+  swapLeaves: (tabId: string, aLeafId: string, bLeafId: string) => void
   /** Record a pane's live working directory (from OSC 7). */
   setPaneCwd: (leafId: string, cwd: string) => void
 }
@@ -268,6 +271,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         delete paneCwd[leafId]
         return { paneCwd }
       })
+      commit(next, activeId)
+    },
+
+    swapLeaves: (tabId, aLeafId, bLeafId) => {
+      if (aLeafId === bLeafId) return
+      const { tabs, activeId } = get()
+      const next = tabs.map((t) =>
+        t.id === tabId ? { ...t, layout: swapLeaves(t.layout, aLeafId, bLeafId) } : t
+      )
       commit(next, activeId)
     },
 

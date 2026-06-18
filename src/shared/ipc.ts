@@ -28,7 +28,8 @@ import type {
   AgentsReadResult,
   SkillTemplate,
   ProjectInfoData,
-  MunuGlobal
+  MunuGlobal,
+  UsageSnapshot
 } from './types'
 
 export interface UpdateAvailable {
@@ -222,6 +223,9 @@ export interface InvokeChannels {
   'info:get': (req: void) => Result<ProjectInfoData>
   'app:openExternal': (req: { url: string }) => Result<void>
 
+  /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
+  'usage:get': (req: void) => Result<UsageSnapshot>
+
   // updates — manual check + snooze/skip + in-app download/install.
   'update:check': (req: void) => Result<{ upToDate: boolean }>
   'update:download': (req: void) => Result<void>
@@ -273,6 +277,8 @@ export interface EventChannels {
   'update:progress': { percent: number }
   'update:downloaded': { path: string }
   'update:error': { message: string }
+  /** main → renderer: a fresh usage snapshot (transcripts grew). */
+  'usage:changed': UsageSnapshot
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -329,6 +335,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'claude:skillCreate',
   'info:get',
   'app:openExternal',
+  'usage:get',
   'update:check',
   'update:download',
   'update:snooze',
@@ -361,7 +368,8 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'update:available',
   'update:progress',
   'update:downloaded',
-  'update:error'
+  'update:error',
+  'usage:changed'
 ]
 
 export interface DockTermApi {

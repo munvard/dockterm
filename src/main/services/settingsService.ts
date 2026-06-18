@@ -49,7 +49,7 @@ const preference = {
       editorRatio: z.number().min(0.2).max(0.8).default(0.5),
       miniTermHeight: z.number().min(80).max(600).default(160),
       openPanel: z
-        .enum(['files', 'git', 'review', 'mcp', 'skills', 'agents', 'info', 'settings'])
+        .enum(['files', 'git', 'review', 'mcp', 'skills', 'agents', 'usage', 'info', 'settings'])
         .nullable()
         .default(null),
       miniTermOpen: z.boolean().default(false),

@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
+import { GripVertical, SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useMunuStore } from '../../state/useMunuStore'
@@ -40,9 +40,10 @@ function TerminalPane({
   const split = useWorkspaceStore((s) => s.splitFocused)
   const closeFocused = useWorkspaceStore((s) => s.closeFocused)
   const markActivity = useWorkspaceStore((s) => s.markActivity)
-  const retargetLeaf = useWorkspaceStore((s) => s.retargetLeaf)
+  const swapLeaves = useWorkspaceStore((s) => s.swapLeaves)
   const pasteRef = useRef<(text: string) => void>(() => {})
   const [dragOver, setDragOver] = useState(false)
+  const [reorderOver, setReorderOver] = useState(false)
 
   // Note: the pane's Claude-state + writer registrations are dropped by the
   // terminal pool when the terminal is truly disposed (pane closed / GC'd), not
@@ -54,31 +55,56 @@ function TerminalPane({
     fn()
   }
 
+  const clearDrag = (): void => {
+    setDragOver(false)
+    setReorderOver(false)
+  }
+
   const onDragOver = (e: DragEvent) => {
     const dt = e.dataTransfer
-    const hasPayload =
+    const isPane = dt.types.includes('application/x-dockterm-pane')
+    const hasFile =
       dt.types.includes('application/x-dockterm') ||
       dt.types.includes('Files') ||
       dt.types.includes('text/plain')
-    if (!hasPayload) return
+    if (!isPane && !hasFile) return
     e.preventDefault()
-    dt.dropEffect = 'copy'
-    if (!dragOver) setDragOver(true)
+    dt.dropEffect = isPane ? 'move' : 'copy'
+    if (isPane) {
+      if (!reorderOver) setReorderOver(true)
+    } else if (!dragOver) {
+      setDragOver(true)
+    }
   }
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
-    setDragOver(false)
+    clearDrag()
+
+    // Another pane was dropped here → swap their positions (drag-to-reorder).
+    // Each terminal keeps its running shell; only the grid slots change.
+    const paneData = e.dataTransfer.getData('application/x-dockterm-pane')
+    if (paneData) {
+      try {
+        const src = JSON.parse(paneData) as { leafId: string; tabId: string }
+        if (src.leafId && src.leafId !== leaf.id && src.tabId === tabId) {
+          swapLeaves(tabId, src.leafId, leaf.id)
+        }
+      } catch {
+        // ignore malformed payload
+      }
+      return
+    }
+
     focusPane(tabId, leaf.id)
 
-    // From the file tree (or anything emitting our payload). A folder retargets
-    // this pane to that directory; a file is typed at the prompt.
+    // From the file tree (or anything emitting our payload). Both files AND
+    // folders are typed (quoted) at the prompt — drag a folder to print its path.
     const internal = e.dataTransfer.getData('application/x-dockterm')
     if (internal) {
       try {
-        const { path, type } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
-        if (path && type === 'dir') retargetLeaf(tabId, leaf.id, path)
-        else if (path) pasteRef.current(quotePath(path))
+        const { path } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
+        if (path) pasteRef.current(quotePath(path))
       } catch {
         // ignore malformed payload
       }
@@ -101,32 +127,57 @@ function TerminalPane({
     if (text) pasteRef.current(quotePath(text))
   }
 
+  // Only show the per-pane title bar when the pane sits somewhere other than the
+  // tab's folder (a `cd`'d grid cell) — otherwise it just repeats the tab.
+  const showTitle = !hideBar && !!leaf.title && leaf.title !== tabTitle
   return (
     <div
-      className={`pane${focused && !hideBar ? ' pane--focused' : ''}${dragOver ? ' pane--drop' : ''}`}
+      className={`pane${focused && !hideBar ? ' pane--focused' : ''}${dragOver ? ' pane--drop' : ''}${reorderOver ? ' pane--reorder' : ''}`}
       onMouseDown={() => focusPane(tabId, leaf.id)}
       onDragOver={onDragOver}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={clearDrag}
       onDrop={onDrop}
     >
-      {!hideBar && (
+      {showTitle && (
         <div className="pane__bar">
-          <span className="pane__title">{leaf.title === tabTitle ? '' : leaf.title}</span>
-          <div className="pane__actions">
-            <button title="Split right" onMouseDown={act(() => split('row'))}>
-              <SplitSquareHorizontal size={12} />
-            </button>
-            <button title="Split down" onMouseDown={act(() => split('col'))}>
-              <SplitSquareVertical size={12} />
-            </button>
-            {canClose && (
-              <button title="Close pane" onMouseDown={act(() => closeFocused())}>
-                <X size={12} />
-              </button>
-            )}
-          </div>
+          <span className="pane__title">{leaf.title}</span>
         </div>
       )}
+      {/* Always-visible pane controls: split right/down (and close). A grip lets
+          you drag a pane onto another to swap their positions (reorder a grid).
+          Floating so even a single, bar-less pane keeps quick split access. */}
+      <div className="pane__controls">
+        {!hideBar && (
+          <button
+            className="pane__grip"
+            title="Drag to reorder"
+            aria-label="Drag to reorder pane"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(
+                'application/x-dockterm-pane',
+                JSON.stringify({ leafId: leaf.id, tabId })
+              )
+              e.dataTransfer.effectAllowed = 'move'
+              focusPane(tabId, leaf.id)
+            }}
+            onDragEnd={clearDrag}
+          >
+            <GripVertical size={12} />
+          </button>
+        )}
+        <button title="Split right" onMouseDown={act(() => split('row'))}>
+          <SplitSquareHorizontal size={12} />
+        </button>
+        <button title="Split down" onMouseDown={act(() => split('col'))}>
+          <SplitSquareVertical size={12} />
+        </button>
+        {canClose && (
+          <button title="Close pane" onMouseDown={act(() => closeFocused())}>
+            <X size={12} />
+          </button>
+        )}
+      </div>
       <div className="pane__term">
         <TerminalView
           key={`${leaf.id}:${leaf.cwd}`}

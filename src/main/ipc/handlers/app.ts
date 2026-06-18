@@ -10,6 +10,7 @@ import {
   snoozeUpdate,
   skipUpdate
 } from '../../services/updateChecker'
+import { getUsageSnapshot } from '../../services/usageService'
 import type { Settings } from '@shared/types'
 import type { Registrar } from '../register'
 
@@ -33,6 +34,8 @@ export function registerAppHandlers(reg: Registrar): void {
     if (/^https?:\/\//i.test(req.url)) void shell.openExternal(req.url)
     return ok(undefined)
   })
+
+  reg('usage:get', z.void(), async () => ok(await getUsageSnapshot()))
 
   reg('update:check', z.void(), async () => {
     const found = await checkForUpdate(true)
