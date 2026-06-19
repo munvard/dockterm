@@ -3,9 +3,11 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — split-grid popup fix
+## 🎯 What's new in v__VER__ — tidier top bar & usage spacing
 
-- Fixed the **split-grid menu** not appearing when you click the grid icon — it was being clipped by the tab strip. It opens normally again.
+- **Top bar:** the tools (usage, panels, notes, mini-terminal) now always stay in the top bar. When the window gets narrow they **hide the least-important icons and bring them back** as it widens — no more dropping to a second row.
+- **Split-grid popup** now opens to the **right** of the grid icon instead of overlapping the tabs.
+- **Usage panel** gets a little left/right breathing room so it's not flush against the dock edges.
 
 ---
 
