@@ -43,14 +43,29 @@ function repinLinux(): void {
   }
 }
 
-function placeOverlay(width: number, height: number): void {
+/**
+ * Position the overlay at size `w×h`.
+ * - `anchor: 'topleft'` (default) pins the window's top-left to the saved
+ *   position — used for the initial placement / repositioning.
+ * - `anchor: 'center'` keeps munu (which sits at the window's horizontal centre)
+ *   visually put while the window grows/shrinks — used when the popup opens or
+ *   closes, so a pinned munu no longer jumps sideways.
+ */
+function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center' = 'topleft'): void {
   if (!overlay || overlay.isDestroyed()) return
   const m = getSettings().munu
   const w = Math.round(Math.min(Math.max(width, 120), screen.getPrimaryDisplay().workArea.width - 16))
   const h = Math.round(Math.min(Math.max(height, 80), screen.getPrimaryDisplay().bounds.height - 24))
   if (m.pinned && m.position) {
     const areas = screen.getAllDisplays().map((d) => d.workArea)
-    const { x, y } = clampToAreas({ x: m.position.x, y: m.position.y, width: w, height: h }, areas)
+    let bx = m.position.x
+    let by = m.position.y
+    if (anchor === 'center') {
+      const cur = overlay.getBounds()
+      bx = Math.round(cur.x + cur.width / 2 - w / 2)
+      by = cur.y
+    }
+    const { x, y } = clampToAreas({ x: bx, y: by, width: w, height: h }, areas)
     overlay.setBounds({ x, y, width: w, height: h })
   } else {
     const d = screen.getPrimaryDisplay()
@@ -181,9 +196,11 @@ export function repositionOverlay(): void {
   placeOverlay(b.width, b.height)
 }
 
-/** Resize to fit content; respects pinned position (won't recenter when pinned). */
-export function resizeOverlay(width: number, height: number): void {
-  placeOverlay(width, height)
+/** Resize to fit content. When `expanded` (the popup / ask-card is open) the
+ * window grows around munu's centre so a pinned munu stays visually put; at rest
+ * it returns to its saved top-left. */
+export function resizeOverlay(width: number, height: number, expanded = false): void {
+  placeOverlay(width, height, expanded ? 'center' : 'topleft')
 }
 
 /** Current screen bounds, or null if the overlay isn't up. */

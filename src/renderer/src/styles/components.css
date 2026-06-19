@@ -124,7 +124,8 @@
 .topbar__right {
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
+  /* No overflow:hidden — it would clip the notes popover (which drops below the
+     bar). Overflowing tools are hidden cleanly by TopBarTools' measurement. */
   justify-content: flex-end;
 }
 

@@ -145,8 +145,8 @@ export function answerMunu(leafId: string, keys: string[]): void {
   if (wc) wc.send('munu:doAnswer', { leafId, keys })
 }
 
-export function resizeMunu(width: number, height: number): void {
-  resizeOverlay(width, height)
+export function resizeMunu(width: number, height: number, expanded = false): void {
+  resizeOverlay(width, height, expanded)
 }
 
 export function focusMunu(): void {

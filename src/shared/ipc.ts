@@ -267,8 +267,9 @@ export interface InvokeChannels {
   /** Make the overlay focusable while the user types into munu's text field
    * (the window is non-focusable by default so it never steals focus). */
   'munu:setFocusable': (req: { focusable: boolean }) => Result<void>
-  /** The overlay's content size changed — resize the floating window to fit. */
-  'munu:resize': (req: { width: number; height: number }) => Result<void>
+  /** The overlay's content size changed — resize the floating window to fit.
+   * `expanded` = the popup / ask-card is open, so a pinned munu stays centred. */
+  'munu:resize': (req: { width: number; height: number; expanded?: boolean }) => Result<void>
   /** Bring the DockTerm window(s) to the front (used when munu is clicked). */
   'munu:showApp': (req: void) => Result<void>
   /** Read the overlay window's current screen bounds (drag start reference). */

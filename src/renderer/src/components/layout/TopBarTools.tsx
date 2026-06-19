@@ -37,8 +37,15 @@ export function TopBarTools() {
       const cs = getComputedStyle(topbar)
       const rightPad = parseFloat(cs.paddingRight) || 8
       const gap = parseFloat(getComputedStyle(wrap).columnGap || '8') || 8
+      // The left group is flex:1, so it stretches — its scrollWidth would be the
+      // whole stretched box, not its content. Sum its children for the real
+      // content width instead.
+      const leftKids = Array.from(left.children) as HTMLElement[]
+      const leftGap = parseFloat(getComputedStyle(left).columnGap || '8') || 8
+      const leftContent =
+        leftKids.reduce((s, c) => s + c.offsetWidth, 0) + leftGap * Math.max(0, leftKids.length - 1)
       // Space for the tools = everything to the right of the left group's content.
-      const available = barRect.width - leftStart - left.scrollWidth - rightPad - gap - 4
+      const available = barRect.width - leftStart - leftContent - rightPad - gap - 4
 
       let used = 0
       for (const el of items) {

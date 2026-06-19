@@ -138,7 +138,10 @@ function Overlay() {
       const h = Math.ceil(el.offsetHeight) + pad + 52
       if (Math.abs(w - lastSize.current.w) < 2 && Math.abs(h - lastSize.current.h) < 2) return
       lastSize.current = { w, h }
-      void window.dockterm.invoke('munu:resize', { width: w, height: h })
+      // Expanded = popup / ask-card / text field open: grow around munu's centre
+      // (pinned munu stays put). At rest, return to the saved top-left.
+      const expanded = popupOpen || showCard || typing !== null
+      void window.dockterm.invoke('munu:resize', { width: w, height: h, expanded })
     }
     let raf = 0
     const ro = new ResizeObserver(() => {
