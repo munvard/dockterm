@@ -25,7 +25,12 @@ interface MunuStore {
   snapshot: (activeTabId: string, focused: boolean) => MunuGlobal
 }
 
-const SETTLE_MS = 3000
+// How long working→idle must hold before we flash 'done' — long enough to skip
+// the brief working↔idle flickers between tool calls, short enough that finishing
+// feels immediate (was 3s, which read as a lag).
+const DONE_DETECT_MS = 1400
+// How long the 'done' glow stays lit once shown.
+const DONE_FLASH_MS = 2600
 // How long after answering to ignore the just-answered menu still lingering in
 // the terminal buffer (it scrolls out over ~1-2s). A DIFFERENT prompt within
 // this window is never suppressed — only the identical, stale one.
@@ -68,8 +73,8 @@ export const useMunuStore = create<MunuStore>((set, get) => ({
         delete timers[leafId]
         if (get().panes[leafId]?.state !== 'idle') return
         set((s) => ({ done: { ...s.done, [leafId]: true } }))
-        setTimeout(() => set((s) => ({ done: { ...s.done, [leafId]: false } })), SETTLE_MS)
-      }, SETTLE_MS)
+        setTimeout(() => set((s) => ({ done: { ...s.done, [leafId]: false } })), DONE_FLASH_MS)
+      }, DONE_DETECT_MS)
     }
     set((s) => ({ panes: { ...s.panes, [leafId]: { state, ask, tabId } } }))
   },

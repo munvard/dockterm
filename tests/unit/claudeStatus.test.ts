@@ -183,6 +183,70 @@ describe('parseAsk', () => {
     expect(ask.binary).toBe(false)
   })
 
+  it('parses the live checkbox prompt: descriptions, Submit, and a trailing action row', () => {
+    const text = [
+      'Choose one or more options. (Tool max is 4 buttons.)',
+      '❯ 1. [ ] Option A',
+      '    The first option.',
+      '  2. [✓] Option B',
+      '    The second option.',
+      '  3. [ ] Option C',
+      '    The third option.',
+      '  4. [ ] Option D',
+      '    The fourth option.',
+      '  5. [ ] Type something',
+      '    Submit',
+      '  6. Chat about this',
+      'Enter to select · ↑/↓ to navigate · Esc to cancel'
+    ].join('\n')
+    const ask = parseAsk(text)!
+    expect(ask.multiSelect).toBe(true)
+    expect(ask.options).toEqual([
+      'Option A',
+      'Option B',
+      'Option C',
+      'Option D',
+      'Type something',
+      'Submit',
+      'Chat about this'
+    ])
+    expect(ask.checkable).toEqual([true, true, true, true, true, false, false])
+    expect(ask.checked).toEqual([false, true, false, false, false, false, false])
+    expect(ask.submitIndex).toBe(5)
+  })
+
+  it('switches to a clean Submit/Cancel single-select once the checkbox menu scrolls behind a review screen', () => {
+    // After answering a checkbox prompt, Claude shows a Submit/Cancel review while
+    // the just-answered checkbox menu is still in the scrollback above it. munu
+    // must read the review (no phantom checkboxes) — not stay stuck rendering the
+    // multi-select for the seconds it takes the old menu to scroll away.
+    const text = [
+      'Question 2 answered: Option B. Now the multi-choice question.',
+      '❯ 1. [ ] Option A',
+      '    The first option.',
+      '  2. [✓] Option B',
+      '    The second option.',
+      '  3. [ ] Option C',
+      '  4. [ ] Option D',
+      '  5. [ ] Type something',
+      '    Submit',
+      '  6. Chat about this',
+      '',
+      'Review your answers',
+      '  → Option B',
+      'Ready to submit your answers?',
+      '❯ 1. Submit answers',
+      '  2. Cancel',
+      'Enter to select · Esc to cancel'
+    ].join('\n')
+    const ask = parseAsk(text)!
+    expect(ask.multiSelect).toBe(false)
+    expect(ask.options).toEqual(['Submit answers', 'Cancel'])
+    expect(ask.checkable).toEqual([false, false])
+    expect(ask.submitIndex).toBeNull()
+    expect(ask.cursorRow).toBe(0)
+  })
+
   it('drops an echoed list before a checkbox multi-select menu', () => {
     const text = [
       '1. Some earlier instruction.',

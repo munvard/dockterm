@@ -70,25 +70,6 @@ function parseSteps(raw: string[]): { label: string; done: boolean }[] {
 }
 
 /**
- * Of all candidate rows, return only the final menu — the last contiguous run
- * of options. A run breaks whenever a numbered option's number fails to advance
- * (resets to 1 or steps backwards), which is exactly where a separate, earlier
- * list ends and the real menu begins. Un-numbered action rows (Submit) never
- * break a run.
- */
-function lastMenuRun<T extends { num: number | null }>(rows: T[]): T[] {
-  let start = 0
-  let prev: number | null = null
-  for (let i = 0; i < rows.length; i++) {
-    const n = rows[i].num
-    if (n === null) continue
-    if (prev !== null && n <= prev) start = i
-    prev = n
-  }
-  return rows.slice(start)
-}
-
-/**
  * Parse a Claude prompt into a clean title, step breadcrumb, and the menu rows
  * (with per-option descriptions), in textual order so arrow-key navigation
  * counts line up. Classifies as Yes/No (one-click), checkbox multi-select, or a
@@ -98,26 +79,47 @@ export function parseAsk(text: string): AskInfo | null {
   if (classify(text) !== 'asking') return null
 
   const raw = text.split('\n')
-
-  // A real checkbox prompt has "[ ]"/"[x]" rows. We deliberately DON'T trust the
-  // phrase "(multi-select)" — Claude's review/confirm screen echoes it while
-  // being a plain Submit/Cancel single-select.
-  const multiSelect = /\[[ xX✓✔·•]\]/.test(text)
   const steps = parseSteps(raw)
-
-  // Collect every candidate navigable row (with its source line index, option
-  // number, cursor flag, and any description lines beneath it). Numbered options
-  // always count; the un-numbered "Submit" row counts only for multi-select,
-  // where it's a real navigation stop.
-  const allRows: {
-    label: string
-    desc: string | null
-    idx: number
-    num: number | null
-    cursor: boolean
-  }[] = []
   const hasCursorMark = (s: string): boolean => /^\s*[❯›>]/.test(s)
+
+  // Locate the real menu: the LAST contiguous run of numbered options. Earlier
+  // numbered lines still on screen — an echoed prompt's "1. … 2. …" list, or the
+  // PREVIOUS prompt's menu still scrolling out after we answered it — each form
+  // their own run(s). A run breaks wherever an option number resets or steps
+  // backwards (a menu always counts 1, 2, 3 …), so the last run is whatever
+  // Claude is asking right now. `startIdx` is the buffer line where it begins.
+  const marks: { idx: number; num: number }[] = []
   for (let i = 0; i < raw.length; i++) {
+    const m = raw[i].replace(BOX, ' ').match(OPTION_RE)
+    if (m && cleanLine(m[2])) marks.push({ idx: i, num: parseInt(m[1], 10) })
+  }
+  let startIdx = marks.length ? marks[0].idx : 0
+  for (let k = 1, prev = marks[0]?.num ?? 0; k < marks.length; k++) {
+    if (marks[k].num <= prev) startIdx = marks[k].idx
+    prev = marks[k].num
+  }
+
+  // multi-select ONLY when the real menu itself has "[ ]" rows. Scope the check
+  // to the menu region (startIdx → its footer): a PREVIOUS checkbox menu still
+  // lingering in the scrollback must NOT keep us in multi-select mode once Claude
+  // has moved on to, say, a plain Submit/Cancel review screen — otherwise munu
+  // shows stale checkboxes until those lines scroll away. (We also never trust
+  // the literal phrase "(multi-select)", which that review screen echoes.)
+  let multiSelect = false
+  for (let i = startIdx; i < raw.length; i++) {
+    if (isFooterLine(cleanLine(raw[i].replace(BOX, ' ')))) break
+    if (/\[[ xX✓✔·•]\]/.test(raw[i])) {
+      multiSelect = true
+      break
+    }
+  }
+
+  // Ordered scan of the menu region only (startIdx → end), collecting each row
+  // with any description lines beneath it. Numbered options always count; the
+  // un-numbered "Submit" action row counts only for multi-select, where it's a
+  // real navigation stop.
+  const rows: { label: string; desc: string | null; cursor: boolean }[] = []
+  for (let i = startIdx; i < raw.length; i++) {
     const stripped = raw[i].replace(BOX, ' ')
     const m = stripped.match(OPTION_RE)
     if (m) {
@@ -132,32 +134,17 @@ export function parseAsk(text: string): AskInfo | null {
           if (!c || isFooterLine(c) || isStepLine(raw[j])) break
           desc.push(c)
         }
-        allRows.push({
-          label,
-          desc: desc.join(' ') || null,
-          idx: i,
-          num: parseInt(m[1], 10),
-          cursor: hasCursorMark(stripped)
-        })
+        rows.push({ label, desc: desc.join(' ') || null, cursor: hasCursorMark(stripped) })
       }
       continue
     }
     if (multiSelect) {
       const a = cleanLine(stripped).match(ACTION_RE)
-      if (a) {
-        allRows.push({ label: 'Submit', desc: null, idx: i, num: null, cursor: hasCursorMark(stripped) })
-      }
+      if (a) rows.push({ label: 'Submit', desc: null, cursor: hasCursorMark(stripped) })
     }
   }
 
-  // Keep ONLY the real menu: the last contiguous run of options. Earlier
-  // numbered lines still on screen — an echoed prompt's "1. … 2. …" list, or a
-  // numbered sentence in Claude's own prose — form their own run(s); a run
-  // breaks wherever an option number resets or steps backwards (a menu always
-  // counts 1, 2, 3 …). Without this, those stray lines leak in as phantom
-  // options (e.g. an 8-row menu where Claude only offered 4).
-  const rows = lastMenuRun(allRows)
-  const firstMenuIdx = rows.length ? rows[0].idx : -1
+  const firstMenuIdx = marks.length ? startIdx : -1
   const cursorAt = rows.findIndex((r) => r.cursor)
   const cursorRow = cursorAt >= 0 ? cursorAt : 0
 

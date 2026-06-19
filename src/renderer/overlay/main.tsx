@@ -158,9 +158,11 @@ function Overlay() {
     // settings popup opens/closes, instead of lagging a beat behind its content.
   }, [platform, showCard, typing, popupOpen])
 
-  // Cap the option list to the real screen height so a long menu scrolls inside
-  // the card instead of running off-screen.
-  const optsMax = Math.max(180, (window.screen?.availHeight ?? 800) - 260)
+  // Cap the option list so the whole card — munu head, title, this list, AND the
+  // footer row — fits inside the work-area-clamped window. The reserve leaves
+  // room for that chrome + margins so the cancel / open-terminal footer is never
+  // pushed off the bottom; a longer menu scrolls inside the list instead.
+  const optsMax = Math.max(170, (window.screen?.availHeight ?? 800) - 340)
 
   const toggleLocal = (i: number): void =>
     setSelected((s) => {

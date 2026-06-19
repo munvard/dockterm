@@ -54,10 +54,18 @@ function repinLinux(): void {
 function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center' = 'topleft'): void {
   if (!overlay || overlay.isDestroyed()) return
   const m = getSettings().munu
-  const w = Math.round(Math.min(Math.max(width, 120), screen.getPrimaryDisplay().workArea.width - 16))
-  const h = Math.round(Math.min(Math.max(height, 80), screen.getPrimaryDisplay().bounds.height - 24))
+  const areas = screen.getAllDisplays().map((d) => d.workArea)
+  // The work area of the display this overlay lives on (where it's pinned, else
+  // the primary). Clamp to the WORK area — not the full display bounds — so a
+  // tall card's last row (the cancel / open-terminal footer) is always on-screen
+  // and never tucked under the dock or past the bottom edge.
+  const target =
+    m.pinned && m.position
+      ? screen.getDisplayNearestPoint(m.position).workArea
+      : screen.getPrimaryDisplay().workArea
+  const w = Math.round(Math.min(Math.max(width, 120), target.width - 16))
+  const h = Math.round(Math.min(Math.max(height, 80), target.height - 12))
   if (m.pinned && m.position) {
-    const areas = screen.getAllDisplays().map((d) => d.workArea)
     let bx = m.position.x
     let by = m.position.y
     if (anchor === 'center') {
@@ -68,6 +76,8 @@ function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center
     const { x, y } = clampToAreas({ x: bx, y: by, width: w, height: h }, areas)
     overlay.setBounds({ x, y, width: w, height: h })
   } else {
+    // Resting munu tucks at the very top (over the notch). Height is already
+    // clamped to the work area, so even a tall card's footer stays above the dock.
     const d = screen.getPrimaryDisplay()
     const x = Math.round(d.bounds.x + (d.bounds.width - w) / 2)
     overlay.setBounds({ x, y: d.bounds.y, width: w, height: h })

@@ -271,6 +271,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // Infer Claude's state from the rendered buffer (debounced), so the dock /
   // munu can react to working / asking / idle — even for hidden panes.
   let statusTimer: ReturnType<typeof setTimeout> | undefined
+  let statusMaxTimer: ReturnType<typeof setTimeout> | undefined
   const readBufferText = (): string => {
     const buf = term.buffer.active
     const start = Math.max(0, buf.baseY + term.rows - 60)
@@ -281,13 +282,26 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     }
     return out
   }
+  const fireStatus = (): void => {
+    if (statusTimer) clearTimeout(statusTimer)
+    if (statusMaxTimer) clearTimeout(statusMaxTimer)
+    statusTimer = undefined
+    statusMaxTimer = undefined
+    const text = readBufferText()
+    const state = classify(text)
+    p.opts.onStatus?.(state, state === 'asking' ? parseAsk(text) : null)
+  }
+  // Debounce on a short quiet gap (so we read the *settled* menu, not a
+  // half-drawn frame) but cap the total wait — Claude's spinner streams bytes
+  // continuously while working, which a pure trailing debounce would let reset
+  // forever, stalling the transition into 'asking'/'idle'. ~90ms quiet feels
+  // instant; the 230ms ceiling guarantees the next prompt surfaces promptly.
+  const QUIET_MS = 90
+  const MAX_MS = 230
   const scheduleStatus = (): void => {
     if (statusTimer) clearTimeout(statusTimer)
-    statusTimer = setTimeout(() => {
-      const text = readBufferText()
-      const state = classify(text)
-      p.opts.onStatus?.(state, state === 'asking' ? parseAsk(text) : null)
-    }, 200)
+    statusTimer = setTimeout(fireStatus, QUIET_MS)
+    if (!statusMaxTimer) statusMaxTimer = setTimeout(fireStatus, MAX_MS)
   }
 
   let exited = false
@@ -399,6 +413,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     pathLinks.dispose()
     if (fitTimer) clearTimeout(fitTimer)
     if (statusTimer) clearTimeout(statusTimer)
+    if (statusMaxTimer) clearTimeout(statusMaxTimer)
     if (sessionId) void window.dockterm.invoke('pty:kill', { sessionId })
     sessionId = null
     term.dispose()
