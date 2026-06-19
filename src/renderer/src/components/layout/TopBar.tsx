@@ -70,8 +70,18 @@ export function TopBar() {
           </span>
         )}
         {status && status.repoState !== 'not-repo' && (
-          <span className={`chip ${dirty > 0 ? 'chip--dirty' : 'chip--clean'}`}>
-            {dirty > 0 ? `${dirty} changed` : 'Clean'}
+          <span
+            className={`chip ${dirty > 0 ? 'chip--dirty' : 'chip--clean'}`}
+            title={dirty > 0 ? `${dirty} changed` : 'Clean'}
+          >
+            {dirty > 0 ? (
+              <>
+                {dirty}
+                <span className="chip__word"> changed</span>
+              </>
+            ) : (
+              'Clean'
+            )}
           </span>
         )}
       </div>

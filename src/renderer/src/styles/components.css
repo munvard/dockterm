@@ -98,12 +98,16 @@
 
 /* ------------------------------- Top bar ---------------------------------- */
 .topbar {
-  height: var(--topbar-h);
+  min-height: var(--topbar-h);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 10px;
+  /* Wrap the right-hand group down to a second row when the window gets too
+     narrow to fit everything on one line (instead of clipping/cramming). */
+  flex-wrap: wrap;
+  row-gap: 2px;
+  padding: 2px 8px 2px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   user-select: none;
@@ -113,8 +117,35 @@
 .topbar__right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
   gap: 8px;
   -webkit-app-region: no-drag;
+}
+.topbar__right {
+  justify-content: flex-end;
+}
+/* Let the left group give up space first (truncate the name) before wrapping. */
+.topbar__left {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Narrow window: shorten the changed-chip to just its count and hide the less
+   essential text so the controls keep fitting before they wrap. */
+@media (max-width: 820px) {
+  .topbar__name {
+    max-width: 130px;
+  }
+  .chip__word {
+    display: none;
+  }
+}
+@media (max-width: 680px) {
+  .topbar__name,
+  .topbar__branch {
+    display: none;
+  }
 }
 .topbar__project {
   display: inline-flex;

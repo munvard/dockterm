@@ -108,13 +108,14 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     rescaleOverlappingGlyphs: true,
     theme: useThemeStore.getState().xterm,
     fontWeightBold: '600',
-    // Scrolling tuned to feel like a modern Linux terminal (gnome-terminal /
-    // konsole): a short smooth glide so it isn't janky, and a fast step per wheel
-    // notch so it covers ground quickly. fastScroll (Alt) multiplies on top.
-    // Tunable — raise scrollSensitivity for faster, lower for calmer.
-    smoothScrollDuration: 90,
-    scrollSensitivity: 3,
-    fastScrollSensitivity: 5,
+    // Instant, native-terminal scrolling: NO easing/animation (smoothScrollDuration
+    // 0) so each wheel notch / trackpad delta lands immediately — exactly how the
+    // macOS Terminal, gnome-terminal and konsole feel. A higher sensitivity covers
+    // ground fast; Alt-scroll (fastScroll) multiplies further. An animated scroll
+    // (smoothScrollDuration > 0) is what made it feel slow/"hard", so it's off.
+    smoothScrollDuration: 0,
+    scrollSensitivity: 4,
+    fastScrollSensitivity: 8,
     // A touch more line height + a calm inactive cursor for comfort.
     cursorInactiveStyle: 'outline',
     lineHeight: 1.15
