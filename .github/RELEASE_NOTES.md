@@ -3,10 +3,10 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — top-bar & munu fixes
+## 🎯 What's new in v__VER__ — munu reads Claude's questions correctly
 
-- **Top bar:** fixed the tool icons (and the notes popover) disappearing — they're all visible again, and still hide/return gracefully as you resize the window.
-- **munu:** a pinned munu no longer jumps sideways when you open its popup — it stays put, with a smoother pop-in.
+- **munu:** fixed phantom options. When your prompt (or Claude's own reply) left a numbered list on screen above the real menu, munu mistook those lines for choices — showing, say, 8 options when Claude only offered 4. munu now reads **only** the actual menu, so the option list, the highlighted row, and one-click answers all line up with Claude exactly.
+- Works for every prompt shape: yes/no permissions, single-choice, multi-select checkboxes, and multi-stage flows — no matter how many options or stages.
 
 ---
 
