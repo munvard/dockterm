@@ -3,10 +3,11 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — munu reads Claude's questions correctly
+## 🎯 What's new in v__VER__ — snappier, fully-visible munu
 
-- **munu:** fixed phantom options. When your prompt (or Claude's own reply) left a numbered list on screen above the real menu, munu mistook those lines for choices — showing, say, 8 options when Claude only offered 4. munu now reads **only** the actual menu, so the option list, the highlighted row, and one-click answers all line up with Claude exactly.
-- Works for every prompt shape: yes/no permissions, single-choice, multi-select checkboxes, and multi-stage flows — no matter how many options or stages.
+- **No more stale confirm screens.** After you submit a multi-select, Claude shows a "Submit / Cancel" review — munu now switches to it **instantly** instead of showing the old checkboxes for a few seconds before catching up.
+- **Faster reactions.** munu reads Claude's state changes — asking → answered → next question, and "done" — noticeably quicker, so the card and the glow keep up with you.
+- **Always fully visible.** The ask-card is clamped to the screen's work area, so its bottom row (cancel / open terminal) is never clipped under the dock — even for long menus or when munu is pinned low.
 
 ---
 
