@@ -3,13 +3,13 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — exact usage & a tidier top bar
+## 🎯 What's new in v__VER__ — clearer usage & panels that fit
 
-**Usage you can trust**
-- The usage pill and panel now show your **exact token usage** — last 5 hours and last 7 days — read straight from your local Claude Code sessions. No more estimated percentages or plan guessing (the Plan setting is gone), and the panel lays out cleanly.
+**Usage panel**
+- Now shows only your **exact token usage** (last 5 hours / last 7 days) in a tidy, compact layout. Removed the reset-time guesses — those are only knowable from Anthropic's API, so the local estimate was wrong; the figures shown now are read straight from your local sessions and accurate.
 
-**Top bar**
-- On narrow windows the top-bar tools now tuck into the **tab row** (and quietly hide any that still don't fit) instead of crowding or clipping.
+**Dock panels**
+- In **MCP / Skills / Agents**, the custom config/folder options now stay **pinned and visible** at the bottom instead of getting buried at the end of a long list, and nothing clips off the edge.
 
 ---
 
