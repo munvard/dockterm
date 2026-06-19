@@ -3,11 +3,10 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — tidier top bar & usage spacing
+## 🎯 What's new in v__VER__ — top-bar & munu fixes
 
-- **Top bar:** the tools (usage, panels, notes, mini-terminal) now always stay in the top bar. When the window gets narrow they **hide the least-important icons and bring them back** as it widens — no more dropping to a second row.
-- **Split-grid popup** now opens to the **right** of the grid icon instead of overlapping the tabs.
-- **Usage panel** gets a little left/right breathing room so it's not flush against the dock edges.
+- **Top bar:** fixed the tool icons (and the notes popover) disappearing — they're all visible again, and still hide/return gracefully as you resize the window.
+- **munu:** a pinned munu no longer jumps sideways when you open its popup — it stays put, with a smoother pop-in.
 
 ---
 
