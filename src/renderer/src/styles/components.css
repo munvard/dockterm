@@ -399,9 +399,9 @@
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   padding-left: 4px;
-  /* On narrow windows the top-bar tools sit at the right of this row; clip any
-     that still don't fit rather than overflowing the window. */
-  overflow: hidden;
+  /* No overflow:hidden here — it would clip the split-grid dropdown, which opens
+     below the strip. Excess relocated tools clip via .tabstrip__tools instead. */
+  min-width: 0;
 }
 .tabstrip__tabs {
   display: flex;
