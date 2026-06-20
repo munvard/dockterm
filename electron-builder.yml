@@ -1,6 +1,6 @@
 appId: com.dockterm.app
 productName: DockTerm
-copyright: Copyright © 2026 DockTerm contributors
+copyright: Copyright © 2026 Menua Vardanyan
 
 # node-pty ships prebuilt N-API binaries (ABI-stable across Node and Electron),
 # so electron-builder must not try to recompile it (its bundled winpty source
@@ -78,7 +78,7 @@ linux:
       arch: [x64]
   category: Development
   icon: build/icon.png
-  maintainer: DockTerm contributors
+  maintainer: Menua Vardanyan <taronmenua@gmail.com>
   synopsis: Terminal-first workspace for Claude Code
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
 

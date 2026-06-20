@@ -12,7 +12,9 @@ newly-open-sourced Warp; overclaiming would burn the trust the product is built 
 
 ## Decision
 
-- **License: MIT**, copyright "DockTerm contributors".
+- **License: MIT**, copyright "Menua Vardanyan" (sole author; updated 2026-06-21 from
+  the placeholder "DockTerm contributors" to the named copyright holder. No monetization
+  intent reaffirmed, so MIT stands — nothing to protect commercially).
 - **Repo:** public `dockterm`; description: *"Terminal-first workspace for Claude Code —
   files, Git, MCP, and skills panels on demand. No telemetry. MIT."*; topics include
   `claude-code`, `terminal`, `electron`, `mcp`, `git`, `developer-tools`, `xtermjs`, `monaco`.
