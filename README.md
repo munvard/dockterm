@@ -35,7 +35,7 @@
 <p align="center">
   <img src="docs/screenshots/demo.gif" alt="munu catching Claude's permission prompt over a fullscreen video, answered in one click" width="900">
 </p>
-<p align="center"><sub>Claude paused for a <code>[y/n]</code> while a video played fullscreen — munu surfaced it <b>over the video</b> and it's answered in one click, no window-switching. (<a href="docs/screenshots/permission.png">still frame</a>)</sub></p>
+<p align="center"><sub>Claude paused to ask while a movie played fullscreen — munu surfaced the prompt <b>over the video</b>, answered right there, no window-switching. (<a href="docs/screenshots/permission.png">still frame</a>)</sub></p>
 
 ---
 
