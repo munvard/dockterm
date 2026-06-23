@@ -1,9 +1,18 @@
 # Plan — Live Agent Activity ("the swarm")
 
-> Status: **proposed, awaiting approval.** Turns Claude Code's running sub-agents
-> into a live, glanceable, cute visualization across DockTerm's three surfaces:
-> a top-bar count pill, a rich "Activity" dock panel (with read-only
-> mini-terminals), and a creature swarm under the floating munu overlay.
+> Status: **SHIPPED in v0.26.0.** This was the pre-implementation plan; a couple
+> of details changed once the real transcript schema was verified against live
+> data — they're recorded here so the doc matches what actually ships:
+>
+> - **Spawn tool name is `Agent`** (older builds: `Task`); the parser accepts both.
+> - **Sub-agents do not stream their internal steps** into the parent transcript
+>   (no `isSidechain` entries), so the per-agent view is a **live status →
+>   final-result card**, not a streaming "mini-terminal". Count, type, description,
+>   elapsed, done/failed, duration, and the final result text are all reliable.
+> - Channels shipped as **`activity:get`** (invoke) + **`activity:changed`** (event).
+> - The overlay swarm reveals as a **peek on agent-count change** (then tucks),
+>   and the overlay window sets `backgroundThrottling: false` so it reacts while
+>   DockTerm is in the background.
 
 Decisions locked in brainstorming: **build everything at once · global, grouped
 by project · full creature swarm · all surfaces.**

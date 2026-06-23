@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { SquareTerminal } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
+import { useAgentStore } from '../../state/useAgentStore'
 import { UsagePill } from '../usage/UsagePill'
 import { AgentPill } from '../agents/AgentPill'
 import { NotesButton } from './NotesButton'
@@ -19,6 +20,10 @@ export function TopBarTools() {
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const toggleMini = useAppStore((s) => s.toggleMiniTerm)
   const usageEnabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
+  // Subscribe to the live agent count so this component re-renders (and its
+  // measurement effect below re-runs) the moment the agent pill appears/disappears
+  // — otherwise the pill mounts without the overflow layout being recomputed.
+  const agentActive = useAgentStore((s) => s.activity?.activeCount ?? 0)
 
   // Hide the Usage dock icon when the user has turned Usage off.
   const panels = PANELS.filter((p) => p.id !== 'usage' || usageEnabled)
@@ -71,7 +76,7 @@ export function TopBarTools() {
   })
 
   return (
-    <div className="topbar__right" ref={ref}>
+    <div className="topbar__right" ref={ref} data-agents={agentActive}>
       <AgentPill />
       <UsagePill />
       {panels.map((panel) => {

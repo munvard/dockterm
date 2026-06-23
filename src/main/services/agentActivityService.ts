@@ -195,13 +195,21 @@ function tick(): void {
     schedule(false)
     return
   }
-  void scan().then((c) => {
-    const snap = buildSnapshot()
-    if (c) broadcast(snap)
-    applyKeepAwake(snap.activeCount)
-    maybeNotify(snap.activeCount)
-    schedule(snap.activeCount > 0)
-  })
+  void scan()
+    .then((c) => {
+      const snap = buildSnapshot()
+      // Broadcast on any change AND on every tick while agents are running, so a
+      // single missed/raced broadcast can't leave the pill or swarm stale — the
+      // next tick (≤1s) re-syncs every window.
+      if (c || snap.activeCount > 0) broadcast(snap)
+      applyKeepAwake(snap.activeCount)
+      maybeNotify(snap.activeCount)
+      schedule(snap.activeCount > 0)
+    })
+    .catch(() => {
+      // A transient file error must never kill the watcher — always reschedule.
+      schedule(false)
+    })
 }
 
 function schedule(active: boolean): void {

@@ -11,6 +11,8 @@ const DOWN = '\x1b[B'
 const UP = '\x1b[A'
 const ENTER = '\r'
 const ESC = '\x1b'
+// How long munu + swarm stay revealed after the agent count changes, then tuck.
+const AGENT_PEEK_MS = 5000
 
 const setInteractive = (v: boolean): void => {
   void window.dockterm.invoke('munu:setInteractive', { interactive: v })
@@ -47,6 +49,10 @@ function Overlay() {
   const [revealed, setRevealed] = useState(false)
   const [activity, setActivity] = useState<AgentActivity | null>(null)
   const [swarmOn, setSwarmOn] = useState(true)
+  // Briefly reveal munu + swarm when the running-agent count changes, then tuck
+  // back (vs. staying pinned-down for the whole run). 0 = not peeking.
+  const [agentPeekUntil, setAgentPeekUntil] = useState(0)
+  const prevRunning = useRef(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   // Row index we're typing a free-text answer for, or null.
   const [typing, setTyping] = useState<number | null>(null)
@@ -69,6 +75,27 @@ function Overlay() {
     })
   }, [])
 
+  // Peek whenever the running-agent count changes (a sub-agent started or
+  // finished) — so you notice the swarm update — but only briefly.
+  useEffect(() => {
+    const running = (activity?.agents ?? []).filter((a) => a.phase === 'running').length
+    if (running === prevRunning.current) return
+    prevRunning.current = running
+    if (swarmOn && running > 0) setAgentPeekUntil(Date.now() + AGENT_PEEK_MS)
+  }, [activity, swarmOn])
+
+  // Clear the peek once it expires so munu tucks back even while agents run on.
+  useEffect(() => {
+    if (agentPeekUntil === 0) return
+    const ms = agentPeekUntil - Date.now()
+    if (ms <= 0) {
+      setAgentPeekUntil(0)
+      return
+    }
+    const t = setTimeout(() => setAgentPeekUntil(0), ms + 50)
+    return () => clearTimeout(t)
+  }, [agentPeekUntil])
+
   useEffect(() => {
     void window.dockterm.invoke('settings:get', undefined).then((r) => {
       if (r.ok) {
@@ -77,7 +104,7 @@ function Overlay() {
         setMunuSize(r.value.munu.size)
         setCharacter(r.value.munu.character)
         setPinned(r.value.munu.pinned)
-        setSwarmOn(r.value.agentActivity.swarm)
+        setSwarmOn(r.value.agentActivity?.swarm ?? true)
         prevPinned.current = r.value.munu.pinned
       }
     })
@@ -90,7 +117,7 @@ function Overlay() {
       setMunuSize(s.munu.size)
       setCharacter(s.munu.character)
       setPinned(s.munu.pinned)
-      setSwarmOn(s.agentActivity.swarm)
+      setSwarmOn(s.agentActivity?.swarm ?? true)
       if (s.munu.pinned && !prevPinned.current) {
         setShowHint(true)
         setTimeout(() => setShowHint(false), 5000)
@@ -287,12 +314,11 @@ function Overlay() {
   // settings popup is open, keep munu revealed even if the cursor leaves the top
   // reveal zone (so reaching down to the popup doesn't tuck it away). The Claude
   // ask-card manages its own reveal, so the popup clause only applies with no card.
-  // Reveal munu (and the swarm beneath it) whenever sub-agents are running, so
-  // you can see the work happening without having to hover or pin. It tucks back
-  // once they finish (the peek keeps it briefly, then it hides).
-  const runningAgents = (activity?.agents ?? []).filter((a) => a.phase === 'running').length
-  const shown =
-    pinned || revealed || (popupOpen && !showCard) || (swarmOn && runningAgents > 0)
+  // Reveal munu (and the swarm beneath it) for a few seconds whenever the agent
+  // count changes (a peek), then tuck back — rather than staying down for the
+  // entire run. Pin munu if you want it always visible.
+  const agentPeekActive = swarmOn && Date.now() < agentPeekUntil
+  const shown = pinned || revealed || (popupOpen && !showCard) || agentPeekActive
 
   return (
     <div className={`ov ov--${platform}${shown ? ' ov--revealed' : ' ov--hidden'}`}>

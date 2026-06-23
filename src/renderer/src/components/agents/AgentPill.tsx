@@ -13,8 +13,8 @@ import { creatureFor } from './agentVisual'
 export function AgentPill() {
   const activity = useAgentStore((s) => s.activity)
   const load = useAgentStore((s) => s.load)
-  const enabled = useAppStore((s) => s.settings?.agentActivity.enabled) ?? true
-  const showPill = useAppStore((s) => s.settings?.agentActivity.pill) ?? true
+  const enabled = useAppStore((s) => s.settings?.agentActivity?.enabled) ?? true
+  const showPill = useAppStore((s) => s.settings?.agentActivity?.pill) ?? true
   const openPanel = useAppStore((s) => s.openPanel)
   const toggle = useAppStore((s) => s.togglePanel)
 

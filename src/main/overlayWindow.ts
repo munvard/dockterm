@@ -117,7 +117,12 @@ export function createOverlayWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // Never throttle this renderer when DockTerm is in the background. The
+      // overlay is an always-on-top status surface that must keep reacting to
+      // live events (agent activity, munu state) even while you're in another
+      // app — otherwise the swarm/peek wouldn't appear until DockTerm refocuses.
+      backgroundThrottling: false
     }
   })
 

@@ -73,7 +73,7 @@ function AgentCard({ agent, now }: { agent: LiveAgent; now: number }) {
 export function ActivityPanel() {
   const activity = useAgentStore((s) => s.activity)
   const load = useAgentStore((s) => s.load)
-  const enabled = useAppStore((s) => s.settings?.agentActivity.enabled) ?? true
+  const enabled = useAppStore((s) => s.settings?.agentActivity?.enabled) ?? true
   const now = useNow((activity?.activeCount ?? 0) > 0)
 
   useEffect(() => {
