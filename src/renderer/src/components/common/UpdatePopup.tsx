@@ -59,10 +59,11 @@ export function UpdatePopup() {
   const [info, setInfo] = useState<UpdateAvailable | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [percent, setPercent] = useState(0)
+  const [relaunching, setRelaunching] = useState(false)
 
   useEffect(() => window.dockterm.on('update:available', (i) => { setInfo(i); setPhase('idle'); setPercent(0) }), [])
   useEffect(() => window.dockterm.on('update:progress', (p) => { setPhase('downloading'); setPercent(p.percent) }), [])
-  useEffect(() => window.dockterm.on('update:downloaded', () => setPhase('done')), [])
+  useEffect(() => window.dockterm.on('update:downloaded', (d) => { setRelaunching(!!d.relaunching); setPhase('done') }), [])
   useEffect(() => window.dockterm.on('update:error', () => setPhase('error')), [])
 
   if (!info) return null
@@ -93,7 +94,9 @@ export function UpdatePopup() {
     phase === 'downloading'
       ? `Downloading… ${percent}%`
       : phase === 'done'
-        ? 'Downloaded — follow the installer to finish updating.'
+        ? relaunching
+          ? 'Updating and restarting…'
+          : 'Downloaded — follow the installer to finish updating.'
         : phase === 'error'
           ? "Couldn't download automatically."
           : 'A new version is ready.'

@@ -326,7 +326,7 @@ export interface EventChannels {
   'update:available': UpdateAvailable
   /** main → renderer: in-app update download progress / result. */
   'update:progress': { percent: number }
-  'update:downloaded': { path: string }
+  'update:downloaded': { path: string; relaunching?: boolean }
   'update:error': { message: string }
   /** main → renderer: a fresh usage snapshot (transcripts grew). */
   'usage:changed': UsageSnapshot

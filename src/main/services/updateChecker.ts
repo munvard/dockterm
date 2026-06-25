@@ -1,6 +1,7 @@
 import { app, BrowserWindow, net, shell } from 'electron'
-import { createWriteStream } from 'node:fs'
-import { join } from 'node:path'
+import { createWriteStream, existsSync } from 'node:fs'
+import { chmod, rename, unlink } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import { getSettings, applySettingsPatch } from './settingsService'
 import type { UpdateAvailable } from '@shared/ipc'
 
@@ -123,8 +124,28 @@ export async function checkForUpdate(manual = false): Promise<UpdateAvailable | 
   return payload
 }
 
-/** Download the matched installer for this platform (with progress), then open
- * it (Windows/macOS installer) or reveal it (Linux AppImage). No browser. */
+/** Absolute path of the AppImage we're running from, or null if we didn't launch
+ * as a real AppImage. The AppImage runtime exports $APPIMAGE (the *.AppImage path)
+ * in both FUSE and --appimage-extract-and-run modes; when run extracted or in dev
+ * it's unset or points at an AppDir's AppRun, so we require an existing *.AppImage
+ * before attempting an in-place self-update. */
+export function runningAppImage(env: NodeJS.ProcessEnv = process.env): string | null {
+  const p = env.APPIMAGE
+  if (p && /\.appimage$/i.test(p) && existsSync(p)) return p
+  return null
+}
+
+/** Args used to relaunch a Linux AppImage after a self-update. We force
+ * --appimage-extract-and-run so the new build boots even on machines without
+ * libfuse2 (the only cost is a one-time re-extract on the next launch). */
+export function linuxRelaunchArgs(): string[] {
+  return ['--appimage-extract-and-run']
+}
+
+/** Download the matched installer for this platform (with progress). On macOS/Windows
+ * open the installer (.dmg/.exe). On Linux, if we're running as a real AppImage, swap
+ * the new build in atomically and relaunch — a true in-app update; otherwise (dev /
+ * extracted) fall back to revealing the download. No browser. */
 export async function downloadAndInstall(): Promise<void> {
   if (downloading) return
   if (!pendingAsset) {
@@ -132,7 +153,15 @@ export async function downloadAndInstall(): Promise<void> {
     return
   }
   downloading = true
-  const dest = join(app.getPath('downloads'), pendingAsset.name)
+
+  // On Linux we self-update by atomically replacing the running AppImage, so stream
+  // the download into the target's own directory (same filesystem → atomic rename).
+  // Everywhere else (and when not running as a real AppImage) download to ~/Downloads.
+  const appImage = process.platform === 'linux' ? runningAppImage() : null
+  const dest = appImage
+    ? join(dirname(appImage), `.${basename(appImage)}.new-${process.pid}`)
+    : join(app.getPath('downloads'), pendingAsset.name)
+
   try {
     const res = await net.fetch(pendingAsset.url, { headers: { 'User-Agent': 'DockTerm' } })
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
@@ -159,13 +188,26 @@ export async function downloadAndInstall(): Promise<void> {
       out.on('error', reject)
       out.end()
     })
-    send('update:downloaded', { path: dest })
+
     if (process.platform === 'linux') {
-      shell.showItemInFolder(dest) // AppImage: reveal so the user can swap it in
+      await chmod(dest, 0o755).catch(() => {}) // AppImages must be executable to run
+      if (appImage) {
+        // Atomic swap: rename onto the running file. The live process keeps the old
+        // inode open until it exits, so this is safe even under a FUSE mount.
+        await rename(dest, appImage)
+        send('update:downloaded', { path: appImage, relaunching: true })
+        app.relaunch({ execPath: appImage, args: linuxRelaunchArgs() })
+        setTimeout(() => app.quit(), 800) // let the popup paint "restarting" first
+      } else {
+        send('update:downloaded', { path: dest }) // dev/extracted: can't self-replace
+        shell.showItemInFolder(dest)
+      }
     } else {
+      send('update:downloaded', { path: dest })
       await shell.openPath(dest) // run the installer (.exe) / mount the .dmg
     }
   } catch (e) {
+    if (appImage) await unlink(dest).catch(() => {}) // drop the partial staged temp
     send('update:error', { message: e instanceof Error ? e.message : 'download failed' })
   } finally {
     downloading = false
