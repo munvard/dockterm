@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { nativeImage } from 'electron'
 import { ok, err, type Err } from '@shared/result'
-import { JailViolation } from '../../services/pathJail'
+import { JailViolation, resolveInside } from '../../services/pathJail'
 import { rootFor } from '../../services/activeRoot'
 import {
   readTree,
@@ -30,6 +31,24 @@ const renameSchema = z.object({
   fromRelPath: z.string().min(1).max(4096),
   toRelPath: z.string().min(1).max(4096)
 })
+const dragSchema = z.object({ relPaths: z.array(z.string().min(1).max(4096)).min(1).max(50) })
+
+// A non-empty 1×1 transparent icon — Electron's startDrag requires a non-empty
+// icon; the OS shows its own file/badge image while dragging, so this stays out
+// of the way. On macOS we prefer the system multi-documents glyph.
+const DRAG_ICON = (() => {
+  if (process.platform === 'darwin') {
+    try {
+      const sys = nativeImage.createFromNamedImage('NSImageNameMultipleDocuments', [0, 0, 0, 1])
+      if (!sys.isEmpty()) return sys
+    } catch {
+      // fall through to the embedded transparent pixel
+    }
+  }
+  return nativeImage.createFromDataURL(
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  )
+})()
 
 function fail(e: unknown): Err {
   if (e instanceof JailViolation) return err('JAIL_VIOLATION', e.message)
@@ -128,6 +147,19 @@ export function registerFsHandlers(reg: Registrar): void {
   reg('fs:openPath', relSchema, async (req, event) => {
     try {
       await openPath(rootFor(event), req.relPath)
+      return ok(undefined)
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  // Start a native OS drag of real files. Each path is jailed to the project root
+  // (rejects anything outside, symlink-safe) before the drag begins.
+  reg('fs:startDrag', dragSchema, (req, event) => {
+    try {
+      const root = rootFor(event)
+      const files = req.relPaths.map((rel) => resolveInside(root, rel))
+      event.sender.startDrag({ file: files[0], files, icon: DRAG_ICON })
       return ok(undefined)
     } catch (e) {
       return fail(e)

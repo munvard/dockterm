@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, clipboard } from 'electron'
 import { z } from 'zod'
 import { ok } from '@shared/result'
 import { APP_NAME } from '@shared/constants'
@@ -12,6 +12,7 @@ import {
 } from '../../services/updateChecker'
 import { getUsageSnapshot } from '../../services/usageService'
 import { getAgentActivity } from '../../services/agentActivityService'
+import { getSessionHistory } from '../../services/sessionHistoryService'
 import type { Settings } from '@shared/types'
 import type { Registrar } from '../register'
 
@@ -36,9 +37,22 @@ export function registerAppHandlers(reg: Registrar): void {
     return ok(undefined)
   })
 
+  reg('clipboard:read', z.void(), () => ok(clipboard.readText()))
+
   reg('usage:get', z.void(), async () => ok(await getUsageSnapshot()))
 
   reg('activity:get', z.void(), async () => ok(await getAgentActivity()))
+
+  reg(
+    'session:getHistory',
+    z.object({
+      cwd: z.string().max(4096),
+      sample: z.array(z.string().max(400)).max(80),
+      leafId: z.string().max(128),
+      claudeActive: z.boolean()
+    }),
+    async (req) => ok(await getSessionHistory(req.cwd, req.sample, req.leafId, req.claudeActive))
+  )
 
   reg('update:check', z.void(), async () => {
     const found = await checkForUpdate(true)

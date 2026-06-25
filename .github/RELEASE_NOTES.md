@@ -3,14 +3,18 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — see your agents working (live)
+## 🎯 What's new in v__VER__ — a deeper Claude workflow
 
-DockTerm now shows you **Claude Code's sub-agents as they run** — calm, cute, and completely local.
+Seven additions that make working with Claude Code in DockTerm faster and calmer.
 
-- **A live count in the top bar.** A little pill shows how many agents are working right now (with a mascot leading the way). Click it for the full picture.
-- **The new Activity panel.** Each running agent as its own card — what it's doing, which project, how long it's taken — grouped by project, with a gentle "working" shimmer. When an agent finishes, its card celebrates and reveals what it found.
-- **A creature swarm under munu.** While agents run, a little family of mascots gathers beneath the floating munu and works away — so you can feel the work happening even from another app.
-- **All local, all read-only.** Reconstructed from your own Claude Code session files on this machine — nothing is sent anywhere, nothing is ever auto-answered. Tune it all (pill, swarm, sounds, whether to show results) in **Settings → Agent activity**.
+- **Send selected text to Claude.** Select anything in a terminal and a little toolbar appears — one click drops it into Claude's prompt as a reference.
+- **Checkpoints rail.** A new side panel lists your prompts to Claude; click one to scroll right back to it. “Rewind” opens Claude's own `/rewind` so you confirm the restore. Toggle it from a terminal's controls.
+- **Start Claude / Resume buttons** right in each terminal's controls — run `claude` or `claude --resume` in one click.
+- **Your terminals come back.** Quit DockTerm (e.g. to update) and reopen — each terminal's on-screen history is restored. (`claude --resume` continues the conversation.)
+- **Drag real files out.** Multi-select files in the tree (⌘/Ctrl-click) and drag them straight into other apps — the actual files, not just their paths — or send them to Claude.
+- **Cleaner copy/paste.** Fixed the garbled symbols (emoji, em-dashes) when pasting on macOS, and made copy explicit instead of copy-on-select.
+
+All local and read-only on your own `~/.claude` files — no API, no telemetry.
 
 ---
 

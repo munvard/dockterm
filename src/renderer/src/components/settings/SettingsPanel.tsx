@@ -89,7 +89,11 @@ export function SettingsPanel() {
         cursorBlink: true,
         renderer: 'auto',
         scrollback: 5000,
-        shellIntegration: true
+        shellIntegration: true,
+        claudeButtons: true,
+        copyOnSelect: false,
+        selectionToolbar: true,
+        restoreScrollback: true
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },
@@ -249,6 +253,62 @@ export function SettingsPanel() {
           <div className="settings-note">
             Lets the Files/Git panels follow the focused terminal as you <code>cd</code>. Adds a
             tiny hook to zsh/bash/PowerShell sessions. Restart a terminal after changing this.
+          </div>
+          <Field label="Start-Claude / Resume buttons">
+            <Toggle
+              checked={s.terminal.claudeButtons}
+              onChange={(v) => setTerminal({ claudeButtons: v })}
+            />
+          </Field>
+          <Field label="Selection “Send to Claude” toolbar">
+            <Toggle
+              checked={s.terminal.selectionToolbar}
+              onChange={(v) => setTerminal({ selectionToolbar: v })}
+            />
+          </Field>
+          <Field label="Copy on select">
+            <Toggle
+              checked={s.terminal.copyOnSelect}
+              onChange={(v) => setTerminal({ copyOnSelect: v })}
+            />
+          </Field>
+          <Field label="Restore scrollback after quit">
+            <Toggle
+              checked={s.terminal.restoreScrollback}
+              onChange={(v) => setTerminal({ restoreScrollback: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            Brings back each terminal’s on-screen history when you reopen DockTerm (the live
+            processes can’t be restored — use <code>claude --resume</code> to continue).
+          </div>
+        </Section>
+
+        <Section title="Checkpoints (history)">
+          <Field label="Show the checkpoints rail">
+            <Toggle
+              checked={s.sessionHistory.enabled}
+              onChange={(v) => void update({ sessionHistory: { ...s.sessionHistory, enabled: v } })}
+            />
+          </Field>
+          <Field label="Side">
+            <select
+              className="settings-select"
+              value={s.sessionHistory.side}
+              onChange={(e) =>
+                void update({
+                  sessionHistory: { ...s.sessionHistory, side: e.target.value as 'left' | 'right' }
+                })
+              }
+            >
+              <option value="right">Right</option>
+              <option value="left">Left</option>
+            </select>
+          </Field>
+          <div className="settings-note">
+            Lists your prompts to Claude — click one to scroll back to it. “Rewind” opens Claude’s
+            own <code>/rewind</code> so you confirm the restore. Toggle it from a terminal’s
+            controls (the milestone icon).
           </div>
         </Section>
 

@@ -12,6 +12,8 @@ import {
   Trash2,
   FolderInput,
   Search,
+  Sparkles,
+  ClipboardCopy,
   X
 } from 'lucide-react'
 import type { TreeNode } from '@shared/ipc'
@@ -19,6 +21,16 @@ import { useEditorStore } from '../../state/useEditorStore'
 import { useDialogStore } from '../../state/useDialogStore'
 import { useToastStore } from '../../state/useToastStore'
 import { useAppStore } from '../../state/useAppStore'
+import { useWorkspaceStore } from '../../state/useWorkspaceStore'
+import { paneWriters } from '../../state/paneWriters'
+import { selectClick, flattenVisible, type SelState } from './fileSelect'
+
+/** Write text into the currently focused terminal pane (for "Send to Claude"). */
+function writeToFocusedPane(text: string): boolean {
+  const { tabs, activeId } = useWorkspaceStore.getState()
+  const tab = tabs.find((t) => t.id === activeId)
+  return tab ? paneWriters.write(tab.focusedLeafId, text) : false
+}
 
 interface Menu {
   x: number
@@ -45,6 +57,7 @@ export function FileTree() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TreeNode[]>([])
+  const [sel, setSel] = useState<SelState>({ selected: new Set(), anchor: null })
   const expandedRef = useRef(expanded)
   expandedRef.current = expanded
 
@@ -78,8 +91,39 @@ export function FileTree() {
   useEffect(() => {
     setExpanded(new Set())
     setChildren({})
+    setSel({ selected: new Set(), anchor: null })
     void load('')
   }, [activeRoot, load])
+
+  const quote = (p: string): string => (/\s/.test(p) ? `"${p}"` : p)
+  const clearSel = (): void => setSel({ selected: new Set(), anchor: null })
+
+  // Click with ⌘/Ctrl or Shift edits the multi-selection; a plain click selects
+  // just this row and opens/expands it.
+  const onRowClick = (e: MouseEvent, node: TreeNode): void => {
+    const mods = { meta: e.metaKey || e.ctrlKey, shift: e.shiftKey }
+    if (mods.meta || mods.shift) {
+      setSel((s) => selectClick(s, node.relPath, mods, flattenVisible(children, expanded)))
+      return
+    }
+    setSel({ selected: new Set([node.relPath]), anchor: node.relPath })
+    if (node.type === 'dir') toggleDir(node)
+    else void openFile(node.relPath, node.name)
+  }
+
+  const sendSelectionToClaude = (): void => {
+    if (!activeRoot) return
+    const text = [...sel.selected].map((rel) => quote(joinAbs(activeRoot, rel))).join(' ') + ' '
+    if (writeToFocusedPane(text)) clearSel()
+    else toast('Open a terminal first to send files to Claude', 'error')
+  }
+
+  const copySelectionPaths = (): void => {
+    if (!activeRoot) return
+    const paths = [...sel.selected].map((rel) => joinAbs(activeRoot, rel))
+    void navigator.clipboard.writeText(paths.join('\n'))
+    toast(`Copied ${paths.length} path${paths.length > 1 ? 's' : ''}`, 'success')
+  }
 
   useEffect(() => window.dockterm.on('fs:watch', refresh), [refresh])
 
@@ -234,20 +278,19 @@ export function FileTree() {
       return (
         <div key={node.relPath}>
           <div
-            className="tree__row"
+            className={`tree__row${sel.selected.has(node.relPath) ? ' tree__row--selected' : ''}`}
             style={{ paddingLeft: 6 + depth * 12 }}
             draggable={!!activeRoot}
             onDragStart={(e) => {
               if (!activeRoot) return
-              const abs = joinAbs(activeRoot, node.relPath)
-              e.dataTransfer.setData(
-                'application/x-dockterm',
-                JSON.stringify({ path: abs, type: node.type })
-              )
-              e.dataTransfer.setData('text/plain', abs)
-              e.dataTransfer.effectAllowed = 'copy'
+              // Drag the whole selection if this row is part of it, else just this
+              // row. Native OS drag of the REAL files (drop into Finder, browsers,
+              // chat apps, etc.) — and DockTerm panes read the files on drop too.
+              const paths = sel.selected.has(node.relPath) ? [...sel.selected] : [node.relPath]
+              e.preventDefault()
+              void window.dockterm.invoke('fs:startDrag', { relPaths: paths })
             }}
-            onClick={() => (node.type === 'dir' ? toggleDir(node) : void openFile(node.relPath, node.name))}
+            onClick={(e) => onRowClick(e, node)}
             onContextMenu={(e) => onContext(e, node)}
             title={node.name}
           >
@@ -354,6 +397,26 @@ export function FileTree() {
           renderNodes('', 0)
         )}
       </div>
+      {sel.selected.size > 0 && (
+        <div className="selbar">
+          <span className="selbar__count">
+            <b>{sel.selected.size}</b>
+            <span className="selbar__word">selected</span>
+          </span>
+          <button className="selbar__send" onClick={sendSelectionToClaude}>
+            <Sparkles size={13} />
+            <span>Send to Claude</span>
+          </button>
+          <span className="selbar__tools">
+            <button className="selbar__icon" title="Copy paths" onClick={copySelectionPaths}>
+              <ClipboardCopy size={14} />
+            </button>
+            <button className="selbar__icon" title="Clear selection" onClick={clearSel}>
+              <X size={14} />
+            </button>
+          </span>
+        </div>
+      )}
       {menu && (
         <div className="ctxmenu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
           {(menu.node === null || menu.node.type === 'dir') && (

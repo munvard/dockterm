@@ -4,6 +4,7 @@ import { useWorkspaceStore } from './state/useWorkspaceStore'
 import { useThemeStore } from './state/useThemeStore'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useMunuBridge } from './components/munu/useMunuBridge'
+import { setupTerminalPersistence } from './components/terminal/terminalPersistence'
 import { Shell } from './components/layout/Shell'
 import { EmptyState } from './components/common/EmptyState'
 import { Toaster } from './components/common/Toaster'
@@ -15,11 +16,15 @@ export default function App() {
   const ready = useAppStore((s) => s.ready)
   const project = useAppStore((s) => s.project)
   const themeSel = useAppStore((s) => s.settings?.theme)
+  const restoreScrollback = useAppStore((s) => s.settings?.terminal.restoreScrollback) ?? true
   const initTheme = useThemeStore((s) => s.init)
   const init = useAppStore((s) => s.init)
 
   useShortcuts()
   useMunuBridge()
+
+  // Persist + restore terminal scrollback across a full quit.
+  useEffect(() => setupTerminalPersistence(restoreScrollback), [restoreScrollback])
 
   useEffect(() => {
     void init()

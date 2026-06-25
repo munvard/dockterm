@@ -87,6 +87,32 @@ export interface TerminalSettings {
   scrollback: number
   /** Inject shell integration so the dock follows the terminal's `cd` (OSC 7). */
   shellIntegration: boolean
+  /** Show the Start-Claude / Resume buttons in the pane controls. */
+  claudeButtons: boolean
+  /** Copy automatically on selection (off → ⌘C / the selection toolbar). */
+  copyOnSelect: boolean
+  /** Show the floating "Send to Claude / Copy" toolbar on selection. */
+  selectionToolbar: boolean
+  /** Restore each terminal's scrollback (read-only) after a full quit. */
+  restoreScrollback: boolean
+}
+
+export interface SessionHistorySettings {
+  enabled: boolean
+  side: 'left' | 'right'
+}
+
+/** One checkpoint = one user prompt, reconstructed read-only from the transcript. */
+export interface SessionPrompt {
+  index: number
+  ts: number
+  text: string
+  preview: string
+}
+export interface SessionHistory {
+  sessionId: string
+  cwd: string
+  prompts: SessionPrompt[]
 }
 
 export interface EditorSettings {
@@ -233,6 +259,7 @@ export interface Settings {
   update: UpdateSettings
   usage: UsageSettings
   agentActivity: AgentActivitySettings
+  sessionHistory: SessionHistorySettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

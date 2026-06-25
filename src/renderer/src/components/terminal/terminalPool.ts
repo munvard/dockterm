@@ -1,6 +1,7 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { SerializeAddon } from '@xterm/addon-serialize'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -47,10 +48,96 @@ export interface PooledTerminal {
   findPrevious: (q: string) => void
   clearSearch: () => void
   focus: () => void
+  /** Serialize the on-screen scrollback (for persistence across a full quit). */
+  serialize: () => string
+  /** Search the buffer for `text` and scroll to it (history navigation). */
+  scrollToText: (text: string) => boolean
   dispose: () => void
 }
 
+/** Scroll a specific pane's terminal to the first match of `text` (best-effort). */
+export function scrollPaneToText(leafId: string, text: string): boolean {
+  return pool.get(leafId)?.scrollToText(text) ?? false
+}
+
+/** Which screen buffer a pane is on. Claude Code's fullscreen TUI renders on the
+ * `alternate` buffer (like vim/less) — there's no xterm scrollback to seek, and it
+ * owns scrolling itself. A shell (or Claude's classic renderer) is on `normal`,
+ * where the conversation lives in xterm's own searchable scrollback. */
+export function paneBufferType(leafId: string): 'normal' | 'alternate' | null {
+  return pool.get(leafId)?.term.buffer.active.type ?? null
+}
+
+/** The text Claude currently has drawn on screen (the visible viewport rows). On
+ * the alternate buffer this is the *only* readable content — what we poll while
+ * driving Claude's scroll, to detect when a target prompt has come into view. */
+export function paneVisibleText(leafId: string): string {
+  const p = pool.get(leafId)
+  if (!p) return ''
+  const buf = p.term.buffer.active
+  const start = buf.baseY
+  const end = buf.baseY + p.term.rows
+  let out = ''
+  for (let y = start; y < end; y++) {
+    out += (buf.getLine(y)?.translateToString(true) ?? '') + '\n'
+  }
+  return out
+}
+
+/** Distinctive recent lines from a pane's buffer — used to identify WHICH Claude
+ * session this exact terminal is running (by matching the transcript). A fresh /
+ * non-Claude terminal yields only chrome, which matches no transcript. */
+export function getPaneSample(leafId: string, count = 40): string[] {
+  const p = pool.get(leafId)
+  if (!p) return []
+  const buf = p.term.buffer.active
+  const out: string[] = []
+  for (let i = buf.length - 1; i >= 0 && out.length < count; i--) {
+    const line = buf.getLine(i)?.translateToString(true).trim()
+    if (line && line.length >= 18) out.push(line)
+  }
+  return out
+}
+
 const pool = new Map<string, PooledTerminal>()
+
+/* ----------------------- scrollback persistence ------------------------- */
+// Restore each terminal's prior scrollback (read-only) after a full quit. The
+// processes are gone; only the picture comes back. Preloaded once before any
+// terminal starts; applied (one-shot) just before the fresh PTY spawns.
+const PERSIST_LINES = 1500
+let persistEnabled = true
+let preloadKicked = false
+let restoredReady: Promise<void> = Promise.resolve()
+const restored = new Map<string, string>()
+
+export function setTerminalPersistence(enabled: boolean): void {
+  persistEnabled = enabled
+}
+
+function kickPreload(): void {
+  if (preloadKicked) return
+  preloadKicked = true
+  if (!persistEnabled) return
+  restoredReady = window.dockterm
+    .invoke('terminal:loadBuffers', undefined)
+    .then((r) => {
+      if (r.ok) for (const b of r.value) restored.set(b.leafId, b.data)
+    })
+    .catch(() => {})
+}
+
+/** Serialized scrollback of every live persistent terminal (for saving on quit). */
+export function serializeAllPersistent(): { leafId: string; data: string }[] {
+  if (!persistEnabled) return []
+  const out: { leafId: string; data: string }[] = []
+  for (const [id, p] of pool) {
+    if (!p.persist) continue
+    const data = p.serialize()
+    if (data) out.push({ leafId: id, data })
+  }
+  return out
+}
 
 /**
  * Get the pooled terminal for `id`, creating it if needed. If a terminal exists
@@ -58,6 +145,7 @@ const pool = new Map<string, PooledTerminal>()
  * the old one is disposed and a fresh shell is spawned in the new directory.
  */
 export function acquireTerminal(id: string, opts: TerminalOptions): PooledTerminal {
+  kickPreload()
   const existing = pool.get(id)
   if (existing) {
     if (existing.cwd === opts.cwd) {
@@ -123,8 +211,10 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
 
   const fit = new FitAddon()
   const search = new SearchAddon()
+  const serializer = new SerializeAddon()
   term.loadAddon(fit)
   term.loadAddon(search)
+  term.loadAddon(serializer)
   term.loadAddon(new WebLinksAddon())
   try {
     const unicode = new Unicode11Addon()
@@ -152,6 +242,8 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     findPrevious: () => {},
     clearSearch: () => {},
     focus: () => {},
+    serialize: () => '',
+    scrollToText: () => false,
     dispose: () => {}
   }
 
@@ -167,6 +259,14 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // (Claude Code sets this to a short task summary; shells often set the cwd).
   const titleSub = term.onTitleChange((title) => {
     if (title) p.opts.onTitle?.(title)
+  })
+
+  // Surface text selection so the pane can offer a "Send to Claude / Copy"
+  // toolbar; auto-copy only when the user opted into copyOnSelect.
+  const selSub = term.onSelectionChange(() => {
+    const sel = term.getSelection()
+    if (sel && p.opts.copyOnSelect) void navigator.clipboard.writeText(sel)
+    p.opts.onSelection?.(sel)
   })
 
   // Make file paths in output clickable → open them in the editor.
@@ -362,8 +462,27 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   const startPty = (): void => {
     if (ptyStarted) return
     ptyStarted = true
-    void window.dockterm
-      .invoke('pty:create', { kind: opts.kind, cols: term.cols, rows: term.rows, cwd: opts.cwd })
+    void restoredReady
+      .then(() => {
+        // Restore prior scrollback (read-only history) once, before the fresh
+        // shell starts — the live process can't be resurrected.
+        if (persistEnabled && opts.persist) {
+          const saved = restored.get(id)
+          if (saved) {
+            restored.delete(id)
+            term.write(saved)
+            term.write(
+              '\r\n\x1b[90m──── session restored · processes are not (run claude --resume to continue) ────\x1b[0m\r\n'
+            )
+          }
+        }
+        return window.dockterm.invoke('pty:create', {
+          kind: opts.kind,
+          cols: term.cols,
+          rows: term.rows,
+          cwd: opts.cwd
+        })
+      })
       .then((res) => {
         if (!res.ok) {
           term.writeln(`\x1b[31mFailed to start shell: ${res.error.message}\x1b[0m`)
@@ -402,6 +521,35 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   p.findPrevious = (q) => search.findPrevious(q)
   p.clearSearch = () => search.clearDecorations()
   p.focus = () => term.focus()
+  p.serialize = () => {
+    try {
+      return serializer.serialize({ scrollback: PERSIST_LINES })
+    } catch {
+      return ''
+    }
+  }
+  p.scrollToText = (text) => {
+    // Best-effort, SILENT: scroll the viewport to the prompt if it happens to be in
+    // xterm's buffer. NOTE: when Claude is running it owns the screen (it pins its
+    // input + manages scroll), so the conversation usually isn't in xterm's buffer
+    // and this can't find it — the rail shows the full prompt text instead.
+    const needle = text
+      .replace(/\s+/g, ' ')
+      .replace(/^\s*(\[Image #\d+\]\s*)+/i, '')
+      .trim()
+      .toLowerCase()
+      .slice(0, 28)
+    if (needle.length < 4) return false
+    const buf = term.buffer.active
+    for (let i = buf.length - 1; i >= 0; i--) {
+      const line = buf.getLine(i)?.translateToString(true).toLowerCase()
+      if (line && line.includes(needle)) {
+        term.scrollToLine(Math.max(0, i - 3))
+        return true
+      }
+    }
+    return false
+  }
   p.dispose = () => {
     offData()
     offExit()
@@ -410,6 +558,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     observer.disconnect()
     osc7.dispose()
     titleSub.dispose()
+    selSub.dispose()
     pathLinks.dispose()
     if (fitTimer) clearTimeout(fitTimer)
     if (statusTimer) clearTimeout(statusTimer)

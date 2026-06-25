@@ -38,7 +38,21 @@ const preference = {
       cursorBlink: z.boolean().default(true),
       renderer: z.enum(['auto', 'dom']).default('auto'),
       scrollback: z.number().int().min(500).max(100000).default(5000),
-      shellIntegration: z.boolean().default(true)
+      shellIntegration: z.boolean().default(true),
+      /** Show the Start-Claude / Resume buttons in the pane controls. */
+      claudeButtons: z.boolean().default(true),
+      /** Copy automatically when text is selected (off → use ⌘C / the toolbar). */
+      copyOnSelect: z.boolean().default(false),
+      /** Show the floating "Send to Claude / Copy" toolbar on selection. */
+      selectionToolbar: z.boolean().default(true),
+      /** Restore each terminal's scrollback (read-only) after a full quit. */
+      restoreScrollback: z.boolean().default(true)
+    })
+    .default({}),
+  sessionHistory: z
+    .object({
+      enabled: z.boolean().default(true),
+      side: z.enum(['left', 'right']).default('right')
     })
     .default({}),
   editor: z.object({ fontSize: z.number().int().min(8).max(40).default(13) }).default({}),
@@ -126,6 +140,7 @@ const settingsSchema = z.object({
   update: preference.update,
   usage: preference.usage,
   agentActivity: preference.agentActivity,
+  sessionHistory: preference.sessionHistory,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   /** Free-form scratchpad shown in the top-bar notes popover; auto-saved. */
@@ -144,6 +159,7 @@ export const settingsPatchSchema = z.object({
   update: preference.update.optional(),
   usage: preference.usage.optional(),
   agentActivity: preference.agentActivity.optional(),
+  sessionHistory: preference.sessionHistory.optional(),
   munu: preference.munu.optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),

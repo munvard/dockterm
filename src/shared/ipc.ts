@@ -30,7 +30,8 @@ import type {
   ProjectInfoData,
   MunuGlobal,
   UsageSnapshot,
-  AgentActivity
+  AgentActivity,
+  SessionHistory
 } from './types'
 
 export interface UpdateAvailable {
@@ -175,6 +176,7 @@ export type SettingsPatch = Partial<
     | 'update'
     | 'usage'
     | 'agentActivity'
+    | 'sessionHistory'
     | 'munu'
     | 'workspace'
     | 'theme'
@@ -192,6 +194,10 @@ export interface InvokeChannels {
   'pty:resize': (req: ResizePtyReq) => Result<void>
   'pty:kill': (req: SessionRef) => Result<void>
   'pty:ack': (req: AckPtyReq) => Result<void>
+
+  /** Persist / restore each terminal's serialized scrollback across a full quit. */
+  'terminal:saveBuffers': (req: { buffers: { leafId: string; data: string }[] }) => Result<void>
+  'terminal:loadBuffers': (req: void) => Result<{ leafId: string; data: string }[]>
 
   'settings:get': (req: void) => Result<Settings>
   'settings:set': (req: SettingsPatch) => Result<Settings>
@@ -213,6 +219,8 @@ export interface InvokeChannels {
   'fs:reveal': (req: RelPathReq) => Result<void>
   'fs:readDataUrl': (req: RelPathReq) => Result<ImageDataResult>
   'fs:openPath': (req: RelPathReq) => Result<void>
+  /** Begin a native OS drag of real project files (jailed) — drop them into other apps. */
+  'fs:startDrag': (req: { relPaths: string[] }) => Result<void>
 
   'git:status': (req: void) => Result<GitStatusView>
   'git:stage': (req: PathsReq) => Result<void>
@@ -244,12 +252,26 @@ export interface InvokeChannels {
 
   'info:get': (req: void) => Result<ProjectInfoData>
   'app:openExternal': (req: { url: string }) => Result<void>
+  /** Read the system clipboard text (main-process, no renderer permission needed). */
+  'clipboard:read': (req: void) => Result<string>
 
   /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
   'usage:get': (req: void) => Result<UsageSnapshot>
 
   /** Live Claude Code sub-agent activity from local ~/.claude transcripts. */
   'activity:get': (req: void) => Result<AgentActivity>
+
+  /** The user's prompts (checkpoints) for the session running in THIS terminal —
+   * identified by matching `sample` (recent buffer lines) to the transcript. The
+   * binding is sticky per `leafId`: while `claudeActive` (the pane is on the
+   * alternate screen, i.e. Claude is running) it survives scrolling away from the
+   * live bottom, and only re-binds on a positive match to a different transcript. */
+  'session:getHistory': (req: {
+    cwd: string
+    sample: string[]
+    leafId: string
+    claudeActive: boolean
+  }) => Result<SessionHistory>
 
   // updates — manual check + snooze/skip + in-app download/install.
   'update:check': (req: void) => Result<{ upToDate: boolean }>
@@ -307,6 +329,8 @@ export interface EventChannels {
   'usage:changed': UsageSnapshot
   /** main → every window: a fresh live sub-agent activity snapshot. */
   'activity:changed': AgentActivity
+  /** main → every window: updated session prompt list (a new prompt landed). */
+  'session:changed': SessionHistory
   /** main → focused renderer: an application-menu item was chosen. */
   'menu:action': { action: MenuAction }
 }
@@ -325,6 +349,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'pty:resize',
   'pty:kill',
   'pty:ack',
+  'terminal:saveBuffers',
+  'terminal:loadBuffers',
   'settings:get',
   'settings:set',
   'project:openDialog',
@@ -343,6 +369,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'fs:reveal',
   'fs:readDataUrl',
   'fs:openPath',
+  'fs:startDrag',
   'git:status',
   'git:stage',
   'git:stageAll',
@@ -366,8 +393,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'claude:skillCreate',
   'info:get',
   'app:openExternal',
+  'clipboard:read',
   'usage:get',
   'activity:get',
+  'session:getHistory',
   'update:check',
   'update:download',
   'update:snooze',
@@ -403,6 +432,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'update:error',
   'usage:changed',
   'activity:changed',
+  'session:changed',
   'menu:action'
 ]
 

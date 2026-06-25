@@ -1,6 +1,6 @@
 {
   "name": "dockterm",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Terminal-first workspace for Claude Code — files, Git, MCP, and skills panels on demand. No telemetry.",
   "author": "Menua Vardanyan <taronmenua@gmail.com>",
   "license": "MIT",

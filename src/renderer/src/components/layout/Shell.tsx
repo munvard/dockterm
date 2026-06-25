@@ -12,6 +12,7 @@ import { Divider } from './Divider'
 import { TabStrip } from '../terminal/TabStrip'
 import { PaneTree } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
+import { HistoryRail } from '../history/HistoryRail'
 import { gcTerminals } from '../terminal/terminalPool'
 
 // Lazily loaded so Monaco (the editor) isn't part of the startup bundle.
@@ -26,6 +27,9 @@ export function Shell() {
   const initGit = useAppStore((s) => s.initGitRepo)
   const openPanel = useAppStore((s) => s.openPanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
+  const historyOpen = useAppStore((s) => s.historyOpen)
+  const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
+  const histSide = useAppStore((s) => s.settings?.sessionHistory.side) ?? 'right'
   const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const diffTarget = useReviewStore((s) => s.diffTarget)
   const editorOpen = hasTabs || diffTarget != null
@@ -41,6 +45,7 @@ export function Shell() {
   const [dockW, setDockW] = useState(260)
   const [editorW, setEditorW] = useState(520)
   const [miniH, setMiniH] = useState(200)
+  const [histW, setHistW] = useState(280)
 
   const projectPath = project?.path
   const wsProject = useRef<string | null>(null)
@@ -133,6 +138,19 @@ export function Shell() {
   }, [])
 
   if (!project) return null
+  const showHist = historyOpen && histEnabled
+  const histRail = (
+    <div className="hist-wrap" style={{ width: histW }} key="hist">
+      <HistoryRail cwd={focusedCwd} leafId={focusedLeafId ?? null} />
+    </div>
+  )
+  const histDivider = (
+    <Divider
+      key="dv-hist"
+      direction="v"
+      onResize={(d) => setHistW((w) => clamp(w + (histSide === 'left' ? d : -d), 200, 560))}
+    />
+  )
   const t = settings?.terminal
   const termProps = {
     fontFamily: t?.fontFamily ?? undefined,
@@ -171,6 +189,8 @@ export function Shell() {
               onResize={(d) => setDockW((w) => clamp(w + d, 170, 560))}
             />
           )}
+          {showHist && histSide === 'left' && histRail}
+          {showHist && histSide === 'left' && histDivider}
           <div className="term-wrap" key="term">
             <TabStrip />
             <div className="term-stack">
@@ -191,6 +211,8 @@ export function Shell() {
               ))}
             </div>
           </div>
+          {showHist && histSide === 'right' && histDivider}
+          {showHist && histSide === 'right' && histRail}
           {editorOpen && (
             <Divider
               key="dv-editor"

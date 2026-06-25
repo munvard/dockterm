@@ -34,6 +34,10 @@ export interface TerminalOptions {
   onStatus?: (state: ClaudeState, ask: AskInfo | null) => void
   /** Open a file path clicked in the terminal output (with optional 1-based line). */
   onOpenPath?: (path: string, line: number | null) => void
+  /** The selected text changed (empty string when cleared). */
+  onSelection?: (sel: string) => void
+  /** Copy to the clipboard automatically when text is selected. */
+  copyOnSelect?: boolean
 }
 
 export interface TerminalHandle {
@@ -44,6 +48,8 @@ export interface TerminalHandle {
   focus: () => void
   /** Write text into the PTY (queued until the session is ready). No newline added. */
   paste: (text: string) => void
+  /** The terminal's current selected text ('' if none). */
+  getSelection: () => string
 }
 
 export function useTerminal(options: TerminalOptions): TerminalHandle {
@@ -109,6 +115,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     findPrevious: (q) => poolRef.current?.findPrevious(q),
     clearSearch: () => poolRef.current?.clearSearch(),
     focus: () => poolRef.current?.focus(),
-    paste: (text) => poolRef.current?.paste(text)
+    paste: (text) => poolRef.current?.paste(text),
+    getSelection: () => poolRef.current?.term.getSelection() ?? ''
   }
 }

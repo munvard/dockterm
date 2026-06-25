@@ -2,7 +2,16 @@ import { useRef, useState } from 'react'
 import { Plus, X, LayoutGrid } from 'lucide-react'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useAppStore } from '../../state/useAppStore'
+import { paneWriters } from '../../state/paneWriters'
 import { firstLeaf } from '../../state/layout'
+import claudeIcon from '../../assets/claudecode.svg'
+
+/** Send a command into the focused terminal pane of the active tab. */
+function runInFocusedPane(cmd: string): void {
+  const { tabs, activeId } = useWorkspaceStore.getState()
+  const tab = tabs.find((t) => t.id === activeId)
+  if (tab) paneWriters.write(tab.focusedLeafId, cmd)
+}
 
 const GRID_PRESETS: { label: string; rows: number; cols: number }[] = [
   { label: '1', rows: 1, cols: 1 },
@@ -23,6 +32,7 @@ export function TabStrip() {
   const reorder = useWorkspaceStore((s) => s.reorder)
   const makeGrid = useWorkspaceStore((s) => s.makeGrid)
   const projectPath = useAppStore((s) => s.project?.path)
+  const claudeButtons = useAppStore((s) => s.settings?.terminal.claudeButtons) ?? true
 
   const [editing, setEditing] = useState<string | null>(null)
   const [gridOpen, setGridOpen] = useState(false)
@@ -118,6 +128,28 @@ export function TabStrip() {
           </div>
         )}
       </div>
+      {claudeButtons && (
+        <div className="tabstrip__claude">
+          <button
+            className="claude-launch"
+            data-tip="Run claude in this terminal"
+            aria-label="Run claude"
+            onClick={() => runInFocusedPane('claude\r')}
+          >
+            <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
+            <span>Claude</span>
+          </button>
+          <button
+            className="claude-launch claude-launch--resume"
+            data-tip="Resume a session (claude --resume)"
+            aria-label="Resume a Claude session"
+            onClick={() => runInFocusedPane('claude --resume\r')}
+          >
+            <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
+            <span>Resume</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

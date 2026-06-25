@@ -5,6 +5,7 @@ import type { BrowserWindow } from 'electron'
 import { detectShell } from './shellDetect'
 import { integrationFor } from './shellIntegration'
 import { getSettings } from './settingsService'
+import { ensureUtf8Locale } from './ptyLocale'
 import { PtyFlow } from './ptyFlow'
 import { PTY } from '@shared/constants'
 
@@ -42,6 +43,8 @@ export function createPty(args: CreatePtyArgs): { sessionId: string; shell: stri
     COLORTERM: 'truecolor',
     CLAUDE_CODE_NO_FLICKER: '1'
   }
+  // Finder/Dock-launched macOS apps inherit no locale → multibyte paste mojibake.
+  ensureUtf8Locale(env, process.platform)
 
   // Shell integration: make the shell emit OSC 7 so the dock follows `cd`.
   // Off / unsupported shell → spawn unchanged (dock uses the spawn folder).

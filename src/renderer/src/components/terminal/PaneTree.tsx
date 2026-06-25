@@ -1,6 +1,12 @@
 import { Fragment, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { GripVertical, SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
+import {
+  GripVertical,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
+  Milestone,
+  X
+} from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useMunuStore } from '../../state/useMunuStore'
@@ -33,6 +39,9 @@ function TerminalPane({
   hideBar: boolean
 }) {
   const t = useAppStore((s) => s.settings?.terminal)
+  const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
+  const historyOpen = useAppStore((s) => s.historyOpen)
+  const toggleHistory = useAppStore((s) => s.toggleHistory)
   const focusPane = useWorkspaceStore((s) => s.focusPane)
   const split = useWorkspaceStore((s) => s.splitFocused)
   const closeFocused = useWorkspaceStore((s) => s.closeFocused)
@@ -163,6 +172,16 @@ function TerminalPane({
             onDragEnd={clearDrag}
           >
             <GripVertical size={14} />
+          </button>
+        )}
+        {histEnabled && (
+          <button
+            className={historyOpen ? 'pane__active' : undefined}
+            title="Checkpoints (your prompts)"
+            aria-label="Toggle checkpoints"
+            onMouseDown={act(() => toggleHistory())}
+          >
+            <Milestone size={14} />
           </button>
         )}
         <button title="Split right" onMouseDown={act(() => split('row'))}>
