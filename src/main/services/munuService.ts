@@ -5,6 +5,7 @@ import {
   createOverlayWindow,
   destroyOverlay,
   getOverlay,
+  reassertOverlayLevel,
   repositionOverlay,
   resizeOverlay,
   setOverlayFocusable,
@@ -103,6 +104,16 @@ function pushGlobal(): void {
   // Peek (briefly reveal) when the state changes, so a glance catches it.
   if (global.state !== lastGlobalState) {
     peekUntil = Date.now() + (global.state === 'asking' ? 6000 : 4500)
+    // On a fresh ask, re-assert the overlay's top z-level and raise it so it
+    // surfaces above whatever app the user is in. Real effect on macOS/X11; a
+    // no-op on Wayland, where the compositor owns stacking (moveTop/showInactive
+    // are unsupported there — the OS notification in maybeNotify() covers that
+    // case). Neither call takes input focus, so the overlay never becomes the
+    // focused window and can't suppress the notification below.
+    if (global.state === 'asking' && overlay && !overlay.isDestroyed()) {
+      reassertOverlayLevel()
+      overlay.moveTop()
+    }
     lastGlobalState = global.state
   }
   applyKeepAwake(global.state)
@@ -184,7 +195,12 @@ function maybeNotify(state: MunuState): void {
     lastNotified = state
     return
   }
-  const appFocused = BrowserWindow.getAllWindows().some((w) => w.isFocused())
+  // Exclude the overlay itself from the focus check. On GNOME/Wayland the
+  // compositor can grant focus to the always-on-top overlay when DockTerm is
+  // backgrounded, which would wrongly mark the app "focused" and swallow every
+  // notification. (showMainWindows() filters the overlay out for the same reason.)
+  const ov = getOverlay()
+  const appFocused = BrowserWindow.getAllWindows().some((w) => w !== ov && w.isFocused())
   if (appFocused) {
     lastNotified = state
     return
