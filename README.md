@@ -8,7 +8,7 @@
 
 <p align="center">
   <b>Run Claude Code, then go do something else.</b><br>
-  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with diffs, Git, files, MCP &amp; usage one keypress away.<br>
+  A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with checkpoints, live agents, diffs, Git, files, MCP &amp; usage one keypress away.<br>
   And <b>munu</b>, a face in your notch — or pinned anywhere on screen — tells you the moment Claude needs you, even in a fullscreen app on another desktop.
 </p>
 
@@ -40,9 +40,12 @@
 ---
 
 - 🔔 **munu** — a notch mascot (or pin it anywhere) that reads Claude's state and surfaces permission prompts, even over a fullscreen app on another desktop. Pick your face: munu, nvurd, guru, or adanana.
+- 🧭 **Checkpoints for your Claude chat** — see the prompts in the current session, jump back to them, and hand off restores to Claude's own `/rewind`.
+- 🛰️ **Live agent activity** — when Claude spawns subagents, DockTerm shows the count, what they are doing, elapsed time, and finished results.
+- ✂️ **Send selection to Claude** — select terminal text and send it into Claude as a referenced snippet, without building a separate chat UI.
 - 📊 **Usage at a glance** — how much of your **5-hour and weekly limits** is left, and exactly **when they reset** — live, in a panel and a top-bar pill.
 - 🔍 **Diff review + safe Git** — see exactly what changed, then stage and commit, without leaving the terminal.
-- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't.
+- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't. Multi-select files, send paths to Claude, or drag real files into other apps.
 - 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus. Drag panes to reorder.
 - 🔒 **Local-only** — no accounts, no telemetry; it never calls an AI of its own.
 
@@ -58,6 +61,9 @@ Running Claude Code means living next to a terminal — alt-tabbing to read a di
 | Highlighted diff review of Claude's changes | ❌ | ✅ | ~ | ✅ |
 | Stage & commit without raw `git` | ❌ | ~ | ~ | ✅ |
 | Tells you when Claude needs you (even fullscreen) | ❌ | ❌ | ❌ | ✅ **munu** |
+| Shows Claude subagents while they run | ❌ | ❌ | ~ | ✅ |
+| Checkpoints for the current Claude session | ❌ | ❌ | ~ | ✅ |
+| Send selected terminal text back to Claude | manual | manual | ~ | ✅ |
 | Usage limits & reset times at a glance | ❌ | ❌ | ❌ | ✅ |
 | Stays out of the way | ✅ | ❌ heavy | ~ | ✅ |
 | No telemetry, local-only | ~ | ❌ | ~ | ✅ |
@@ -112,10 +118,13 @@ By default munu tucks into the notch, slides out on hover, and peeks for a few s
 ## What you get
 
 - **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, and native, instant scrolling. Drag a pane to reorder the grid.
+- **Claude workflow helpers** — one-click `claude` / `claude --resume`, a checkpoint rail for the current conversation, and a Send to Claude selection toolbar for turning terminal text into a referenced prompt snippet.
+- **Live agent activity** — a top-bar count pill, Activity panel, and munu swarm show Claude Code subagents as they start, run, and finish, grouped by project and read from local transcripts.
+- **Terminal memory after quit** — DockTerm restores each terminal's visible scrollback after a full app quit, so updating the app does not leave you staring at a blank shell. Use `claude --resume` to continue Claude's actual conversation.
 - **Usage limits, live** — a Usage panel and a top-bar pill show how much of your rolling **5-hour** and **weekly** windows remain and **when each resets**, calibrated from your own history. Read locally; tokens-only; nothing leaves your machine.
 - **Diff review** — see exactly what changed since your last commit, this session, or a pinned checkpoint, and open a side-by-side diff for any file before you trust it.
 - **Beginner-safe Git** — grouped status, stage/discard, commit, push/pull, branches, with confirmations on the risky actions that show the exact command they'll run.
-- **Files, editor & previews** — file tree, Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path.
+- **Files, editor & previews** — file tree, Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path, multi-select with `⌘`/`Ctrl`, and drag the actual files into other apps.
 - **MCP, skills & agents** — read-only views of your MCP servers (project, user, claude.ai connectors, and plugin-provided) with secrets masked, plus your skills, slash-commands and subagents; browse and scaffold skills.
 - **A project per pane** — a grid where each pane is a different repo; focus a pane and the side panels follow it, including a live `cd`.
 - **Command palette** — `⌘K` / `Ctrl Shift P` to jump anywhere.
@@ -136,6 +145,14 @@ By default munu tucks into the notch, slides out on hover, and peeks for a few s
 
 #### MCP, skills & agents — read-only, secrets masked
 <p align="center"><img src="docs/screenshots/hd/panels.gif" alt="Read-only panels for MCP servers, skills, and subagents, with secrets masked to key names" width="880"></p>
+
+#### Checkpoints, selections and live agents — built around your real Claude terminal
+
+DockTerm does not replace Claude Code with a chat clone. It watches the real terminal and local Claude transcripts, then adds small workflow surfaces around them:
+
+- **Checkpoints rail** follows the focused terminal's active Claude session. It lists your prompts, filters out system/tool noise, jumps back to the selected checkpoint, and opens Claude's own `/rewind` when you choose to restore.
+- **Send to Claude** appears when you select terminal text. In a normal shell it uses the terminal selection; inside Claude Code it can use Claude's copied selection, so the same button still works.
+- **Agent Activity** shows live subagents globally, grouped by project, with elapsed timers and result previews. munu can briefly reveal a small swarm when agent count changes.
 
 #### See how much of your limits are left
 <p align="center"><img src="docs/screenshots/hd/usage.gif" alt="The usage panel: a bar chart of token usage and how much of the rolling 5-hour and weekly limits remain" width="880"></p>
@@ -187,6 +204,7 @@ DockTerm is built to be trusted with your code:
 - `contextIsolation` and `sandbox` are on; production loads over a custom protocol with a strict CSP and no remote content.
 - Every IPC channel is an explicit, schema-validated verb with a sender check.
 - Filesystem access is jailed to the open project (symlink-safe). Reading `~/.claude` is a separate opt-in.
+- Checkpoints and Agent Activity read local Claude transcript files under `~/.claude` read-only; they do not modify, upload, or execute them.
 - Every `git` call runs with `core.hooksPath=`, so a malicious repo's hooks can't execute.
 - MCP and skill config is read-only and never executed; secrets are shown as key names only.
 
