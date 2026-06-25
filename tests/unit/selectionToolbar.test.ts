@@ -1,9 +1,44 @@
 import { describe, it, expect } from 'vitest'
-import { wrapBracketedPaste, clampToolbar } from '../../src/renderer/src/components/terminal/terminalSelection'
+import {
+  wrapBracketedPaste,
+  clampToolbar,
+  buildClaudeReference
+} from '../../src/renderer/src/components/terminal/terminalSelection'
 
 describe('wrapBracketedPaste', () => {
   it('wraps text in bracketed-paste markers so multi-line lands unsubmitted', () => {
     expect(wrapBracketedPaste('a\nb')).toBe('\x1b[200~a\nb\x1b[201~')
+  })
+})
+
+describe('buildClaudeReference', () => {
+  it('frames a single line as inline code with a trailing newline for the question', () => {
+    expect(buildClaudeReference('npm run build')).toBe(
+      'Referencing this from my terminal: `npm run build`\n'
+    )
+  })
+
+  it('uses quotes instead of inline code when the line contains a backtick', () => {
+    expect(buildClaudeReference('use `cd` first')).toBe(
+      'Referencing this from my terminal: "use `cd` first"\n'
+    )
+  })
+
+  it('frames multiple lines as a markdown blockquote', () => {
+    expect(buildClaudeReference("Error: x\n  at require")).toBe(
+      'Referencing this from my terminal:\n\n> Error: x\n>   at require\n\n'
+    )
+  })
+
+  it('normalizes CRLF and trims trailing blank lines before framing', () => {
+    expect(buildClaudeReference('a\r\nb\n\n')).toBe(
+      'Referencing this from my terminal:\n\n> a\n> b\n\n'
+    )
+  })
+
+  it('returns an empty string for an empty/whitespace-only selection', () => {
+    expect(buildClaudeReference('')).toBe('')
+    expect(buildClaudeReference('\n\n')).toBe('')
   })
 })
 

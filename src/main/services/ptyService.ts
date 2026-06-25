@@ -118,6 +118,12 @@ export function writePty(sessionId: string, data: string): void {
   sessions.get(sessionId)?.pty.write(data)
 }
 
+/** The foreground process name of a session's pty ('zsh', 'node', 'claude', …).
+ * Empty when the session is gone. Used to warn before closing a busy terminal. */
+export function foregroundProcess(sessionId: string): string {
+  return sessions.get(sessionId)?.pty.process ?? ''
+}
+
 export function resizePty(sessionId: string, cols: number, rows: number): void {
   const session = sessions.get(sessionId)
   if (!session) return

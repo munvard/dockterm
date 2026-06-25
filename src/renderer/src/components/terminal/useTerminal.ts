@@ -34,6 +34,10 @@ export interface TerminalOptions {
   onStatus?: (state: ClaudeState, ask: AskInfo | null) => void
   /** Open a file path clicked in the terminal output (with optional 1-based line). */
   onOpenPath?: (path: string, line: number | null) => void
+  /** A file path is hovered in the output (for the floating preview card). */
+  onHoverPath?: (path: string, line: number | null, x: number, y: number) => void
+  /** The hovered file path was left. */
+  onLeavePath?: () => void
   /** The selected text changed (empty string when cleared). */
   onSelection?: (sel: string) => void
   /** Copy to the clipboard automatically when text is selected. */

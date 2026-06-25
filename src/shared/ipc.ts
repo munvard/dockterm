@@ -194,6 +194,9 @@ export interface InvokeChannels {
   'pty:resize': (req: ResizePtyReq) => Result<void>
   'pty:kill': (req: SessionRef) => Result<void>
   'pty:ack': (req: AckPtyReq) => Result<void>
+  /** The foreground process name in a session's pty (e.g. 'zsh', 'node', 'claude'). */
+  'pty:foreground': (req: SessionRef) => Result<{ process: string }>
+
 
   /** Persist / restore each terminal's serialized scrollback across a full quit. */
   'terminal:saveBuffers': (req: { buffers: { leafId: string; data: string }[] }) => Result<void>
@@ -349,6 +352,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'pty:resize',
   'pty:kill',
   'pty:ack',
+  'pty:foreground',
   'terminal:saveBuffers',
   'terminal:loadBuffers',
   'settings:get',

@@ -13,6 +13,13 @@ import { TabStrip } from '../terminal/TabStrip'
 import { PaneTree } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
 import { HistoryRail } from '../history/HistoryRail'
+import { HistoryFloating } from '../history/HistoryFloating'
+import { ComposeOverlay } from '../compose/ComposeOverlay'
+import { FilePreviewCard } from '../terminal/FilePreviewCard'
+import { ChangesOverlay } from '../changes/ChangesOverlay'
+import { useChangesStore } from '../../state/useChangesStore'
+import { useComposeStore } from '../../state/useComposeStore'
+import { confirmCloseLeaves } from '../terminal/closeGuard'
 import { gcTerminals } from '../terminal/terminalPool'
 
 // Lazily loaded so Monaco (the editor) isn't part of the startup bundle.
@@ -30,6 +37,10 @@ export function Shell() {
   const historyOpen = useAppStore((s) => s.historyOpen)
   const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
   const histSide = useAppStore((s) => s.settings?.sessionHistory.side) ?? 'right'
+  const histFloating = useAppStore((s) => s.settings?.sessionHistory.floating) ?? false
+  const composeEnabled = useAppStore((s) => s.settings?.terminal.composeOverlay) ?? true
+  const previewsEnabled = useAppStore((s) => s.settings?.terminal.filePreviews) ?? true
+  const changesEnabled = useAppStore((s) => s.settings?.terminal.changesOverlay) ?? true
   const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const diffTarget = useReviewStore((s) => s.diffTarget)
   const editorOpen = hasTabs || diffTarget != null
@@ -87,6 +98,8 @@ export function Shell() {
       if (!res.ok) return
       useAppStore.getState().setActiveRoot(res.value.root)
       void useGitStore.getState().refresh()
+      // Keep the per-pane Changes overlay scoped to the focused terminal's repo.
+      void useChangesStore.getState().refresh()
     })
   }, [focusedCwd])
 
@@ -103,7 +116,15 @@ export function Shell() {
       } else if (e.key === 'w') {
         e.preventDefault()
         e.stopPropagation()
-        ws.closeFocused()
+        const tab = ws.tabs.find((tb) => tb.id === ws.activeId)
+        const leafId = tab?.focusedLeafId
+        if (leafId) {
+          void confirmCloseLeaves([leafId]).then((proceed) => {
+            if (proceed) ws.closeFocused()
+          })
+        } else {
+          ws.closeFocused()
+        }
       } else if (e.key === 'd') {
         e.preventDefault()
         e.stopPropagation()
@@ -125,6 +146,21 @@ export function Shell() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [projectPath])
 
+  // ⌘⇧⏎ opens the Compose editor for long prompts (capture phase so it wins over
+  // the focused xterm). ⌘⏎ / Esc are handled inside the overlay.
+  useEffect(() => {
+    if (!composeEnabled) return
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        useComposeStore.getState().openCompose()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [composeEnabled])
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
     const off = window.dockterm.on('fs:watch', () => {
@@ -138,7 +174,8 @@ export function Shell() {
   }, [])
 
   if (!project) return null
-  const showHist = historyOpen && histEnabled
+  // Docked side-panel checkpoints; the floating variant is rendered separately.
+  const showHist = historyOpen && histEnabled && !histFloating
   const histRail = (
     <div className="hist-wrap" style={{ width: histW }} key="hist">
       <HistoryRail cwd={focusedCwd} leafId={focusedLeafId ?? null} />
@@ -252,6 +289,12 @@ export function Shell() {
           </div>
         )}
       </div>
+      {composeEnabled && <ComposeOverlay />}
+      {previewsEnabled && <FilePreviewCard />}
+      {changesEnabled && <ChangesOverlay />}
+      {historyOpen && histEnabled && histFloating && (
+        <HistoryFloating cwd={focusedCwd} leafId={focusedLeafId ?? null} />
+      )}
     </div>
   )
 }

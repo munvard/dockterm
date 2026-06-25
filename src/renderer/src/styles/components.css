@@ -680,6 +680,40 @@
   min-height: 0;
   position: relative;
 }
+/* Compose launcher floating by the chat — a quiet affordance at the focused
+   pane's bottom-right that brightens on hover. */
+.pane__compose {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--raised) 82%, transparent);
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.55;
+  backdrop-filter: blur(6px);
+  transition:
+    opacity 0.13s ease,
+    color 0.13s ease,
+    border-color 0.13s ease,
+    background 0.13s ease;
+}
+.pane__compose:hover {
+  opacity: 1;
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--raised));
+}
+.pane__compose:active {
+  transform: translateY(0.5px);
+}
 .pane-resize {
   background: var(--border);
   transition: background 0.12s ease;
@@ -3404,15 +3438,20 @@
   color: var(--text-dim);
 }
 
-/* Start-Claude / Resume launchers in the tab strip (munu creature + label). */
+/* Claude launcher in the tab strip: a split button (munu creature + label) with a
+   caret that opens session options (New / Resume / Continue). */
 .tabstrip__claude {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   flex: 0 0 auto;
   margin-left: 4px;
   padding-left: 6px;
   border-left: 1px solid var(--border);
+}
+.claude-split {
+  display: inline-flex;
+  align-items: stretch;
 }
 .claude-launch {
   display: inline-flex;
@@ -3420,10 +3459,9 @@
   gap: 5px;
   height: 24px;
   padding: 0 10px 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
   background: var(--raised);
-  color: var(--text-dim);
+  color: var(--text);
   font-family: var(--font-ui);
   font-size: 11.5px;
   font-weight: 550;
@@ -3442,32 +3480,527 @@
   height: 16px;
   display: block;
 }
-.claude-launch--resume .claude-launch__icon {
-  opacity: 0.5;
-  filter: grayscale(0.45);
-}
 .claude-launch:active {
   transform: translateY(0.5px);
 }
-/* Primary: Start Claude — a calm accent edge that warms on hover. */
-.claude-launch:not(.claude-launch--resume) {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  color: var(--text);
-}
-.claude-launch:not(.claude-launch--resume):hover {
+/* Highlight the whole split when either half is hovered so it reads as one pill. */
+.claude-split:hover .claude-launch {
   background: color-mix(in srgb, var(--accent) 13%, transparent);
   border-color: var(--accent);
 }
-/* Secondary: Resume — quieter (a sleeping creature waking a past session). */
-.claude-launch--resume {
-  color: var(--text-faint);
+.claude-launch--primary {
+  border-radius: 999px 0 0 999px;
+  border-right: none;
 }
-.claude-launch--resume:hover {
+.claude-launch--caret {
+  border-radius: 0 999px 999px 0;
+  padding: 0 6px;
+  color: var(--text-dim);
+}
+.claude-launch--caret[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  border-color: var(--accent);
   color: var(--text);
-  background: var(--overlay);
-  border-color: var(--border-strong);
 }
 .claude-launch:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 1px;
+  z-index: 1;
+}
+.launcher-menu {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  min-width: 184px;
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.launcher-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-ui);
+}
+.launcher-menu button:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.launcher-menu button svg {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+.launcher-menu button:hover svg {
+  color: var(--accent);
+}
+
+/* --------------------------- Compose overlay ----------------------------- */
+/* A roomy editor for long prompts (Claude's own input box can't be scrolled). */
+.compose-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+}
+.compose {
+  display: flex;
+  flex-direction: column;
+  width: min(840px, 92vw);
+  height: min(560px, 78vh);
+  background: var(--overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.compose--full {
+  width: 96vw;
+  height: 92vh;
+}
+.compose__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.compose__title {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+}
+.compose__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.compose__editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+.compose__editor::placeholder {
+  color: var(--text-faint);
+}
+.compose__foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.compose__count {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.compose__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --------------------------- Hover file preview -------------------------- */
+.filepreview {
+  position: fixed;
+  z-index: 105;
+  pointer-events: auto;
+  max-width: 380px;
+  background: var(--overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+.filepreview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--border);
+}
+.filepreview__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.filepreview__badge {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 16px;
+}
+.filepreview__badge-add {
+  color: var(--success);
+  font-weight: 600;
+}
+.filepreview__badge-del {
+  color: var(--danger);
+  font-weight: 600;
+}
+/* Changes-only diff peek (added/removed lines + gap markers). */
+.filepreview__diff {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+.filepreview__diffline {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px;
+  white-space: pre;
+}
+.filepreview__diffline--add {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+}
+.filepreview__diffline--del {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.filepreview__diffsign {
+  flex: 0 0 auto;
+  width: 8px;
+  text-align: center;
+  color: var(--text-faint);
+}
+.filepreview__diffline--add .filepreview__diffsign {
+  color: var(--success);
+}
+.filepreview__diffline--del .filepreview__diffsign {
+  color: var(--danger);
+}
+.filepreview__difftext {
+  min-width: 0;
+}
+.filepreview__diffgap {
+  padding: 1px 10px;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.filepreview__body {
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.filepreview__muted {
+  padding: 12px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.filepreview__img {
+  display: block;
+  max-width: 380px;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+}
+.filepreview__code {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+}
+.filepreview__md {
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.filepreview__md > :first-child {
+  margin-top: 0;
+}
+.filepreview__md h1,
+.filepreview__md h2,
+.filepreview__md h3 {
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: var(--text);
+}
+.filepreview__md p,
+.filepreview__md ul,
+.filepreview__md ol {
+  margin: 4px 0;
+}
+.filepreview__md code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--raised);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.filepreview__md pre {
+  background: var(--raised);
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.filepreview__md a {
+  color: var(--accent);
+}
+
+/* --------------------------- Changes overlay ----------------------------- */
+.iconbtn:has(.iconbtn__count) {
+  position: relative;
+}
+.iconbtn__count {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+.changes-card {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+  background: var(--overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+/* Grab-zones for resizing a floating panel from any of its four corners. */
+.floatpanel-resize {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 3;
+}
+.floatpanel-resize--nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.floatpanel-resize--ne {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+.floatpanel-resize--sw {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.floatpanel-resize--se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+/* Only the bottom-right corner shows the little grip mark. */
+.floatpanel-resize--se::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--border-strong);
+  border-bottom: 2px solid var(--border-strong);
+}
+/* Floating checkpoints card (vs the docked side panel). */
+.hist__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.hist-float {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.hist-float .hist {
+  height: 100%;
+  border: none;
+}
+.hist-float .hist__head {
+  cursor: grab;
+}
+.hist-float .hist__head:active {
+  cursor: grabbing;
+}
+.changes-card__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+}
+.changes-card__head:active {
+  cursor: grabbing;
+}
+.changes-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.changes-card__summary {
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+.changes-card__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+}
+.changes-card__empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.changes-row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.changes-row:last-child {
+  border-bottom: none;
+}
+.changes-row__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-ui);
+  color: var(--text-dim);
+}
+.changes-row__head:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.changes-row__tri {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  transition: transform 0.15s var(--ease);
+}
+.changes-row__tri.is-open {
+  transform: rotate(90deg);
+}
+.changes-row__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 12px;
+}
+.changes-row__stat {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.changes-row__diff {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.changes-row__mode {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+}
+.changes-row__mode button {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.changes-row__mode button.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+.changes-row__loading {
+  padding: 12px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.changes-diff {
+  height: 260px;
 }

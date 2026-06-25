@@ -100,6 +100,13 @@ export function getPaneSample(leafId: string, count = 40): string[] {
 }
 
 const pool = new Map<string, PooledTerminal>()
+/** leafId → live pty session id, for the close-confirmation guard. */
+const paneSessions = new Map<string, string>()
+
+/** The pty session id backing a pane (null if not started / disposed). */
+export function paneSessionId(leafId: string): string | null {
+  return paneSessions.get(leafId) ?? null
+}
 
 /* ----------------------- scrollback persistence ------------------------- */
 // Restore each terminal's prior scrollback (read-only) after a full quit. The
@@ -283,7 +290,9 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
             end: { x: f.index + f.length, y: bufferLineNumber }
           },
           text: f.path,
-          activate: () => p.opts.onOpenPath?.(f.path, f.line)
+          activate: () => p.opts.onOpenPath?.(f.path, f.line),
+          hover: (e: MouseEvent) => p.opts.onHoverPath?.(f.path, f.line, e.clientX, e.clientY),
+          leave: () => p.opts.onLeavePath?.()
         }))
       )
     }
@@ -489,6 +498,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           return
         }
         sessionId = res.value.sessionId
+        paneSessions.set(id, res.value.sessionId)
         for (const e of pending) {
           if (e.sessionId === sessionId) writeChunk(e.data)
         }
@@ -565,6 +575,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (statusMaxTimer) clearTimeout(statusMaxTimer)
     if (sessionId) void window.dockterm.invoke('pty:kill', { sessionId })
     sessionId = null
+    paneSessions.delete(id)
     term.dispose()
     if (host.parentElement) host.parentElement.removeChild(host)
     // Drop this pane's Claude-state + writer registrations (true close only).

@@ -29,6 +29,9 @@ export function DiffView() {
       fontSize: 13,
       readOnly: true,
       renderSideBySide: true,
+      // Keep the two columns even when the pane is narrow (Monaco otherwise
+      // collapses to a single inline view until you widen it).
+      useInlineViewWhenSpaceIsLimited: false,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       renderOverviewRuler: false

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTerminal, type TerminalOptions } from './useTerminal'
 import { useAppStore } from '../../state/useAppStore'
 import { SelectionToolbar } from './SelectionToolbar'
-import { clampToolbar, wrapBracketedPaste, type Pt } from './terminalSelection'
+import { clampToolbar, wrapBracketedPaste, buildClaudeReference, type Pt } from './terminalSelection'
 
 type Props = TerminalOptions & {
   /** Receives a stable paste function once the terminal mounts (for drag-drop). */
@@ -105,7 +105,8 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
         <SelectionToolbar
           pos={pos}
           onSend={() => {
-            if (sendRef.current) termRef.current.paste(wrapBracketedPaste(sendRef.current))
+            if (sendRef.current)
+              termRef.current.paste(wrapBracketedPaste(buildClaudeReference(sendRef.current)))
             setPos(null)
           }}
           onCopy={() => {

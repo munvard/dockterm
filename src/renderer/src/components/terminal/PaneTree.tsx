@@ -5,13 +5,20 @@ import {
   SplitSquareHorizontal,
   SplitSquareVertical,
   Milestone,
-  X
+  X,
+  PenLine,
+  GitCompareArrows
 } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { useEditorStore } from '../../state/useEditorStore'
+import { useFilePreviewStore } from '../../state/useFilePreviewStore'
+import { useComposeStore } from '../../state/useComposeStore'
+import { useChangesStore } from '../../state/useChangesStore'
 import { paneWriters } from '../../state/paneWriters'
+import { confirmCloseLeaves } from './closeGuard'
+import { toRelProjectPath } from './projectPath'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
 
@@ -184,6 +191,18 @@ function TerminalPane({
             <Milestone size={14} />
           </button>
         )}
+        {(t?.changesOverlay ?? true) && (
+          <button
+            title="Changes in this terminal's project"
+            aria-label="Show changes for this terminal"
+            onMouseDown={act(() => {
+              focusPane(tabId, leaf.id)
+              useChangesStore.getState().setOpen(true)
+            })}
+          >
+            <GitCompareArrows size={14} />
+          </button>
+        )}
         <button title="Split right" onMouseDown={act(() => split('row'))}>
           <SplitSquareHorizontal size={14} />
         </button>
@@ -191,7 +210,16 @@ function TerminalPane({
           <SplitSquareVertical size={14} />
         </button>
         {canClose && (
-          <button title="Close pane" onMouseDown={act(() => closeFocused())}>
+          <button
+            title="Close pane"
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              focusPane(tabId, leaf.id)
+              void confirmCloseLeaves([leaf.id]).then((proceed) => {
+                if (proceed) closeFocused()
+              })
+            }}
+          >
             <X size={14} />
           </button>
         )}
@@ -213,17 +241,16 @@ function TerminalPane({
           onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
           onOpenPath={(raw, line) => {
             // Resolve a path clicked in output to a project-relative path and open it.
-            const root = useAppStore.getState().activeRoot
-            let p = raw.replace(/\\/g, '/').replace(/^\.\//, '')
-            if (root) {
-              const r = root.replace(/\\/g, '/').replace(/\/+$/, '')
-              if (p === r) return
-              if (p.startsWith(r + '/')) p = p.slice(r.length + 1)
-            }
-            // Skip paths outside the open project (can't be jailed-opened).
-            if (p.startsWith('/') || /^[A-Za-z]:\//.test(p)) return
+            const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
+            if (!p) return
             void useEditorStore.getState().open(p, p.split('/').pop() ?? p, line ?? undefined)
           }}
+          onHoverPath={(raw, _line, x, y) => {
+            if (!(useAppStore.getState().settings?.terminal.filePreviews ?? true)) return
+            const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
+            if (p) useFilePreviewStore.getState().requestShow(p, x, y)
+          }}
+          onLeavePath={() => useFilePreviewStore.getState().scheduleHide()}
           onActivity={() => markActivity(tabId)}
           fontFamily={t?.fontFamily ?? undefined}
           fontSize={t?.fontSize}
@@ -232,6 +259,16 @@ function TerminalPane({
           scrollback={t?.scrollback}
           renderer={t?.renderer}
         />
+        {focused && (t?.composeOverlay ?? true) && (
+          <button
+            className="pane__compose"
+            title="Compose a long prompt (⌘⇧⏎)"
+            aria-label="Compose a long prompt"
+            onClick={() => useComposeStore.getState().openCompose()}
+          >
+            <PenLine size={15} />
+          </button>
+        )}
       </div>
     </div>
   )

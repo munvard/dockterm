@@ -93,7 +93,11 @@ export function SettingsPanel() {
         claudeButtons: true,
         copyOnSelect: false,
         selectionToolbar: true,
-        restoreScrollback: true
+        restoreScrollback: true,
+        changesOverlay: true,
+        changesAutoReveal: false,
+        composeOverlay: true,
+        filePreviews: true
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },
@@ -281,6 +285,41 @@ export function SettingsPanel() {
           <div className="settings-note">
             Brings back each terminal’s on-screen history when you reopen DockTerm (the live
             processes can’t be restored — use <code>claude --resume</code> to continue).
+          </div>
+          <Field label="Compose editor for long prompts">
+            <Toggle
+              checked={s.terminal.composeOverlay}
+              onChange={(v) => setTerminal({ composeOverlay: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            Press <code>⌘⇧⏎</code> to write a long prompt in a roomy editor, then Insert or Send it
+            into Claude.
+          </div>
+          <Field label="Hover file previews">
+            <Toggle
+              checked={s.terminal.filePreviews}
+              onChange={(v) => setTerminal({ filePreviews: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            Hover a file path in the terminal to peek at it (image, markdown, or code).
+          </div>
+          <Field label="Live “Changes” overlay">
+            <Toggle
+              checked={s.terminal.changesOverlay}
+              onChange={(v) => setTerminal({ changesOverlay: v })}
+            />
+          </Field>
+          <Field label="Auto-reveal Changes while Claude works">
+            <Toggle
+              checked={s.terminal.changesAutoReveal}
+              onChange={(v) => setTerminal({ changesAutoReveal: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            A floating panel that lists the files Claude is editing; expand a row to see only the
+            changes or the full file.
           </div>
         </Section>
 

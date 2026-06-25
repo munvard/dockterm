@@ -6,6 +6,8 @@ import {
   CornerDownRight,
   MoreHorizontal,
   Loader2,
+  PanelRight,
+  PictureInPicture2,
   X
 } from 'lucide-react'
 import type { SessionPrompt } from '@shared/types'
@@ -23,10 +25,25 @@ import { paneWriters } from '../../state/paneWriters'
  * to Claude Code's own `/rewind` (the only safe way — Claude exposes no rewind
  * API), so the user confirms the restore in Claude's menu.
  */
-export function HistoryRail({ cwd, leafId }: { cwd: string | null; leafId: string | null }) {
+export function HistoryRail({
+  cwd,
+  leafId,
+  onHeaderMouseDown
+}: {
+  cwd: string | null
+  leafId: string | null
+  /** When floating, the wrapper passes a drag handler for the header. */
+  onHeaderMouseDown?: (e: React.MouseEvent) => void
+}) {
   const history = useSessionHistoryStore((s) => (cwd ? s.byCwd[normalizeCwd(cwd)] : undefined))
   const load = useSessionHistoryStore((s) => s.load)
   const toggleHistory = useAppStore((s) => s.toggleHistory)
+  const floating = useAppStore((s) => s.settings?.sessionHistory.floating) ?? false
+  const sessionHistory = useAppStore((s) => s.settings?.sessionHistory)
+  const update = useAppStore((s) => s.updatePreferences)
+  const toggleFloat = (): void => {
+    if (sessionHistory) void update({ sessionHistory: { ...sessionHistory, floating: !floating } })
+  }
   const toast = useToastStore((s) => s.push)
   const [menuFor, setMenuFor] = useState<number | null>(null)
   const [openFor, setOpenFor] = useState<number | null>(null)
@@ -110,13 +127,23 @@ export function HistoryRail({ cwd, leafId }: { cwd: string | null; leafId: strin
 
   return (
     <div className="hist">
-      <div className="hist__head">
+      <div className="hist__head" onMouseDown={onHeaderMouseDown}>
         <span className="hist__title">
           <Milestone size={13} /> Checkpoints
         </span>
-        <button className="iconbtn iconbtn--sm" title="Hide checkpoints" onClick={toggleHistory}>
-          <X size={14} />
-        </button>
+        <div className="hist__head-actions">
+          <button
+            className="iconbtn iconbtn--sm"
+            title={floating ? 'Dock to the side' : 'Float (move & resize)'}
+            aria-label={floating ? 'Dock checkpoints to the side' : 'Float checkpoints'}
+            onClick={toggleFloat}
+          >
+            {floating ? <PanelRight size={14} /> : <PictureInPicture2 size={14} />}
+          </button>
+          <button className="iconbtn iconbtn--sm" title="Hide checkpoints" onClick={toggleHistory}>
+            <X size={14} />
+          </button>
+        </div>
       </div>
       <div className="hist__body">
         {prompts.length === 0 ? (
@@ -178,11 +205,13 @@ export function HistoryRail({ cwd, leafId }: { cwd: string | null; leafId: strin
           ))
         )}
       </div>
-      <div className="hist__note">
-        Click a checkpoint to jump the terminal to it and read it here in full. To restore your
-        files to that point, use “Rewind” — it opens Claude’s own <code>/rewind</code> so you
-        confirm the restore there.
-      </div>
+      {!floating && (
+        <div className="hist__note">
+          Click a checkpoint to jump the terminal to it and read it here in full. To restore your
+          files to that point, use “Rewind” — it opens Claude’s own <code>/rewind</code> so you
+          confirm the restore there.
+        </div>
+      )}
     </div>
   )
 }

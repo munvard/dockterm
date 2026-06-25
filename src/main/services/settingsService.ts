@@ -46,13 +46,23 @@ const preference = {
       /** Show the floating "Send to Claude / Copy" toolbar on selection. */
       selectionToolbar: z.boolean().default(true),
       /** Restore each terminal's scrollback (read-only) after a full quit. */
-      restoreScrollback: z.boolean().default(true)
+      restoreScrollback: z.boolean().default(true),
+      /** Floating live "Changes" overlay listing files Claude touched. */
+      changesOverlay: z.boolean().default(true),
+      /** Auto-reveal the Changes overlay when files change while Claude works. */
+      changesAutoReveal: z.boolean().default(false),
+      /** ⌘⇧⏎ opens a roomy Compose editor for long prompts. */
+      composeOverlay: z.boolean().default(true),
+      /** Hover a file path in the terminal to preview it (image/markdown/code). */
+      filePreviews: z.boolean().default(true)
     })
     .default({}),
   sessionHistory: z
     .object({
       enabled: z.boolean().default(true),
-      side: z.enum(['left', 'right']).default('right')
+      side: z.enum(['left', 'right']).default('right'),
+      /** Show the checkpoints as a floating, movable/resizable card vs a side panel. */
+      floating: z.boolean().default(false)
     })
     .default({}),
   editor: z.object({ fontSize: z.number().int().min(8).max(40).default(13) }).default({}),

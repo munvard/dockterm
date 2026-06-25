@@ -1,7 +1,14 @@
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import { ok, err } from '@shared/result'
-import { createPty, writePty, resizePty, ackPty, killPty } from '../../services/ptyService'
+import {
+  createPty,
+  writePty,
+  resizePty,
+  ackPty,
+  killPty,
+  foregroundProcess
+} from '../../services/ptyService'
 import { loadBuffers, saveBuffers } from '../../services/terminalBufferStore'
 import type { Registrar } from '../register'
 
@@ -58,6 +65,8 @@ export function registerPtyHandlers(reg: Registrar): void {
     ackPty(req.sessionId, req.bytes)
     return ok(undefined)
   })
+
+  reg('pty:foreground', sessionSchema, (req) => ok({ process: foregroundProcess(req.sessionId) }))
 
   reg('terminal:saveBuffers', saveBuffersSchema, (req) => {
     saveBuffers(req.buffers)

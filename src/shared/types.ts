@@ -95,11 +95,21 @@ export interface TerminalSettings {
   selectionToolbar: boolean
   /** Restore each terminal's scrollback (read-only) after a full quit. */
   restoreScrollback: boolean
+  /** Floating live "Changes" overlay listing files Claude touched. */
+  changesOverlay: boolean
+  /** Auto-reveal the Changes overlay when files change while Claude works. */
+  changesAutoReveal: boolean
+  /** ⌘⇧⏎ opens a roomy Compose editor for long prompts. */
+  composeOverlay: boolean
+  /** Hover a file path in the terminal to preview it (image/markdown/code). */
+  filePreviews: boolean
 }
 
 export interface SessionHistorySettings {
   enabled: boolean
   side: 'left' | 'right'
+  /** Show the checkpoints as a floating, movable/resizable card vs a side panel. */
+  floating: boolean
 }
 
 /** One checkpoint = one user prompt, reconstructed read-only from the transcript. */

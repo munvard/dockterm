@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react'
-import { Plus, X, LayoutGrid } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Plus, X, LayoutGrid, ChevronDown, RotateCcw, ChevronsRight } from 'lucide-react'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useAppStore } from '../../state/useAppStore'
 import { paneWriters } from '../../state/paneWriters'
-import { firstLeaf } from '../../state/layout'
+import { firstLeaf, allLeaves } from '../../state/layout'
+import { launchCommand } from './launcherCommands'
+import { confirmCloseLeaves } from './closeGuard'
 import claudeIcon from '../../assets/claudecode.svg'
 
 /** Send a command into the focused terminal pane of the active tab. */
@@ -36,7 +38,19 @@ export function TabStrip() {
 
   const [editing, setEditing] = useState<string | null>(null)
   const [gridOpen, setGridOpen] = useState(false)
+  const [launcherOpen, setLauncherOpen] = useState(false)
   const dragFrom = useRef<number | null>(null)
+  const launcherRef = useRef<HTMLDivElement | null>(null)
+
+  // Close the launcher menu on any click outside it.
+  useEffect(() => {
+    if (!launcherOpen) return
+    const onDown = (e: MouseEvent): void => {
+      if (launcherRef.current && !launcherRef.current.contains(e.target as Node)) setLauncherOpen(false)
+    }
+    document.addEventListener('mousedown', onDown, true)
+    return () => document.removeEventListener('mousedown', onDown, true)
+  }, [launcherOpen])
 
   return (
     <div className="tabstrip">
@@ -84,7 +98,10 @@ export function TabStrip() {
                 title="Close terminal"
                 onMouseDown={(e) => {
                   e.stopPropagation()
-                  close(t.id)
+                  const ids = allLeaves(t.layout).map((l) => l.id)
+                  void confirmCloseLeaves(ids).then((proceed) => {
+                    if (proceed) close(t.id)
+                  })
                 }}
               >
                 <X size={11} />
@@ -129,25 +146,59 @@ export function TabStrip() {
         )}
       </div>
       {claudeButtons && (
-        <div className="tabstrip__claude">
-          <button
-            className="claude-launch"
-            data-tip="Run claude in this terminal"
-            aria-label="Run claude"
-            onClick={() => runInFocusedPane('claude\r')}
-          >
-            <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
-            <span>Claude</span>
-          </button>
-          <button
-            className="claude-launch claude-launch--resume"
-            data-tip="Resume a session (claude --resume)"
-            aria-label="Resume a Claude session"
-            onClick={() => runInFocusedPane('claude --resume\r')}
-          >
-            <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
-            <span>Resume</span>
-          </button>
+        <div className="tabstrip__claude" ref={launcherRef}>
+          <div className="claude-split">
+            <button
+              className="claude-launch claude-launch--primary"
+              data-tip="Run claude in this terminal"
+              aria-label="Run claude"
+              onClick={() => runInFocusedPane(launchCommand('new'))}
+            >
+              <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
+              <span>Claude</span>
+            </button>
+            <button
+              className="claude-launch claude-launch--caret"
+              data-tip="Resume or continue a session"
+              aria-label="Claude session options"
+              aria-haspopup="menu"
+              aria-expanded={launcherOpen}
+              onClick={() => setLauncherOpen((o) => !o)}
+            >
+              <ChevronDown size={13} />
+            </button>
+          </div>
+          {launcherOpen && (
+            <div className="launcher-menu" role="menu">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  runInFocusedPane(launchCommand('new'))
+                  setLauncherOpen(false)
+                }}
+              >
+                <Plus size={13} /> New session
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  runInFocusedPane(launchCommand('resume'))
+                  setLauncherOpen(false)
+                }}
+              >
+                <RotateCcw size={13} /> Resume session
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  runInFocusedPane(launchCommand('continue'))
+                  setLauncherOpen(false)
+                }}
+              >
+                <ChevronsRight size={13} /> Continue last
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
