@@ -302,10 +302,15 @@ export interface InvokeChannels {
   'munu:resize': (req: { width: number; height: number; expanded?: boolean }) => Result<void>
   /** Bring the DockTerm window(s) to the front (used when munu is clicked). */
   'munu:showApp': (req: void) => Result<void>
-  /** Read the overlay window's current screen bounds (drag start reference). */
+  /** Read the overlay window's current screen bounds. */
   'munu:getBounds': (req: void) => Result<{ x: number; y: number; width: number; height: number }>
   /** Move the overlay window to an absolute screen position (clamped on-screen). */
   'munu:move': (req: { x: number; y: number }) => Result<void>
+  /** Begin a pinned-munu drag: main captures the drag origin synchronously so the
+   * drag never waits on a getBounds round-trip. `sx`/`sy` = pointer screen coords. */
+  'munu:dragStart': (req: { sx: number; sy: number }) => Result<void>
+  /** Continue the drag to the cursor's current screen position. */
+  'munu:dragMove': (req: { sx: number; sy: number }) => Result<void>
 }
 
 export interface EventChannels {
@@ -417,7 +422,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:resize',
   'munu:showApp',
   'munu:getBounds',
-  'munu:move'
+  'munu:move',
+  'munu:dragStart',
+  'munu:dragMove'
 ]
 
 /** Runtime allowlist mirrored from `EventChannels`. */

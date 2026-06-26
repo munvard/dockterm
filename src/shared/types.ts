@@ -97,12 +97,13 @@ export interface TerminalSettings {
   restoreScrollback: boolean
   /** Floating live "Changes" overlay listing files Claude touched. */
   changesOverlay: boolean
-  /** Auto-reveal the Changes overlay when files change while Claude works. */
-  changesAutoReveal: boolean
   /** ⌘⇧⏎ opens a roomy Compose editor for long prompts. */
   composeOverlay: boolean
   /** Hover a file path in the terminal to preview it (image/markdown/code). */
   filePreviews: boolean
+  /** Run Claude Code fullscreen (flicker-free, alternate screen) vs inline (default —
+   * native scrollback, respects `/tui`). Off = inline. */
+  claudeFullscreen: boolean
 }
 
 export interface SessionHistorySettings {

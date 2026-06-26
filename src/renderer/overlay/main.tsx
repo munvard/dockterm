@@ -62,8 +62,9 @@ function Overlay() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const lastSize = useRef({ w: 0, h: 0 })
   const munuRef = useRef<Settings['munu'] | null>(null)
-  const dragRef = useRef<{ sx: number; sy: number; wx: number; wy: number } | null>(null)
+  const dragRef = useRef<{ sx: number; sy: number } | null>(null)
   const movedRef = useRef(false)
+  const draggingRef = useRef(false)
   const prevPinned = useRef(false)
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
@@ -278,31 +279,37 @@ function Overlay() {
     if (showCard) return
     movedRef.current = false
     if (!pinned) return // only pinned munu drags
-    void window.dockterm.invoke('munu:getBounds', undefined).then((r) => {
-      if (r.ok) dragRef.current = { sx: e.screenX, sy: e.screenY, wx: r.value.x, wy: r.value.y }
-    })
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    // Capture the origin synchronously (main reads its own bounds), so the drag
+    // never waits on a round-trip — and keep the window interactive + capture the
+    // pointer on a STABLE element so a mid-drag re-render or stray mouseleave can't
+    // make it click-through and "stick".
+    dragRef.current = { sx: e.screenX, sy: e.screenY }
+    draggingRef.current = true
+    setInteractive(true)
+    void window.dockterm.invoke('munu:dragStart', { sx: e.screenX, sy: e.screenY })
+    e.currentTarget.setPointerCapture?.(e.pointerId)
   }
 
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = dragRef.current
     if (!d) return
-    const dx = e.screenX - d.sx
-    const dy = e.screenY - d.sy
-    if (!movedRef.current && Math.hypot(dx, dy) < 4) return
+    if (!movedRef.current && Math.hypot(e.screenX - d.sx, e.screenY - d.sy) < 4) return
     movedRef.current = true
-    void window.dockterm.invoke('munu:move', { x: d.wx + dx, y: d.wy + dy })
+    void window.dockterm.invoke('munu:dragMove', { sx: e.screenX, sy: e.screenY })
   }
 
   const onPointerUp = (e: React.PointerEvent): void => {
-    const d = dragRef.current
+    const moved = movedRef.current
     dragRef.current = null
+    draggingRef.current = false
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
     if (showCard) return
-    if (d && movedRef.current) {
-      const dx = e.screenX - d.sx
-      const dy = e.screenY - d.sy
-      writeMunu({ position: { x: d.wx + dx, y: d.wy + dy } })
-      return // a drag, not a click
+    if (moved) {
+      // A drag, not a click — persist munu's final resting position.
+      void window.dockterm.invoke('munu:getBounds', undefined).then((r) => {
+        if (r.ok) writeMunu({ position: { x: r.value.x, y: r.value.y } })
+      })
+      return
     }
     // A real click just toggles munu's popup — it must NOT surface/open the
     // terminal (the popup itself has an "open terminal" button for that).
@@ -327,6 +334,10 @@ function Overlay() {
         className={`island island--${g.state}${showCard ? ' island--card' : ''}${pinned ? ' island--pinned' : ''}`}
         onMouseEnter={() => setInteractive(true)}
         onMouseLeave={() => {
+          // Never go click-through mid-drag: while dragging, the window lags a frame
+          // behind the cursor and the pointer can briefly slip off .island — if that
+          // flipped us click-through, the drag would stop dead and munu would "stick".
+          if (draggingRef.current) return
           // Leaving the whole munu+popup area dismisses the popup, so an unpinned
           // munu resumes its normal auto-tuck. Moving between munu and the popup
           // stays inside .island, so this doesn't fire mid-interaction.

@@ -49,12 +49,14 @@ const preference = {
       restoreScrollback: z.boolean().default(true),
       /** Floating live "Changes" overlay listing files Claude touched. */
       changesOverlay: z.boolean().default(true),
-      /** Auto-reveal the Changes overlay when files change while Claude works. */
-      changesAutoReveal: z.boolean().default(false),
       /** ⌘⇧⏎ opens a roomy Compose editor for long prompts. */
       composeOverlay: z.boolean().default(true),
       /** Hover a file path in the terminal to preview it (image/markdown/code). */
-      filePreviews: z.boolean().default(true)
+      filePreviews: z.boolean().default(true),
+      /** Run Claude Code in its fullscreen TUI (flicker-free, alternate screen) vs
+       * the default inline rendering, which uses the terminal's own scrollback so
+       * scrolling feels native and Claude's `/tui` setting is respected. Off = inline. */
+      claudeFullscreen: z.boolean().default(false)
     })
     .default({}),
   sessionHistory: z

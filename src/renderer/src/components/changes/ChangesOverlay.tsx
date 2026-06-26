@@ -1,8 +1,7 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, X, Check } from 'lucide-react'
 import { useChangesStore } from '../../state/useChangesStore'
-import { useAppStore } from '../../state/useAppStore'
 import { useDragResize } from '../common/useDragResize'
 import { ResizeHandles } from '../common/ResizeHandles'
 import type { GitFileStatus } from '@shared/types'
@@ -38,12 +37,6 @@ export function ChangesOverlay(): React.ReactElement | null {
   const diffs = useChangesStore((s) => s.diffs)
   const pos = useChangesStore((s) => s.pos)
   const size = useChangesStore((s) => s.size)
-  const autoReveal = useAppStore((s) => s.settings?.terminal.changesAutoReveal) ?? false
-
-  const prevCount = useRef(0)
-  // Don't auto-reveal from the initial startup scan (existing changes) — only when
-  // changes actually grow during a working session. Arms shortly after mount.
-  const armed = useRef(false)
 
   const { ref, style, onHeaderMouseDown, onResizeMouseDown } = useDragResize({
     pos,
@@ -53,7 +46,9 @@ export function ChangesOverlay(): React.ReactElement | null {
     onResize: useChangesStore.getState().setSize
   })
 
-  // Refresh now + on every file change (debounced) while mounted.
+  // Keep the file list (and the hover preview's "changed" badge) current while
+  // mounted. The overlay NEVER auto-opens — it only opens when the user clicks a
+  // terminal's Changes button.
   useEffect(() => {
     void useChangesStore.getState().refresh()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -61,25 +56,11 @@ export function ChangesOverlay(): React.ReactElement | null {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => void useChangesStore.getState().refresh(), 500)
     })
-    const armTimer = setTimeout(() => {
-      armed.current = true
-    }, 1500)
     return () => {
       off()
       if (timer) clearTimeout(timer)
-      clearTimeout(armTimer)
     }
   }, [])
-
-  // Auto-reveal only after arming (never on the startup scan), when changes grow,
-  // and the user hasn't dismissed it this burst.
-  useEffect(() => {
-    const n = files.length
-    if (armed.current && n > prevCount.current && autoReveal && !useChangesStore.getState().dismissed) {
-      useChangesStore.getState().setOpen(true)
-    }
-    prevCount.current = n
-  }, [files, autoReveal])
 
   const closeOverlay = (): void => useChangesStore.getState().setOpen(false)
 

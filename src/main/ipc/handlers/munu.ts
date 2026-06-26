@@ -9,8 +9,10 @@ import {
   resizeMunu,
   showMainWindows
 } from '../../services/munuService'
-import { getOverlayBounds, moveOverlay } from '../../overlayWindow'
+import { getOverlayBounds, moveOverlay, beginOverlayDrag, dragOverlay } from '../../overlayWindow'
 import type { Registrar } from '../register'
+
+const dragSchema = z.object({ sx: z.number(), sy: z.number() })
 
 const askSchema = z.object({
   leafId: z.string(),
@@ -88,6 +90,16 @@ export function registerMunuHandlers(reg: Registrar): void {
 
   reg('munu:move', z.object({ x: z.number(), y: z.number() }), (req) => {
     moveOverlay(req.x, req.y)
+    return ok(undefined)
+  })
+
+  reg('munu:dragStart', dragSchema, (req) => {
+    beginOverlayDrag(req.sx, req.sy)
+    return ok(undefined)
+  })
+
+  reg('munu:dragMove', dragSchema, (req) => {
+    dragOverlay(req.sx, req.sy)
     return ok(undefined)
   })
 }

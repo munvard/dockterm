@@ -233,3 +233,24 @@ export function moveOverlay(x: number, y: number): void {
   const p = clampToAreas({ x, y, width: b.width, height: b.height }, areas)
   overlay.setPosition(p.x, p.y)
 }
+
+// Drag origin captured synchronously in main when a pinned-munu drag begins, so a
+// drag never waits on a renderer→main getBounds round-trip (which, when slow, used
+// to make munu "stick" and not follow the cursor). Each move recomputes the window
+// position from this fixed origin + the total cursor delta, so it tracks 1:1 even
+// after a clamp at the screen edge.
+let dragOrigin: { sx: number; sy: number; wx: number; wy: number } | null = null
+
+/** Begin a munu drag: remember the cursor's screen position and munu's window
+ * position at this instant. `sx`/`sy` are the pointer's screen coordinates. */
+export function beginOverlayDrag(sx: number, sy: number): void {
+  if (!overlay || overlay.isDestroyed()) return
+  const b = overlay.getBounds()
+  dragOrigin = { sx, sy, wx: b.x, wy: b.y }
+}
+
+/** Continue a munu drag to the cursor's current screen position. */
+export function dragOverlay(sx: number, sy: number): void {
+  if (!dragOrigin) return
+  moveOverlay(dragOrigin.wx + (sx - dragOrigin.sx), dragOrigin.wy + (sy - dragOrigin.sy))
+}

@@ -95,9 +95,9 @@ export function SettingsPanel() {
         selectionToolbar: true,
         restoreScrollback: true,
         changesOverlay: true,
-        changesAutoReveal: false,
         composeOverlay: true,
-        filePreviews: true
+        filePreviews: true,
+        claudeFullscreen: false
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },
@@ -264,6 +264,17 @@ export function SettingsPanel() {
               onChange={(v) => setTerminal({ claudeButtons: v })}
             />
           </Field>
+          <Field label="Claude Code fullscreen TUI">
+            <Toggle
+              checked={s.terminal.claudeFullscreen}
+              onChange={(v) => setTerminal({ claudeFullscreen: v })}
+            />
+          </Field>
+          <div className="settings-note">
+            Off (default): Claude scrolls inline like a normal terminal and respects its own{' '}
+            <code>/tui</code> setting. On: the flicker-free fullscreen TUI that takes over the
+            screen with its own scrolling. Start a new Claude session after changing this.
+          </div>
           <Field label="Selection “Send to Claude” toolbar">
             <Toggle
               checked={s.terminal.selectionToolbar}
@@ -311,15 +322,10 @@ export function SettingsPanel() {
               onChange={(v) => setTerminal({ changesOverlay: v })}
             />
           </Field>
-          <Field label="Auto-reveal Changes while Claude works">
-            <Toggle
-              checked={s.terminal.changesAutoReveal}
-              onChange={(v) => setTerminal({ changesAutoReveal: v })}
-            />
-          </Field>
           <div className="settings-note">
-            A floating panel that lists the files Claude is editing; expand a row to see only the
-            changes or the full file.
+            Adds a Changes button to each terminal’s controls — a floating panel listing the files
+            changed in that terminal’s project; expand a row to see the diff or the full file. It
+            only opens when you click the button.
           </div>
         </Section>
 

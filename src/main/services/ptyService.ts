@@ -37,19 +37,24 @@ export interface CreatePtyArgs {
 export function createPty(args: CreatePtyArgs): { sessionId: string; shell: string } {
   const shell = detectShell()
   const cwd = args.cwd && existsSync(args.cwd) ? args.cwd : os.homedir()
+  const settings = getSettings()
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     TERM: 'xterm-256color',
-    COLORTERM: 'truecolor',
-    CLAUDE_CODE_NO_FLICKER: '1'
+    COLORTERM: 'truecolor'
   }
+  // Claude Code rendering. Default is inline: Claude uses the terminal's own
+  // scrollback (native-feeling scrolling) and respects its `/tui` setting. Only
+  // force the flicker-free fullscreen TUI (alternate screen, its own scroll) when
+  // the user opts in — CLAUDE_CODE_NO_FLICKER=1 overrides `/tui` to fullscreen.
+  if (settings.terminal.claudeFullscreen) env.CLAUDE_CODE_NO_FLICKER = '1'
   // Finder/Dock-launched macOS apps inherit no locale → multibyte paste mojibake.
   ensureUtf8Locale(env, process.platform)
 
   // Shell integration: make the shell emit OSC 7 so the dock follows `cd`.
   // Off / unsupported shell → spawn unchanged (dock uses the spawn folder).
   let shellArgs = shell.args
-  if (getSettings().terminal.shellIntegration) {
+  if (settings.terminal.shellIntegration) {
     const integration = integrationFor(shell.file, shell.args, env)
     if (integration) {
       shellArgs = integration.args
