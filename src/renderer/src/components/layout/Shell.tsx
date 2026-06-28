@@ -21,6 +21,7 @@ import { useChangesStore } from '../../state/useChangesStore'
 import { useComposeStore } from '../../state/useComposeStore'
 import { confirmCloseLeaves } from '../terminal/closeGuard'
 import { gcTerminals } from '../terminal/terminalPool'
+import { readingWidthToMax } from '../terminal/comfortPresets'
 
 // Lazily loaded so Monaco (the editor) isn't part of the startup bundle.
 const EditorPane = lazy(() => import('../editor/EditorPane').then((m) => ({ default: m.EditorPane })))
@@ -189,6 +190,11 @@ export function Shell() {
     />
   )
   const t = settings?.terminal
+  const readingMax = readingWidthToMax(t?.readingWidth ?? 'off')
+  const appStyle = {
+    '--term-pad': `${t?.padding ?? 8}px`,
+    '--reading-max': readingMax ? `${readingMax}px` : 'none'
+  } as React.CSSProperties
   const termProps = {
     fontFamily: t?.fontFamily ?? undefined,
     fontSize: t?.fontSize,
@@ -201,7 +207,7 @@ export function Shell() {
   }
 
   return (
-    <div className="app">
+    <div className="app" style={appStyle}>
       <TopBar />
       {focusedNotRepo && (
         <div className="banner">

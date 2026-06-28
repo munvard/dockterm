@@ -382,12 +382,14 @@
   height: 100%;
   width: 100%;
   background: var(--bg);
-  padding: 8px 6px 8px 12px;
+  padding: var(--term-pad, 8px);
   overflow: hidden;
 }
 .terminal__surface {
   height: 100%;
   width: 100%;
+  max-width: var(--reading-max, none);
+  margin-inline: auto;
 }
 .terminal__surface .xterm {
   height: 100%;
