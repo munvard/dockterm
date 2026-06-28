@@ -213,7 +213,8 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     fastScrollSensitivity: 8,
     // A touch more line height + a calm inactive cursor for comfort.
     cursorInactiveStyle: 'outline',
-    lineHeight: 1.15
+    lineHeight: opts.lineHeight ?? 1.15,
+    letterSpacing: opts.letterSpacing ?? 0
   })
 
   const fit = new FitAddon()

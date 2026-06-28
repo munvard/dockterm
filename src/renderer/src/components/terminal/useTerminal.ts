@@ -22,6 +22,10 @@ export interface TerminalOptions {
   cursorBlink?: boolean
   scrollback?: number
   renderer?: 'auto' | 'dom'
+  /** xterm line-height multiplier (reading comfort). */
+  lineHeight?: number
+  /** xterm letter-spacing in px (reading comfort). */
+  letterSpacing?: number
   /** True when this terminal's tab is the visible/active one. */
   active?: boolean
   /** Called when output arrives (used to flag background-tab activity). */
@@ -85,15 +89,25 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.id, options.cwd])
 
-  // Live-update font/cursor options.
+  // Live-update font/cursor/spacing options, then refit (cell size may change).
   useEffect(() => {
-    const term = poolRef.current?.term
-    if (!term) return
-    term.options.fontSize = options.fontSize ?? 13
-    term.options.fontFamily = options.fontFamily ?? DEFAULT_MONO
-    term.options.cursorStyle = options.cursorStyle ?? 'block'
-    term.options.cursorBlink = options.cursorBlink ?? true
-  }, [options.fontSize, options.fontFamily, options.cursorStyle, options.cursorBlink])
+    const p = poolRef.current
+    if (!p) return
+    p.term.options.fontSize = options.fontSize ?? 13
+    p.term.options.fontFamily = options.fontFamily ?? DEFAULT_MONO
+    p.term.options.cursorStyle = options.cursorStyle ?? 'block'
+    p.term.options.cursorBlink = options.cursorBlink ?? true
+    p.term.options.lineHeight = options.lineHeight ?? 1.15
+    p.term.options.letterSpacing = options.letterSpacing ?? 0
+    p.refit()
+  }, [
+    options.fontSize,
+    options.fontFamily,
+    options.cursorStyle,
+    options.cursorBlink,
+    options.lineHeight,
+    options.letterSpacing
+  ])
 
   // When this terminal's tab becomes active, refit (it may have been hidden at
   // 0×0) and focus it.

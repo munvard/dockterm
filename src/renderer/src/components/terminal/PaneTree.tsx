@@ -258,6 +258,8 @@ function TerminalPane({
           cursorBlink={t?.cursorBlink}
           scrollback={t?.scrollback}
           renderer={t?.renderer}
+          lineHeight={t?.lineHeight}
+          letterSpacing={t?.letterSpacing}
         />
         {focused && (t?.composeOverlay ?? true) && (
           <button

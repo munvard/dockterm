@@ -195,7 +195,9 @@ export function Shell() {
     cursorStyle: t?.cursorStyle,
     cursorBlink: t?.cursorBlink,
     scrollback: t?.scrollback,
-    renderer: t?.renderer
+    renderer: t?.renderer,
+    lineHeight: t?.lineHeight,
+    letterSpacing: t?.letterSpacing
   }
 
   return (
