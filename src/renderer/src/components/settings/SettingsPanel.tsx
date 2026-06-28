@@ -4,6 +4,7 @@ import { useToastStore } from '../../state/useToastStore'
 import { useThemeStore } from '../../state/useThemeStore'
 import { THEMES } from '../../state/themes'
 import { DEFAULT_MONO, FONT_CHOICES } from '../terminal/terminalTheme'
+import { COMFORT_PRESETS, matchPreset, type ReadingWidth } from '../terminal/comfortPresets'
 import type { CursorStyle, TerminalRenderer, Settings } from '@shared/types'
 import { CHARACTERS } from '../munu/mascots'
 import { Munu } from '../munu/Munu'
@@ -46,6 +47,12 @@ function clampNum(value: string, lo: number, hi: number, fallback: number): numb
   return Math.min(hi, Math.max(lo, n))
 }
 
+function clampFloat(value: string, lo: number, hi: number, fallback: number): number {
+  const n = Number.parseFloat(value)
+  if (Number.isNaN(n)) return fallback
+  return Math.min(hi, Math.max(lo, n))
+}
+
 export function SettingsPanel() {
   const settings = useAppStore((s) => s.settings)
   const update = useAppStore((s) => s.updatePreferences)
@@ -66,6 +73,12 @@ export function SettingsPanel() {
     void update({ agentActivity: { ...s.agentActivity, ...patch } })
   const setClaude = (patch: Partial<Settings['claude']>) =>
     void update({ claude: { ...s.claude, ...patch } })
+  const comfortPreset = matchPreset({
+    lineHeight: s.terminal.lineHeight,
+    letterSpacing: s.terminal.letterSpacing,
+    padding: s.terminal.padding,
+    readingWidth: s.terminal.readingWidth
+  })
 
   // Font picker: a known stack matches a preset; anything else is "custom".
   const fontValue = s.terminal.fontFamily
@@ -330,6 +343,72 @@ export function SettingsPanel() {
             Adds a Changes button to each terminal’s controls — a floating panel listing the files
             changed in that terminal’s project; expand a row to see the diff or the full file. It
             only opens when you click the button.
+          </div>
+        </Section>
+
+        <Section title="Reading comfort">
+          <Field label="Comfort">
+            <div className="settings-seg">
+              {(['off', 'cozy', 'relaxed'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`settings-seg__btn${comfortPreset === p ? ' is-active' : ''}`}
+                  onClick={() => setTerminal(COMFORT_PRESETS[p])}
+                >
+                  {p === 'off' ? 'Off' : p === 'cozy' ? 'Cozy' : 'Relaxed'}
+                </button>
+              ))}
+              {comfortPreset === 'custom' && <span className="settings-seg__custom">Custom</span>}
+            </div>
+          </Field>
+          <Field label="Line height">
+            <input
+              className="settings-num"
+              type="number"
+              min={1}
+              max={2}
+              step={0.05}
+              value={s.terminal.lineHeight}
+              onChange={(e) => setTerminal({ lineHeight: clampFloat(e.target.value, 1, 2, 1.15) })}
+            />
+          </Field>
+          <Field label="Letter spacing">
+            <input
+              className="settings-num"
+              type="number"
+              min={0}
+              max={2}
+              step={0.1}
+              value={s.terminal.letterSpacing}
+              onChange={(e) => setTerminal({ letterSpacing: clampFloat(e.target.value, 0, 2, 0) })}
+            />
+          </Field>
+          <Field label="Padding">
+            <input
+              className="settings-num"
+              type="number"
+              min={4}
+              max={28}
+              value={s.terminal.padding}
+              onChange={(e) => setTerminal({ padding: clampNum(e.target.value, 4, 28, 8) })}
+            />
+          </Field>
+          <Field label="Reading width">
+            <select
+              className="settings-select"
+              value={s.terminal.readingWidth}
+              onChange={(e) => setTerminal({ readingWidth: e.target.value as ReadingWidth })}
+            >
+              <option value="off">Off (full width)</option>
+              <option value="narrow">Narrow</option>
+              <option value="medium">Medium</option>
+              <option value="wide">Wide</option>
+            </select>
+          </Field>
+          <div className="settings-note">
+            Try a preset, or fine-tune below. Zen mode (<code>⌘.</code> or the top-bar button) hides
+            the chrome for a calm reading canvas.
           </div>
         </Section>
 
