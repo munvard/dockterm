@@ -97,7 +97,11 @@ export function SettingsPanel() {
         changesOverlay: true,
         composeOverlay: true,
         filePreviews: true,
-        claudeFullscreen: false
+        claudeFullscreen: false,
+        lineHeight: 1.15,
+        letterSpacing: 0,
+        padding: 8,
+        readingWidth: 'off'
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },

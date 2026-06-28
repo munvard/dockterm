@@ -56,7 +56,15 @@ const preference = {
       /** Run Claude Code in its fullscreen TUI (flicker-free, alternate screen) vs
        * the default inline rendering, which uses the terminal's own scrollback so
        * scrolling feels native and Claude's `/tui` setting is respected. Off = inline. */
-      claudeFullscreen: z.boolean().default(false)
+      claudeFullscreen: z.boolean().default(false),
+      /** Reading comfort: line spacing (xterm multiplier). */
+      lineHeight: z.number().min(1).max(2).default(1.15),
+      /** Reading comfort: character spacing (xterm px). */
+      letterSpacing: z.number().min(0).max(2).default(0),
+      /** Reading comfort: inner padding around the terminal content (px). */
+      padding: z.number().int().min(4).max(28).default(8),
+      /** Reading comfort: centered reading-column cap on wide screens. */
+      readingWidth: z.enum(['off', 'narrow', 'medium', 'wide']).default('off')
     })
     .default({}),
   sessionHistory: z

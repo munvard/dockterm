@@ -104,6 +104,14 @@ export interface TerminalSettings {
   /** Run Claude Code fullscreen (flicker-free, alternate screen) vs inline (default —
    * native scrollback, respects `/tui`). Off = inline. */
   claudeFullscreen: boolean
+  /** Reading comfort: line spacing (xterm multiplier, 1.0–2.0). */
+  lineHeight: number
+  /** Reading comfort: character spacing (px, 0–2). */
+  letterSpacing: number
+  /** Reading comfort: inner padding around the terminal content (px, 4–28). */
+  padding: number
+  /** Reading comfort: centered reading-column cap on wide screens. */
+  readingWidth: 'off' | 'narrow' | 'medium' | 'wide'
 }
 
 export interface SessionHistorySettings {
