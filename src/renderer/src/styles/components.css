@@ -4033,3 +4033,46 @@
   color: var(--text-faint);
   margin-left: 4px;
 }
+
+/* ------------------------------- Zen mode -------------------------------- */
+/* Slim draggable strip replacing the top bar — keeps the window movable and
+   (on macOS) leaves room for the traffic lights; hosts the exit hint. */
+.zen-bar {
+  flex: 0 0 auto;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+  background: var(--bg);
+  -webkit-app-region: drag;
+}
+.zen-exit {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-family: var(--font-ui);
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+.zen-exit:hover {
+  opacity: 1;
+  color: var(--text);
+}
+/* Dim panes other than the focused one for a single-focus reading canvas. */
+[data-zen='on'] .pane:not(.pane--focused) {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+/* A roomier canvas in zen (at least 18px, or the user's larger padding). */
+[data-zen='on'] .terminal {
+  padding: max(var(--term-pad, 8px), 18px);
+}

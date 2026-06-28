@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { GitBranchPlus } from 'lucide-react'
+import { GitBranchPlus, Minimize2 } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useGitStore } from '../../state/useGitStore'
@@ -35,6 +35,7 @@ export function Shell() {
   const initGit = useAppStore((s) => s.initGitRepo)
   const openPanel = useAppStore((s) => s.openPanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
+  const zen = useAppStore((s) => s.zen)
   const historyOpen = useAppStore((s) => s.historyOpen)
   const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
   const histSide = useAppStore((s) => s.settings?.sessionHistory.side) ?? 'right'
@@ -44,7 +45,7 @@ export function Shell() {
   const changesEnabled = useAppStore((s) => s.settings?.terminal.changesOverlay) ?? true
   const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const diffTarget = useReviewStore((s) => s.diffTarget)
-  const editorOpen = hasTabs || diffTarget != null
+  const editorOpen = (hasTabs || diffTarget != null) && !zen
   // Banner reflects the FOCUSED pane's directory (via the live git status that
   // follows the active root), not the static first-opened project.
   const gitStatus = useGitStore((s) => s.status)
@@ -134,6 +135,10 @@ export function Shell() {
         e.preventDefault()
         e.stopPropagation()
         void window.dockterm.invoke('window:new', undefined)
+      } else if (e.key === '.') {
+        e.preventDefault()
+        e.stopPropagation()
+        useAppStore.getState().toggleZen()
       } else if (e.key >= '1' && e.key <= '9') {
         const tab = ws.tabs[Number(e.key) - 1]
         if (tab) {
@@ -176,7 +181,7 @@ export function Shell() {
 
   if (!project) return null
   // Docked side-panel checkpoints; the floating variant is rendered separately.
-  const showHist = historyOpen && histEnabled && !histFloating
+  const showHist = historyOpen && histEnabled && !histFloating && !zen
   const histRail = (
     <div className="hist-wrap" style={{ width: histW }} key="hist">
       <HistoryRail cwd={focusedCwd} leafId={focusedLeafId ?? null} />
@@ -207,8 +212,20 @@ export function Shell() {
   }
 
   return (
-    <div className="app" style={appStyle}>
-      <TopBar />
+    <div className="app" data-zen={zen ? 'on' : undefined} style={appStyle}>
+      {zen ? (
+        <div className="zen-bar">
+          <button
+            className="zen-exit"
+            onClick={() => useAppStore.getState().setZen(false)}
+            title="Exit zen (⌘.)"
+          >
+            <Minimize2 size={13} /> Exit zen · ⌘.
+          </button>
+        </div>
+      ) : (
+        <TopBar />
+      )}
       {focusedNotRepo && (
         <div className="banner">
           <span>This folder isn&apos;t a Git repository yet.</span>
@@ -222,12 +239,12 @@ export function Shell() {
       )}
       <div className="app__body">
         <div className="hrow">
-          {openPanel && (
+          {openPanel && !zen && (
             <div className="dock-wrap" style={{ width: dockW }} key="dock">
               <Dock />
             </div>
           )}
-          {openPanel && (
+          {openPanel && !zen && (
             <Divider
               key="dv-dock"
               direction="v"
@@ -237,7 +254,7 @@ export function Shell() {
           {showHist && histSide === 'left' && histRail}
           {showHist && histSide === 'left' && histDivider}
           <div className="term-wrap" key="term">
-            <TabStrip />
+            {!zen && <TabStrip />}
             <div className="term-stack">
               {terminals.map((tab) => (
                 <div
@@ -273,14 +290,14 @@ export function Shell() {
             </div>
           )}
         </div>
-        {miniTermOpen && (
+        {miniTermOpen && !zen && (
           <Divider
             key="dv-mini"
             direction="h"
             onResize={(d) => setMiniH((h) => clamp(h - d, 100, 600))}
           />
         )}
-        {miniTermOpen && (
+        {miniTermOpen && !zen && (
           <div className="mini-wrap" style={{ height: miniH }} key="mini">
             <div className="minit">
               <div className="minit__bar">mini terminal</div>

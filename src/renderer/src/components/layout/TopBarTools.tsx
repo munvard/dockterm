@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import { SquareTerminal } from 'lucide-react'
+import { SquareTerminal, Maximize2 } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useAgentStore } from '../../state/useAgentStore'
 import { UsagePill } from '../usage/UsagePill'
@@ -19,6 +19,7 @@ export function TopBarTools() {
   const togglePanel = useAppStore((s) => s.togglePanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const toggleMini = useAppStore((s) => s.toggleMiniTerm)
+  const toggleZen = useAppStore((s) => s.toggleZen)
   const usageEnabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
   // Subscribe to the live agent count so this component re-renders (and its
   // measurement effect below re-runs) the moment the agent pill appears/disappears
@@ -95,6 +96,14 @@ export function TopBarTools() {
       })}
       <span className="topbar__divider" />
       <NotesButton />
+      <button
+        className="iconbtn tip--end"
+        data-tip="Zen mode (⌘.)"
+        aria-label="Zen mode"
+        onClick={toggleZen}
+      >
+        <Maximize2 size={15} />
+      </button>
       <button
         className={`iconbtn tip--end${miniTermOpen ? ' iconbtn--active' : ''}`}
         data-tip="Mini terminal"

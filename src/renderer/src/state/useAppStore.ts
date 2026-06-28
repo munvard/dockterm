@@ -15,6 +15,7 @@ interface AppState {
   homeDir: string
   openPanel: PanelId | null
   miniTermOpen: boolean
+  zen: boolean
   historyOpen: boolean
   paletteOpen: boolean
   busy: boolean
@@ -30,6 +31,8 @@ interface AppState {
   setOpenPanel: (panel: PanelId | null) => void
   toggleMiniTerm: () => void
   setMiniTermOpen: (open: boolean) => void
+  toggleZen: () => void
+  setZen: (v: boolean) => void
   toggleHistory: () => void
   setPaletteOpen: (open: boolean) => void
   updatePreferences: (patch: SettingsPatch) => Promise<void>
@@ -45,6 +48,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   homeDir: '',
   openPanel: null,
   miniTermOpen: false,
+  zen: false,
   historyOpen: false,
   paletteOpen: false,
   busy: false,
@@ -121,6 +125,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setOpenPanel: (panel) => set({ openPanel: panel }),
   toggleMiniTerm: () => set((s) => ({ miniTermOpen: !s.miniTermOpen })),
   setMiniTermOpen: (open) => set({ miniTermOpen: open }),
+  toggleZen: () => set((s) => ({ zen: !s.zen })),
+  setZen: (v) => set({ zen: v }),
   toggleHistory: () => set((s) => ({ historyOpen: !s.historyOpen })),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
 
