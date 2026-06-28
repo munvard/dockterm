@@ -123,6 +123,20 @@ export const THEMES: Theme[] = [
     brBlack: '#3a3a45', brRed: '#fb9a9a', brGreen: '#86efac', brYellow: '#fde68a',
     brBlue: '#93b4ff', brMagenta: '#c4b5fd', brCyan: '#5eead4', brWhite: '#f4f4f7'
   }),
+  // Warm, low-glare reading palette: soft off-white (not pure #fff) on a warm
+  // charcoal, muted/desaturated ANSI, gentle gold accent — easy on the eyes for
+  // long Claude responses.
+  make('dockterm-reading', 'Reading', {
+    appearance: 'dark',
+    bg: '#21201c', panel: '#2a2824', raised: '#322f2a', overlay: '#3a3630',
+    border: '#37332c', borderStrong: '#48433a',
+    text: '#e4ddcf', textDim: '#a8a090', textFaint: '#736c5f',
+    accent: '#c9a76b', accentHover: '#d6b67e', onAccent: '#21201c',
+    black: '#2a2824', red: '#d98b7a', green: '#a3b58a', yellow: '#d8b66a',
+    blue: '#8fa9c4', magenta: '#bba0c9', cyan: '#86b3aa', white: '#cfc7b8',
+    brBlack: '#4a463d', brRed: '#e6a596', brGreen: '#b9c9a3', brYellow: '#e6cd8d',
+    brBlue: '#a8bdd4', brMagenta: '#cdb6d8', brCyan: '#a0c7bf', brWhite: '#f0e9da'
+  }),
   // A warm "paper" light — intentionally NOT white, so it reads distinctly from
   // the cool GitHub Light. Cream surfaces, soft taupe borders, violet accent.
   make('dockterm-light', 'DockTerm Paper', {

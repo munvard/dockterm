@@ -23,4 +23,9 @@ describe('themes', () => {
   it('resolveTheme returns a known theme by id', () => {
     expect(resolveTheme('nord', true).id).toBe('nord')
   })
+
+  it('registers the warm low-glare Reading theme', () => {
+    expect(resolveTheme('dockterm-reading', true).id).toBe('dockterm-reading')
+    expect(THEMES.some((t) => t.id === 'dockterm-reading')).toBe(true)
+  })
 })
