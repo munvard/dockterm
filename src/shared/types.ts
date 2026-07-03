@@ -134,6 +134,29 @@ export interface SessionHistory {
   prompts: SessionPrompt[]
 }
 
+/* ------------------------------ reading view ------------------------------ */
+
+export type ReadingRole = 'user' | 'assistant' | 'tool'
+
+/** One rendered row in the Reading view, reconstructed read-only from a transcript. */
+export interface ReadingMessage {
+  /** record uuid (or a synthesized fallback) — stable React key. */
+  id: string
+  role: ReadingRole
+  /** epoch ms (0 if the record had no parseable timestamp). */
+  ts: number
+  /** user/assistant prose (markdown, harness-noise stripped). */
+  text?: string
+  /** present when role === 'tool': a compact action summary. */
+  tool?: { name: string; summary: string; ok: boolean | null }
+}
+
+export interface ReadingConversation {
+  sessionId: string
+  cwd: string
+  messages: ReadingMessage[]
+}
+
 export interface EditorSettings {
   fontSize: number
 }
