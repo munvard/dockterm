@@ -31,7 +31,8 @@ import type {
   MunuGlobal,
   UsageSnapshot,
   AgentActivity,
-  SessionHistory
+  SessionHistory,
+  ReadingConversation
 } from './types'
 
 export interface UpdateAvailable {
@@ -275,6 +276,13 @@ export interface InvokeChannels {
     leafId: string
     claudeActive: boolean
   }) => Result<SessionHistory>
+  /** Full rendered conversation for a pane's bound session (Reading view). */
+  'reading:get': (req: {
+    cwd: string
+    sample: string[]
+    leafId: string
+    claudeActive: boolean
+  }) => Result<ReadingConversation>
 
   // updates — manual check + snooze/skip + in-app download/install.
   'update:check': (req: void) => Result<{ upToDate: boolean }>
@@ -406,6 +414,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'usage:get',
   'activity:get',
   'session:getHistory',
+  'reading:get',
   'update:check',
   'update:download',
   'update:snooze',

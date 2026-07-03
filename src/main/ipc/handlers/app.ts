@@ -12,7 +12,7 @@ import {
 } from '../../services/updateChecker'
 import { getUsageSnapshot } from '../../services/usageService'
 import { getAgentActivity } from '../../services/agentActivityService'
-import { getSessionHistory } from '../../services/sessionHistoryService'
+import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
 import type { Settings } from '@shared/types'
 import type { Registrar } from '../register'
 
@@ -52,6 +52,17 @@ export function registerAppHandlers(reg: Registrar): void {
       claudeActive: z.boolean()
     }),
     async (req) => ok(await getSessionHistory(req.cwd, req.sample, req.leafId, req.claudeActive))
+  )
+
+  reg(
+    'reading:get',
+    z.object({
+      cwd: z.string().max(4096),
+      sample: z.array(z.string().max(400)).max(80),
+      leafId: z.string().max(128),
+      claudeActive: z.boolean()
+    }),
+    async (req) => ok(await getConversation(req.cwd, req.sample, req.leafId, req.claudeActive))
   )
 
   reg('update:check', z.void(), async () => {
