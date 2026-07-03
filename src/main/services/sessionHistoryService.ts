@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
-import type { SessionHistory } from '@shared/types'
+import { parseConversation } from './readingParse'
+import type { SessionHistory, ReadingConversation } from '@shared/types'
 
 /**
  * Session-history (checkpoint) navigator data. The hard part is binding the rail
@@ -235,6 +236,52 @@ export async function getSessionHistory(
   if (!sess) sess = (await fullLoad(path)) ?? undefined
   else await tailSession(path, sess)
   return sess ? buildHistory(sess.sessionId, nc, sess.recs) : emptyHistory(nc)
+}
+
+const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: '', cwd, messages: [] })
+
+/**
+ * The rendered conversation for the session running in pane `leafId`. Same sticky
+ * binding as getSessionHistory (fingerprint match rebinds; kept while claudeActive;
+ * dropped when Claude is gone and nothing matches), but parses FULL content into
+ * ReadingMessage[] rather than just user prompts. Reads the transcript tail
+ * (capped at MAX_READ_BYTES) fresh each call — the renderer polls, and this stays
+ * cheap because a transcript is a few MB at most for a live session.
+ */
+export async function getConversation(
+  cwd: string,
+  sample: string[],
+  leafId: string,
+  claudeActive: boolean
+): Promise<ReadingConversation> {
+  if (!enabled()) return emptyConversation(cwd)
+  const nc = norm(cwd)
+  const hint = leafBind.get(leafId) ?? null
+  const positive = await bestMatch(nc, sample, hint)
+  if (positive) leafBind.set(leafId, positive)
+  else if (!claudeActive) leafBind.delete(leafId)
+  const path = leafBind.get(leafId)
+  if (!path) return emptyConversation(nc)
+  let size: number
+  try {
+    size = (await stat(path)).size
+  } catch {
+    return emptyConversation(nc)
+  }
+  const start = size > MAX_READ_BYTES ? size - MAX_READ_BYTES : 0
+  let text: string
+  try {
+    text = await readSlice(path, start, size)
+  } catch {
+    return emptyConversation(nc)
+  }
+  if (start > 0) {
+    const nl = text.indexOf('\n')
+    if (nl >= 0) text = text.slice(nl + 1) // drop the partial first line
+  }
+  const messages = parseConversation(text.split('\n'))
+  const sess = byFile.get(path)
+  return { sessionId: sess?.sessionId ?? '', cwd: nc, messages }
 }
 
 // The rail polls getSessionHistory directly, so no background watcher is needed.
