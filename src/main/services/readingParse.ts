@@ -117,6 +117,8 @@ export function parseConversation(lines: string[]): ReadingMessage[] {
     if (o.type === 'user') {
       if (text === lastUserText) continue // compaction replays the same prompt
       lastUserText = text
+    } else {
+      lastUserText = '' // an assistant turn ends the consecutive-user window
     }
     out.push({ id: baseId, role: o.type === 'user' ? 'user' : 'assistant', ts, text })
   }
