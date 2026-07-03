@@ -18,6 +18,16 @@ const SHELLS = new Set([
   'cmd'
 ])
 
+/** True when a pty foreground process name is just an interactive shell (nothing
+ * meaningful is running). Exported so the Reading view / rail can reuse it. */
+export function isShellProcess(raw: string): boolean {
+  const name = raw
+    .replace(/^-/, '')
+    .replace(/\.exe$/i, '')
+    .toLowerCase()
+  return name === '' || SHELLS.has(name)
+}
+
 /** The live foreground process in a pane (e.g. 'node'/'claude'/'vim'), or null
  * when it's just sitting at a shell prompt. Robust against Claude being idle —
  * it reports the running process regardless of on-screen state. */
@@ -27,11 +37,7 @@ async function liveProcess(leafId: string): Promise<string | null> {
   const res = await window.dockterm.invoke('pty:foreground', { sessionId: sid })
   if (!res.ok) return null
   const raw = res.value.process
-  const name = raw
-    .replace(/^-/, '')
-    .replace(/\.exe$/i, '')
-    .toLowerCase()
-  return name && !SHELLS.has(name) ? raw : null
+  return isShellProcess(raw) ? null : raw
 }
 
 /**

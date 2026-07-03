@@ -14,7 +14,8 @@ import type { SessionPrompt } from '@shared/types'
 import { useSessionHistoryStore, normalizeCwd } from '../../state/useSessionHistoryStore'
 import { useAppStore } from '../../state/useAppStore'
 import { useToastStore } from '../../state/useToastStore'
-import { getPaneSample, paneBufferType } from '../terminal/terminalPool'
+import { getPaneSample } from '../terminal/terminalPool'
+import { paneClaudeActive } from '../terminal/paneClaudeActive'
 import { scrollToCheckpoint } from '../terminal/claudeScrollTo'
 import { paneWriters } from '../../state/paneWriters'
 
@@ -60,8 +61,11 @@ export function HistoryRail({
     if (!cwd) return
     const refresh = (): void => {
       const sample = leafId ? getPaneSample(leafId) : []
-      const claudeActive = leafId ? paneBufferType(leafId) === 'alternate' : false
-      void load(cwd, leafId ?? '', sample, claudeActive)
+      if (!leafId) {
+        void load(cwd, '', sample, false)
+        return
+      }
+      void paneClaudeActive(leafId).then((claudeActive) => void load(cwd, leafId, sample, claudeActive))
     }
     refresh()
     const iv = setInterval(refresh, 2500)
