@@ -75,6 +75,12 @@ const preference = {
       floating: z.boolean().default(false)
     })
     .default({}),
+  reading: z
+    .object({
+      /** Show the Reading view as a floating, movable/resizable card vs a side panel. */
+      floating: z.boolean().default(false)
+    })
+    .default({}),
   editor: z.object({ fontSize: z.number().int().min(8).max(40).default(13) }).default({}),
   ui: z
     .object({
@@ -161,6 +167,7 @@ const settingsSchema = z.object({
   usage: preference.usage,
   agentActivity: preference.agentActivity,
   sessionHistory: preference.sessionHistory,
+  reading: preference.reading,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   /** Free-form scratchpad shown in the top-bar notes popover; auto-saved. */
@@ -180,6 +187,7 @@ export const settingsPatchSchema = z.object({
   usage: preference.usage.optional(),
   agentActivity: preference.agentActivity.optional(),
   sessionHistory: preference.sessionHistory.optional(),
+  reading: preference.reading.optional(),
   munu: preference.munu.optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),

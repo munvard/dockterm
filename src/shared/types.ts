@@ -121,6 +121,11 @@ export interface SessionHistorySettings {
   floating: boolean
 }
 
+export interface ReadingSettings {
+  /** Show the Reading view as a floating card vs a docked side panel. */
+  floating: boolean
+}
+
 /** One checkpoint = one user prompt, reconstructed read-only from the transcript. */
 export interface SessionPrompt {
   index: number
@@ -302,6 +307,7 @@ export interface Settings {
   usage: UsageSettings
   agentActivity: AgentActivitySettings
   sessionHistory: SessionHistorySettings
+  reading: ReadingSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

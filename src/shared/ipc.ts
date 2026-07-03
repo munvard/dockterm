@@ -178,6 +178,7 @@ export type SettingsPatch = Partial<
     | 'usage'
     | 'agentActivity'
     | 'sessionHistory'
+    | 'reading'
     | 'munu'
     | 'workspace'
     | 'theme'

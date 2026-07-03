@@ -17,6 +17,7 @@ interface AppState {
   miniTermOpen: boolean
   zen: boolean
   historyOpen: boolean
+  readingOpen: boolean
   paletteOpen: boolean
   busy: boolean
   error: string | null
@@ -34,6 +35,8 @@ interface AppState {
   toggleZen: () => void
   setZen: (v: boolean) => void
   toggleHistory: () => void
+  toggleReading: () => void
+  setReadingOpen: (v: boolean) => void
   setPaletteOpen: (open: boolean) => void
   updatePreferences: (patch: SettingsPatch) => Promise<void>
 }
@@ -50,6 +53,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   miniTermOpen: false,
   zen: false,
   historyOpen: false,
+  readingOpen: false,
   paletteOpen: false,
   busy: false,
   error: null,
@@ -128,6 +132,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleZen: () => set((s) => ({ zen: !s.zen })),
   setZen: (v) => set({ zen: v }),
   toggleHistory: () => set((s) => ({ historyOpen: !s.historyOpen })),
+  toggleReading: () => set((s) => ({ readingOpen: !s.readingOpen })),
+  setReadingOpen: (v) => set({ readingOpen: v }),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
 
   updatePreferences: async (patch) => {
