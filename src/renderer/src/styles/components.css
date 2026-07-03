@@ -4079,6 +4079,7 @@
 
 /* ------------------------------- Reading view ------------------------------ */
 .reading {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -4177,6 +4178,7 @@
   font-size: 11.5px;
   color: var(--text-faint);
 }
+.reading__tool--run .reading__tool-icon { color: var(--accent); }
 .reading__tool--ok .reading__tool-icon { color: var(--success); }
 .reading__tool--fail .reading__tool-icon { color: var(--danger); }
 .reading__jump {
