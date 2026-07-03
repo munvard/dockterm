@@ -14,6 +14,8 @@ import { PaneTree } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
 import { HistoryRail } from '../history/HistoryRail'
 import { HistoryFloating } from '../history/HistoryFloating'
+import { ReadingView } from '../reading/ReadingView'
+import { ReadingFloating } from '../reading/ReadingFloating'
 import { ComposeOverlay } from '../compose/ComposeOverlay'
 import { FilePreviewCard } from '../terminal/FilePreviewCard'
 import { ChangesOverlay } from '../changes/ChangesOverlay'
@@ -37,6 +39,8 @@ export function Shell() {
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const zen = useAppStore((s) => s.zen)
   const historyOpen = useAppStore((s) => s.historyOpen)
+  const readingOpen = useAppStore((s) => s.readingOpen)
+  const readingFloating = useAppStore((s) => s.settings?.reading.floating) ?? false
   const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
   const histSide = useAppStore((s) => s.settings?.sessionHistory.side) ?? 'right'
   const histFloating = useAppStore((s) => s.settings?.sessionHistory.floating) ?? false
@@ -59,6 +63,7 @@ export function Shell() {
   const [editorW, setEditorW] = useState(520)
   const [miniH, setMiniH] = useState(200)
   const [histW, setHistW] = useState(280)
+  const [readingW, setReadingW] = useState(460)
 
   const projectPath = project?.path
   const wsProject = useRef<string | null>(null)
@@ -182,6 +187,7 @@ export function Shell() {
   if (!project) return null
   // Docked side-panel checkpoints; the floating variant is rendered separately.
   const showHist = historyOpen && histEnabled && !histFloating && !zen
+  const showReading = readingOpen && !readingFloating && !zen
   const histRail = (
     <div className="hist-wrap" style={{ width: histW }} key="hist">
       <HistoryRail cwd={focusedCwd} leafId={focusedLeafId ?? null} />
@@ -275,6 +281,18 @@ export function Shell() {
           </div>
           {showHist && histSide === 'right' && histDivider}
           {showHist && histSide === 'right' && histRail}
+          {showReading && (
+            <Divider
+              key="dv-reading"
+              direction="v"
+              onResize={(d) => setReadingW((w) => clamp(w - d, 320, 900))}
+            />
+          )}
+          {showReading && (
+            <div className="reading-wrap" style={{ width: readingW }} key="reading">
+              <ReadingView cwd={focusedCwd} leafId={focusedLeafId ?? null} />
+            </div>
+          )}
           {editorOpen && (
             <Divider
               key="dv-editor"
@@ -319,6 +337,9 @@ export function Shell() {
       {changesEnabled && <ChangesOverlay />}
       {historyOpen && histEnabled && histFloating && (
         <HistoryFloating cwd={focusedCwd} leafId={focusedLeafId ?? null} />
+      )}
+      {readingOpen && readingFloating && !zen && (
+        <ReadingFloating cwd={focusedCwd} leafId={focusedLeafId ?? null} />
       )}
     </div>
   )

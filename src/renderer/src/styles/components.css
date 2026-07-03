@@ -4198,3 +4198,20 @@
   cursor: pointer;
   box-shadow: var(--shadow);
 }
+.reading__head-actions { display: flex; align-items: center; gap: 2px; }
+.reading-wrap { height: 100%; border-left: 1px solid var(--border); }
+.reading-float {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.reading-float .reading { height: 100%; }
+.reading-float .reading__head { cursor: grab; }
+.reading-float .reading__head:active { cursor: grabbing; }

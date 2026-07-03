@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import { SquareTerminal, Maximize2 } from 'lucide-react'
+import { BookOpen, SquareTerminal, Maximize2 } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useAgentStore } from '../../state/useAgentStore'
 import { UsagePill } from '../usage/UsagePill'
@@ -20,6 +20,8 @@ export function TopBarTools() {
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const toggleMini = useAppStore((s) => s.toggleMiniTerm)
   const toggleZen = useAppStore((s) => s.toggleZen)
+  const toggleReading = useAppStore((s) => s.toggleReading)
+  const readingOpen = useAppStore((s) => s.readingOpen)
   const usageEnabled = useAppStore((s) => s.settings?.usage.enabled) ?? true
   // Subscribe to the live agent count so this component re-renders (and its
   // measurement effect below re-runs) the moment the agent pill appears/disappears
@@ -103,6 +105,14 @@ export function TopBarTools() {
         onClick={toggleZen}
       >
         <Maximize2 size={15} />
+      </button>
+      <button
+        className={`iconbtn tip--end${readingOpen ? ' iconbtn--active' : ''}`}
+        data-tip="Reading view"
+        aria-label="Toggle reading view"
+        onClick={toggleReading}
+      >
+        <BookOpen size={15} />
       </button>
       <button
         className={`iconbtn tip--end${miniTermOpen ? ' iconbtn--active' : ''}`}

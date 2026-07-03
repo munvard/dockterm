@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { BookOpen, X, ChevronDown } from 'lucide-react'
+import { BookOpen, X, ChevronDown, PanelRight, PictureInPicture2 } from 'lucide-react'
 import { useReadingStore, normalizeReadingCwd } from '../../state/useReadingStore'
 import { useAppStore } from '../../state/useAppStore'
 import { renderMarkdownPreview } from '../terminal/markdown'
@@ -35,6 +35,12 @@ export function ReadingView({
   const conv = useReadingStore((s) => (cwd ? s.byCwd[normalizeReadingCwd(cwd)] : undefined))
   const load = useReadingStore((s) => s.load)
   const setReadingOpen = useAppStore((s) => s.setReadingOpen)
+  const floating = useAppStore((s) => s.settings?.reading.floating) ?? false
+  const settings = useAppStore((s) => s.settings)
+  const update = useAppStore((s) => s.updatePreferences)
+  const toggleFloat = (): void => {
+    if (settings) void update({ reading: { ...settings.reading, floating: !floating } })
+  }
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
 
@@ -85,13 +91,18 @@ export function ReadingView({
         <span className="reading__title">
           <BookOpen size={13} /> Reading
         </span>
-        <button
-          className="iconbtn iconbtn--sm"
-          title="Hide reading view"
-          onClick={() => setReadingOpen(false)}
-        >
-          <X size={14} />
-        </button>
+        <div className="reading__head-actions">
+          <button
+            className="iconbtn iconbtn--sm"
+            title={floating ? 'Dock to the side' : 'Float (move & resize)'}
+            onClick={toggleFloat}
+          >
+            {floating ? <PanelRight size={14} /> : <PictureInPicture2 size={14} />}
+          </button>
+          <button className="iconbtn iconbtn--sm" title="Hide reading view" onClick={() => setReadingOpen(false)}>
+            <X size={14} />
+          </button>
+        </div>
       </div>
       <div className="reading__body" ref={bodyRef} onScroll={onScroll}>
         {messages.length === 0 ? (
