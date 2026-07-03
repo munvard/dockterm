@@ -1,0 +1,71 @@
+import { describe, it, expect } from 'vitest'
+import { parseConversation, toolSummary } from '../../src/main/services/readingParse'
+
+const rec = (o: unknown): string => JSON.stringify(o)
+
+describe('toolSummary', () => {
+  it('summarizes file + bash + agent tools, falls back to the name', () => {
+    expect(toolSummary('Edit', { file_path: '/a/b/foo.ts' })).toBe('foo.ts')
+    expect(toolSummary('Write', { file_path: 'x/README.md' })).toBe('README.md')
+    expect(toolSummary('Bash', { command: 'npm run build' })).toBe('npm run build')
+    expect(toolSummary('Agent', { description: 'explore repo' })).toBe('explore repo')
+    expect(toolSummary('Glob', {})).toBe('Glob')
+  })
+  it('truncates a long bash command', () => {
+    const long = 'echo ' + 'x'.repeat(200)
+    expect(toolSummary('Bash', { command: long }).length).toBeLessThanOrEqual(80)
+  })
+})
+
+describe('parseConversation', () => {
+  it('extracts user + assistant text messages in order', () => {
+    const out = parseConversation([
+      rec({ type: 'user', uuid: 'u1', timestamp: '2026-01-01T00:00:00Z', message: { content: 'hello' } }),
+      rec({ type: 'assistant', uuid: 'a1', timestamp: '2026-01-01T00:00:01Z', message: { content: [{ type: 'text', text: 'hi there' }] } })
+    ])
+    expect(out.map((m) => [m.role, m.text])).toEqual([
+      ['user', 'hello'],
+      ['assistant', 'hi there']
+    ])
+  })
+
+  it('turns tool_use into a tool row and pairs tool_result to set ok', () => {
+    const out = parseConversation([
+      rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'foo.ts' } }] } }),
+      rec({ type: 'user', uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 't1', is_error: false, content: 'ok' }] } })
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0].role).toBe('tool')
+    expect(out[0].tool).toEqual({ name: 'Edit', summary: 'foo.ts', ok: true })
+  })
+
+  it('marks a failed tool_result', () => {
+    const out = parseConversation([
+      rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'false' } }] } }),
+      rec({ type: 'user', uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 't1', is_error: true, content: 'boom' }] } })
+    ])
+    expect(out[0].tool?.ok).toBe(false)
+  })
+
+  it('drops harness noise and non-user/meta records', () => {
+    const out = parseConversation([
+      rec({ type: 'user', uuid: 'n1', message: { content: '<system-reminder>hidden</system-reminder>' } }),
+      rec({ type: 'user', uuid: 'm1', isMeta: true, message: { content: 'meta' } }),
+      rec({ type: 'user', uuid: 's1', isSidechain: true, message: { content: 'side' } }),
+      rec({ type: 'user', uuid: 'u1', message: { content: 'real question' } })
+    ])
+    expect(out.map((m) => m.text)).toEqual(['real question'])
+  })
+
+  it('collapses consecutive duplicate user prompts (compaction replay)', () => {
+    const out = parseConversation([
+      rec({ type: 'user', uuid: 'u1', message: { content: 'same' } }),
+      rec({ type: 'user', uuid: 'u2', message: { content: 'same' } })
+    ])
+    expect(out).toHaveLength(1)
+  })
+
+  it('ignores blank lines and non-JSON', () => {
+    expect(parseConversation(['', '   ', 'not json'])).toEqual([])
+  })
+})
