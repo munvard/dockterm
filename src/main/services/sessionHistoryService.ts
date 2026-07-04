@@ -248,6 +248,7 @@ const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: ''
  * (capped at MAX_READ_BYTES) fresh each call — the renderer polls, and this stays
  * cheap because a transcript is a few MB at most for a live session.
  */
+// NOTE: re-reads + reparses the transcript tail each call (bounded by MAX_READ_BYTES; the panel polls ~2.5s while open). A future optimization could cache + tailSession like getSessionHistory.
 export async function getConversation(
   cwd: string,
   sample: string[],

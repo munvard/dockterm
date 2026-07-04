@@ -40,7 +40,7 @@ export function Shell() {
   const zen = useAppStore((s) => s.zen)
   const historyOpen = useAppStore((s) => s.historyOpen)
   const readingOpen = useAppStore((s) => s.readingOpen)
-  const readingFloating = useAppStore((s) => s.settings?.reading.floating) ?? false
+  const readingFloating = useAppStore((s) => s.settings?.reading?.floating) ?? false
   const histEnabled = useAppStore((s) => s.settings?.sessionHistory.enabled) ?? true
   const histSide = useAppStore((s) => s.settings?.sessionHistory.side) ?? 'right'
   const histFloating = useAppStore((s) => s.settings?.sessionHistory.floating) ?? false
@@ -335,7 +335,7 @@ export function Shell() {
       {composeEnabled && <ComposeOverlay />}
       {previewsEnabled && <FilePreviewCard />}
       {changesEnabled && <ChangesOverlay />}
-      {historyOpen && histEnabled && histFloating && (
+      {historyOpen && histEnabled && histFloating && !zen && (
         <HistoryFloating cwd={focusedCwd} leafId={focusedLeafId ?? null} />
       )}
       {readingOpen && readingFloating && !zen && (

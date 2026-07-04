@@ -7,6 +7,18 @@ import { getPaneSample } from '../terminal/terminalPool'
 import { paneClaudeActive } from '../terminal/paneClaudeActive'
 import type { ReadingMessage } from '@shared/types'
 
+// Assistant markdown is immutable once written, so sanitize each message once and
+// cache by id — the 2.5s poll re-renders the list but must not re-run marked/DOMPurify.
+const mdCache = new Map<string, string>()
+function renderAssistant(id: string, text: string): string {
+  const hit = mdCache.get(id)
+  if (hit !== undefined) return hit
+  const html = renderMarkdownPreview(text)
+  if (mdCache.size > 2000) mdCache.clear() // bound memory across long/many sessions
+  mdCache.set(id, html)
+  return html
+}
+
 const TOOL_ICON: Record<string, string> = {
   Edit: '✎', Write: '＋', Read: '👁', NotebookEdit: '✎', Bash: '⌘', Agent: '⚇', Task: '⚇'
 }
@@ -122,7 +134,7 @@ export function ReadingView({
               <div className="reading__msg reading__msg--assistant" key={m.id}>
                 <div
                   className="reading__md"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(m.text ?? '') }}
+                  dangerouslySetInnerHTML={{ __html: renderAssistant(m.id, m.text ?? '') }}
                 />
               </div>
             )

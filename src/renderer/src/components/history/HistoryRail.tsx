@@ -59,17 +59,23 @@ export function HistoryRail({
   // terminal away from the bottom doesn't blank the rail.
   useEffect(() => {
     if (!cwd) return
+    let stop = false
     const refresh = (): void => {
       const sample = leafId ? getPaneSample(leafId) : []
       if (!leafId) {
         void load(cwd, '', sample, false)
         return
       }
-      void paneClaudeActive(leafId).then((claudeActive) => void load(cwd, leafId, sample, claudeActive))
+      void paneClaudeActive(leafId).then((claudeActive) => {
+        if (!stop) void load(cwd, leafId, sample, claudeActive)
+      })
     }
     refresh()
     const iv = setInterval(refresh, 2500)
-    return () => clearInterval(iv)
+    return () => {
+      stop = true
+      clearInterval(iv)
+    }
   }, [cwd, leafId, load])
 
   useEffect(() => {
