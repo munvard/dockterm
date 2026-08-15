@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseConversation, toolSummary, sliceCompleteLines } from '../../src/main/services/readingParse'
+import { parseConversation, toolSummary, sliceCompleteLines, parseTailSlice } from '../../src/main/services/readingParse'
 
 const rec = (o: unknown): string => JSON.stringify(o)
 
@@ -103,5 +103,42 @@ describe('sliceCompleteLines', () => {
     const r = sliceCompleteLines('é\n')
     expect(r.lines).toEqual(['é'])
     expect(r.consumed).toBe(3) // 2-byte é + newline
+  })
+})
+
+describe('parseTailSlice', () => {
+  it('start=0, text ends with \\n: end equals the byte length of the text, all lines returned', () => {
+    const text = 'a\nb\n'
+    const r = parseTailSlice(text, 0)
+    expect(r.lines).toEqual(['a', 'b'])
+    expect(r.end).toBe(Buffer.byteLength(text, 'utf8'))
+  })
+
+  it('start=0, text does NOT end with \\n: the trailing partial line is dropped and end is short of the text length (regression: no fabricated byte)', () => {
+    const text = 'a\nb\npart'
+    const r = parseTailSlice(text, 0)
+    expect(r.lines).toEqual(['a', 'b'])
+    expect(r.lines).not.toContain('part')
+    expect(r.end).toBeLessThan(Buffer.byteLength(text, 'utf8'))
+    expect(r.end).toBe(4)
+  })
+
+  it('start>0 with a dropped fragment: end accounts for the fragment bytes too (regression: offset must include the dropped prefix)', () => {
+    // Mirrors the reviewer-reported bug: start=20, a 13-byte dropped fragment,
+    // and 16 bytes of complete lines after it — true end offset is 49, not 36
+    // (36 = start + consumed-of-the-already-trimmed-text, the old broken formula).
+    const fragment = 'PARTIAL_TAIL\n' // 13 bytes
+    expect(Buffer.byteLength(fragment, 'utf8')).toBe(13)
+    const text = fragment + 'abcdefg\nhijklmn\n' // 16 more bytes of complete lines
+    const r = parseTailSlice(text, 20)
+    expect(r.lines).toEqual(['abcdefg', 'hijklmn'])
+    expect(r.end).toBe(49)
+  })
+
+  it('counts multi-byte characters in bytes, not characters, in both the dropped fragment and the body', () => {
+    const text = 'é\nü\n' // dropped fragment 'é\n' = 3 bytes, body 'ü\n' = 3 bytes
+    const r = parseTailSlice(text, 5)
+    expect(r.lines).toEqual(['ü'])
+    expect(r.end).toBe(5 + 3 + 3)
   })
 })

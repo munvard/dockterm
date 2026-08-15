@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
-import { parseConversation, sliceCompleteLines } from './readingParse'
+import { parseConversation, sliceCompleteLines, parseTailSlice } from './readingParse'
 import type { SessionHistory, ReadingConversation, ReadingMessage } from '@shared/types'
 
 /**
@@ -201,11 +201,10 @@ async function tailSession(path: string, sess: Sess): Promise<void> {
   } catch {
     return
   }
-  const lastNl = text.lastIndexOf('\n')
-  if (lastNl < 0) return
-  const complete = text.slice(0, lastNl)
-  sess.offset += Buffer.byteLength(complete, 'utf8') + 1
-  for (const line of complete.split('\n')) {
+  const { lines, consumed } = sliceCompleteLines(text)
+  if (consumed === 0) return
+  sess.offset += consumed
+  for (const line of lines) {
     const r = parseUserPrompt(line)
     if (r) {
       sess.sessionId = r.sessionId || sess.sessionId
@@ -286,12 +285,8 @@ export async function getConversation(
     } catch {
       return emptyConversation(nc)
     }
-    if (start > 0) {
-      const nl = text.indexOf('\n')
-      if (nl >= 0) text = text.slice(nl + 1) // drop the partial first line
-    }
-    const { lines, consumed } = sliceCompleteLines(text.endsWith('\n') ? text : text + '\n')
-    cache = { messages: parseConversation(lines), offset: start + consumed }
+    const { lines, end } = parseTailSlice(text, start)
+    cache = { messages: parseConversation(lines), offset: end }
     convByFile.set(path, cache)
   } else if (size > cache.offset) {
     // Grown → parse only what was appended.
@@ -299,7 +294,7 @@ export async function getConversation(
     try {
       text = await readSlice(path, cache.offset, size)
     } catch {
-      return emptyConversation(nc)
+      return { sessionId: byFile.get(path)?.sessionId ?? '', cwd: nc, messages: cache.messages }
     }
     const { lines, consumed } = sliceCompleteLines(text)
     if (consumed > 0) {

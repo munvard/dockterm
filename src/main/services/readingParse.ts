@@ -136,3 +136,24 @@ export function sliceCompleteLines(text: string): { lines: string[]; consumed: n
   const complete = text.slice(0, lastNl)
   return { lines: complete.split('\n'), consumed: Buffer.byteLength(complete, 'utf8') + 1 }
 }
+
+/**
+ * Parse a slice read from byte `start` of a transcript. A read that began
+ * mid-file opens with a fragment of a record, which is dropped. Returns the
+ * complete records plus the ABSOLUTE file offset where the parsed region ends —
+ * the caller stores that as its resume point, so it must account for the dropped
+ * fragment AND leave any unterminated trailing line unconsumed.
+ */
+export function parseTailSlice(text: string, start: number): { lines: string[]; end: number } {
+  let body = text
+  let dropped = 0
+  if (start > 0) {
+    const nl = body.indexOf('\n')
+    if (nl >= 0) {
+      dropped = Buffer.byteLength(body.slice(0, nl + 1), 'utf8')
+      body = body.slice(nl + 1)
+    }
+  }
+  const { lines, consumed } = sliceCompleteLines(body)
+  return { lines, end: start + dropped + consumed }
+}
