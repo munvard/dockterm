@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Munu } from '@renderer/components/munu/Munu'
+import { isFreeText, pickKeys, submitKeys, textKeys, ESC } from '@renderer/components/terminal/askKeys'
 import type { AgentActivity, MascotCharacter, MunuAsk, MunuGlobal, MunuState, Settings } from '@shared/types'
 import { playAsk, playDone } from './sounds'
 import { MunuPopup } from './MunuPopup'
 import { Swarm } from './Swarm'
 import './overlay.css'
 
-const DOWN = '\x1b[B'
-const UP = '\x1b[A'
-const ENTER = '\r'
-const ESC = '\x1b'
 // How long munu + swarm stay revealed after the agent count changes, then tuck.
 const AGENT_PEEK_MS = 5000
 
@@ -26,16 +23,6 @@ const sendKeys = (leafId: string, keys: string[]): void => {
 const focusTerminal = (): void => {
   void window.dockterm.invoke('munu:focus', undefined)
 }
-
-/** Arrow-key chunks to move Claude's menu cursor from row `from` to row `to`. */
-const arrows = (from: number, to: number): string[] => {
-  const k = to >= from ? DOWN : UP
-  return Array.from({ length: Math.abs(to - from) }, () => k)
-}
-
-/** Rows that open a free-text field ("Type something", "Other", "something else"). */
-const isFreeText = (label: string): boolean =>
-  /^type\b/i.test(label) || /^other$/i.test(label) || /something else$/i.test(label)
 
 function Overlay() {
   const [g, setG] = useState<MunuGlobal>({ state: 'idle', asks: [] })
@@ -219,15 +206,8 @@ function Overlay() {
       setTyping(i)
       return
     }
-    if (primary.multiSelect) {
-      // A non-checkbox action row (e.g. "Chat about this"): one clean sequence.
-      sendKeys(primary.leafId, [...arrows(primary.cursorRow, i), ENTER])
-      focusTerminal()
-    } else if (i < 9) {
-      sendKeys(primary.leafId, [String(i + 1)]) // Claude selects on the number key
-    } else {
-      sendKeys(primary.leafId, [...arrows(primary.cursorRow, i), ENTER])
-    }
+    sendKeys(primary.leafId, pickKeys(primary, i))
+    if (primary.multiSelect) focusTerminal()
   }
 
   // Multi-select: clicks only update the card (instant, race-free). On Submit we
@@ -235,28 +215,14 @@ function Overlay() {
   // changed box top-to-bottom, then Enter on Submit.
   const submitMulti = (): void => {
     if (!primary || primary.submitIndex == null) return
-    const toggles: number[] = []
-    options.forEach((_, i) => {
-      if (primary.checkable[i] && selected.has(i) !== !!primary.checked[i]) toggles.push(i)
-    })
-    let cur = primary.cursorRow
-    const seq: string[] = []
-    for (const t of toggles) {
-      seq.push(...arrows(cur, t), ENTER)
-      cur = t
-    }
-    seq.push(...arrows(cur, primary.submitIndex), ENTER)
-    sendKeys(primary.leafId, seq)
+    sendKeys(primary.leafId, submitKeys(primary, selected))
   }
 
   // Send the typed free-text answer: select that row (entering Claude's text
   // field), type the text, Enter.
   const sendText = (): void => {
     if (!primary || typing == null) return
-    const i = typing
-    const select =
-      !primary.multiSelect && i < 9 ? [String(i + 1)] : [...arrows(primary.cursorRow, i), ENTER]
-    sendKeys(primary.leafId, [...select, draft, ENTER])
+    sendKeys(primary.leafId, textKeys(primary, typing, draft))
     setTyping(null)
     setDraft('')
   }
