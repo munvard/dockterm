@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseConversation, toolSummary } from '../../src/main/services/readingParse'
+import { parseConversation, toolSummary, sliceCompleteLines } from '../../src/main/services/readingParse'
 
 const rec = (o: unknown): string => JSON.stringify(o)
 
@@ -79,5 +79,29 @@ describe('parseConversation', () => {
 
   it('ignores blank lines and non-JSON', () => {
     expect(parseConversation(['', '   ', 'not json'])).toEqual([])
+  })
+})
+
+describe('sliceCompleteLines', () => {
+  it('returns whole lines and the bytes they consumed', () => {
+    const r = sliceCompleteLines('a\nb\n')
+    expect(r.lines).toEqual(['a', 'b'])
+    expect(r.consumed).toBe(4)
+  })
+
+  it('leaves a trailing partial line unconsumed', () => {
+    const r = sliceCompleteLines('a\nb\npart')
+    expect(r.lines).toEqual(['a', 'b'])
+    expect(r.consumed).toBe(4) // 'a\nb\n' only — 'part' waits for the rest
+  })
+
+  it('consumes nothing when there is no complete line yet', () => {
+    expect(sliceCompleteLines('partial')).toEqual({ lines: [], consumed: 0 })
+  })
+
+  it('counts multi-byte characters in bytes, not characters', () => {
+    const r = sliceCompleteLines('é\n')
+    expect(r.lines).toEqual(['é'])
+    expect(r.consumed).toBe(3) // 2-byte é + newline
   })
 })

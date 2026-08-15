@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
-import { parseConversation } from './readingParse'
-import type { SessionHistory, ReadingConversation } from '@shared/types'
+import { parseConversation, sliceCompleteLines } from './readingParse'
+import type { SessionHistory, ReadingConversation, ReadingMessage } from '@shared/types'
 
 /**
  * Session-history (checkpoint) navigator data. The hard part is binding the rail
@@ -32,6 +32,14 @@ interface Sess {
 
 const byFile = new Map<string, Sess>() // transcript path → loaded session (cached)
 const leafBind = new Map<string, string>() // pane leafId → its currently bound transcript
+
+/** Parsed conversations per transcript, grown by reading only appended bytes —
+ * chat mode polls at 700ms, so re-reading the whole tail each time is too costly. */
+interface ConvCache {
+  messages: ReadingMessage[]
+  offset: number
+}
+const convByFile = new Map<string, ConvCache>()
 
 const norm = (p: string): string => p.replace(/[\\/]+$/, '')
 const enabled = (): boolean => getSettings().sessionHistory.enabled
@@ -244,11 +252,9 @@ const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: ''
  * The rendered conversation for the session running in pane `leafId`. Same sticky
  * binding as getSessionHistory (fingerprint match rebinds; kept while claudeActive;
  * dropped when Claude is gone and nothing matches), but parses FULL content into
- * ReadingMessage[] rather than just user prompts. Reads the transcript tail
- * (capped at MAX_READ_BYTES) fresh each call — the renderer polls, and this stays
- * cheap because a transcript is a few MB at most for a live session.
+ * ReadingMessage[] rather than just user prompts. Reads incrementally — a full
+ * parse on first sight, then only appended bytes.
  */
-// NOTE: re-reads + reparses the transcript tail each call (bounded by MAX_READ_BYTES; the panel polls ~2.5s while open). A future optimization could cache + tailSession like getSessionHistory.
 export async function getConversation(
   cwd: string,
   sample: string[],
@@ -269,20 +275,41 @@ export async function getConversation(
   } catch {
     return emptyConversation(nc)
   }
-  const start = size > MAX_READ_BYTES ? size - MAX_READ_BYTES : 0
-  let text: string
-  try {
-    text = await readSlice(path, start, size)
-  } catch {
-    return emptyConversation(nc)
+
+  let cache = convByFile.get(path)
+  // Truncated / rotated (or first sight) → full parse of the capped tail.
+  if (!cache || size < cache.offset) {
+    const start = size > MAX_READ_BYTES ? size - MAX_READ_BYTES : 0
+    let text: string
+    try {
+      text = await readSlice(path, start, size)
+    } catch {
+      return emptyConversation(nc)
+    }
+    if (start > 0) {
+      const nl = text.indexOf('\n')
+      if (nl >= 0) text = text.slice(nl + 1) // drop the partial first line
+    }
+    const { lines, consumed } = sliceCompleteLines(text.endsWith('\n') ? text : text + '\n')
+    cache = { messages: parseConversation(lines), offset: start + consumed }
+    convByFile.set(path, cache)
+  } else if (size > cache.offset) {
+    // Grown → parse only what was appended.
+    let text: string
+    try {
+      text = await readSlice(path, cache.offset, size)
+    } catch {
+      return emptyConversation(nc)
+    }
+    const { lines, consumed } = sliceCompleteLines(text)
+    if (consumed > 0) {
+      cache.messages = cache.messages.concat(parseConversation(lines))
+      cache.offset += consumed
+    }
   }
-  if (start > 0) {
-    const nl = text.indexOf('\n')
-    if (nl >= 0) text = text.slice(nl + 1) // drop the partial first line
-  }
-  const messages = parseConversation(text.split('\n'))
+
   const sess = byFile.get(path)
-  return { sessionId: sess?.sessionId ?? '', cwd: nc, messages }
+  return { sessionId: sess?.sessionId ?? '', cwd: nc, messages: cache.messages }
 }
 
 // The rail polls getSessionHistory directly, so no background watcher is needed.

@@ -124,3 +124,15 @@ export function parseConversation(lines: string[]): ReadingMessage[] {
   }
   return out
 }
+
+/**
+ * Split freshly-appended transcript bytes into complete lines plus the number of
+ * BYTES they occupied, leaving any trailing partial line for the next read (a
+ * transcript is appended to while we read it). Pure + unit-testable.
+ */
+export function sliceCompleteLines(text: string): { lines: string[]; consumed: number } {
+  const lastNl = text.lastIndexOf('\n')
+  if (lastNl < 0) return { lines: [], consumed: 0 }
+  const complete = text.slice(0, lastNl)
+  return { lines: complete.split('\n'), consumed: Buffer.byteLength(complete, 'utf8') + 1 }
+}
