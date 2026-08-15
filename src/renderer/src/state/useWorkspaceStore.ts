@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { PaneViewMode } from '@shared/types'
 import { addTab, removeTab, reorderTabs, renameTab, type WsTab } from './workspace'
 import {
   splitLeaf,
@@ -59,6 +60,8 @@ interface WorkspaceStore {
   paneCwd: Record<string, string>
   /** leafId -> live terminal title (OSC 0/2). Not persisted. */
   paneTitle: Record<string, string>
+  /** Per-pane view mode (runtime only — panes start from settings.chat.defaultMode). */
+  paneView: Record<string, PaneViewMode>
   ready: boolean
 
   init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null, isPrimary: boolean) => void
@@ -84,6 +87,8 @@ interface WorkspaceStore {
   setPaneCwd: (leafId: string, cwd: string) => void
   /** Record a pane's live terminal title (from OSC 0/2). */
   setPaneTitle: (leafId: string, title: string) => void
+  setPaneView: (leafId: string, mode: PaneViewMode) => void
+  togglePaneView: (leafId: string, fallback: PaneViewMode) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
@@ -105,6 +110,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     activity: {},
     paneCwd: {},
     paneTitle: {},
+    paneView: {},
     ready: false,
 
     init: (cwd, restored, isPrimary) => {
@@ -300,6 +306,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     setPaneTitle: (leafId, title) =>
       set((s) =>
         s.paneTitle[leafId] === title ? s : { paneTitle: { ...s.paneTitle, [leafId]: title } }
-      )
+      ),
+
+    setPaneView: (leafId, mode) => set((s) => ({ paneView: { ...s.paneView, [leafId]: mode } })),
+    togglePaneView: (leafId, fallback) =>
+      set((s) => {
+        const cur = s.paneView[leafId] ?? fallback
+        return { paneView: { ...s.paneView, [leafId]: cur === 'chat' ? 'terminal' : 'chat' } }
+      })
   }
 })

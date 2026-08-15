@@ -126,6 +126,13 @@ export interface ReadingSettings {
   floating: boolean
 }
 
+export type PaneViewMode = 'terminal' | 'chat'
+
+export interface ChatSettings {
+  /** What view a pane starts in. Default 'terminal' — chat mode is opt-in. */
+  defaultMode: PaneViewMode
+}
+
 /** One checkpoint = one user prompt, reconstructed read-only from the transcript. */
 export interface SessionPrompt {
   index: number
@@ -308,6 +315,7 @@ export interface Settings {
   agentActivity: AgentActivitySettings
   sessionHistory: SessionHistorySettings
   reading: ReadingSettings
+  chat: ChatSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

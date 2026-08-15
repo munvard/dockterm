@@ -81,6 +81,12 @@ const preference = {
       floating: z.boolean().default(false)
     })
     .default({}),
+  chat: z
+    .object({
+      /** What view a pane starts in. 'terminal' keeps DockTerm terminal-first. */
+      defaultMode: z.enum(['terminal', 'chat']).default('terminal')
+    })
+    .default({}),
   editor: z.object({ fontSize: z.number().int().min(8).max(40).default(13) }).default({}),
   ui: z
     .object({
@@ -168,6 +174,7 @@ const settingsSchema = z.object({
   agentActivity: preference.agentActivity,
   sessionHistory: preference.sessionHistory,
   reading: preference.reading,
+  chat: preference.chat,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   /** Free-form scratchpad shown in the top-bar notes popover; auto-saved. */
@@ -188,6 +195,7 @@ export const settingsPatchSchema = z.object({
   agentActivity: preference.agentActivity.optional(),
   sessionHistory: preference.sessionHistory.optional(),
   reading: preference.reading.optional(),
+  chat: preference.chat.optional(),
   munu: preference.munu.optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),

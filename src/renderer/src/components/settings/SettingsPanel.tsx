@@ -73,6 +73,7 @@ export function SettingsPanel() {
     void update({ agentActivity: { ...s.agentActivity, ...patch } })
   const setClaude = (patch: Partial<Settings['claude']>) =>
     void update({ claude: { ...s.claude, ...patch } })
+  const setChat = (patch: Partial<Settings['chat']>) => void update({ chat: { ...s.chat, ...patch } })
   const comfortPreset = matchPreset({
     lineHeight: s.terminal.lineHeight,
     letterSpacing: s.terminal.letterSpacing,
@@ -121,7 +122,8 @@ export function SettingsPanel() {
       claude: {
         readUserConfig: false,
         paths: { skills: '', commands: '', agents: '', mcpConfig: '' }
-      }
+      },
+      chat: { defaultMode: 'terminal' }
     })
   }
 
@@ -409,6 +411,20 @@ export function SettingsPanel() {
           <div className="settings-note">
             Try a preset, or fine-tune below. Zen mode (<code>⌘.</code> or the top-bar button) hides
             the chrome for a calm reading canvas.
+          </div>
+          <Field label="New terminals open in">
+            <select
+              className="settings-select"
+              value={s.chat.defaultMode}
+              onChange={(e) => setChat({ defaultMode: e.target.value as 'terminal' | 'chat' })}
+            >
+              <option value="terminal">Terminal (classic)</option>
+              <option value="chat">Chat mode (comfortable)</option>
+            </select>
+          </Field>
+          <div className="settings-note">
+            Chat mode renders Claude’s replies as formatted text with a real input box. The
+            terminal keeps running underneath — press <code>⌘R</code> in any pane to switch.
           </div>
         </Section>
 
