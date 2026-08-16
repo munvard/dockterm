@@ -4215,3 +4215,89 @@
 .reading-float .reading { height: 100%; }
 .reading-float .reading__head { cursor: grab; }
 .reading-float .reading__head:active { cursor: grabbing; }
+
+/* --------------------------- Chat mode: ask card -------------------------- */
+.askcard {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 8%, var(--panel));
+}
+.askcard__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.askcard__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.askcard__step.is-done { color: var(--success); }
+.askcard__opts { display: flex; flex-direction: column; gap: 4px; }
+.askcard__opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.askcard__opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+.askcard__opt.is-submit { border-color: var(--accent); font-weight: 600; }
+.askcard__box {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+}
+.askcard__opt.is-on .askcard__box { border-color: var(--accent); color: var(--accent); }
+.askcard__label { min-width: 0; }
+.askcard__desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.askcard__cancel {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.askcard__cancel:hover { color: var(--text); }
+.askcard__type { display: flex; gap: 6px; align-items: center; }
+.askcard__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  outline: none;
+}
+.askcard__input:focus { border-color: var(--accent); }
