@@ -4301,3 +4301,32 @@
   outline: none;
 }
 .askcard__input:focus { border-color: var(--accent); }
+
+/* --------------------------- Chat mode: composer -------------------------- */
+.composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.composer__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  outline: none;
+}
+.composer__input:focus { border-color: var(--accent); }
+.composer__input:disabled { opacity: 0.6; cursor: not-allowed; }
+.composer__input::placeholder { color: var(--text-faint); }
+.composer__actions { display: flex; align-items: center; gap: 4px; padding-bottom: 2px; }
