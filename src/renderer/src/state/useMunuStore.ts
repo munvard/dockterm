@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { aggregate, type MunuState } from './munuAggregate'
 import type { ClaudeState } from '../components/terminal/claudeStatus'
+import { askSig } from '../components/terminal/askKeys'
 import type { AskInfo, MunuAsk, MunuGlobal } from '@shared/types'
 
 interface PaneStatus {
@@ -38,11 +39,6 @@ const SUPPRESS_MS = 2500
 const timers: Record<string, ReturnType<typeof setTimeout>> = {}
 /** leafId -> the signature + time of the prompt munu just answered. */
 const answeredAt: Record<string, { sig: string; at: number }> = {}
-
-/** Content signature of a prompt, to tell a stale menu from a genuinely new one. */
-function askSig(ask: AskInfo | null): string {
-  return ask ? `${ask.title ?? ''}${ask.options.join('')}` : ''
-}
 
 export const useMunuStore = create<MunuStore>((set, get) => ({
   panes: {},

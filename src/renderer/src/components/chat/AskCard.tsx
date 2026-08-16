@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ShieldQuestion, CornerDownLeft } from 'lucide-react'
-import { pickKeys, submitKeys, textKeys, isFreeText, ESC } from '../terminal/askKeys'
+import { pickKeys, submitKeys, textKeys, isFreeText, askSig, ESC } from '../terminal/askKeys'
 import type { AskInfo } from '@shared/types'
 
 /** Send answer keys through the paced writer main already uses for munu, so the
@@ -28,7 +28,7 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
       if (c && ask.checkable[i]) init.add(i)
     })
     setSelected(init)
-  }, [ask.title, ask.options.length])
+  }, [leafId, askSig(ask)])
 
   const choose = (i: number): void => {
     if (isFreeText(ask.options[i] ?? '')) {
@@ -60,6 +60,7 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
             autoFocus
             value={draft}
             placeholder="type your answer…"
+            aria-label={ask.options[typing] ?? 'Your answer'}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -69,10 +70,11 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
                 setDraft('')
               } else if (e.key === 'Escape') {
                 setTyping(null)
+                setDraft('')
               }
             }}
           />
-          <button className="btn btn--primary btn--sm" onClick={() => {
+          <button type="button" className="btn btn--primary btn--sm" onClick={() => {
             sendKeys(leafId, textKeys(ask, typing, draft))
             setTyping(null)
             setDraft('')
@@ -107,8 +109,10 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
           return (
             <button
               key={i}
+              type="button"
               className={`askcard__opt${checkbox && on ? ' is-on' : ''}${submit ? ' is-submit' : ''}`}
               onClick={() => (submit ? sendKeys(leafId, submitKeys(ask, selected)) : choose(i))}
+              {...(checkbox && { role: 'checkbox', 'aria-checked': on })}
             >
               {checkbox && <span className="askcard__box">{on ? '✓' : ''}</span>}
               <span className="askcard__label">
@@ -119,7 +123,7 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
           )
         })}
       </div>
-      <button className="askcard__cancel" onClick={() => sendKeys(leafId, [ESC])}>
+      <button type="button" className="askcard__cancel" onClick={() => sendKeys(leafId, [ESC])}>
         cancel (esc)
       </button>
     </div>

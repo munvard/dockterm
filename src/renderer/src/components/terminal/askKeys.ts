@@ -53,6 +53,17 @@ export function textKeys(ask: AskInfo, index: number, text: string): string[] {
   return [...select, text, ENTER]
 }
 
+/** Content signature of a prompt, to tell a stale menu from a genuinely new one.
+ * Deliberately excludes `cursorRow` and `checked` because those change while
+ * the SAME prompt is live (as Claude re-parses its position), so the signature
+ * stays stable across re-parses and only changes for a genuinely different prompt.
+ * Used by the munu store to suppress stale prompts after answering, and by chat
+ * mode to detect when a prompt has refreshed so local state (selected, typing,
+ * draft) should reset. */
+export function askSig(ask: AskInfo | null): string {
+  return ask ? `${ask.title ?? ''}${ask.options.join('')}` : ''
+}
+
 /** Slash commands that open an interactive picker Claude draws in its own TUI.
  * Chat mode flips back to the terminal after sending one so the user can drive it. */
 const PICKERS = new Set([

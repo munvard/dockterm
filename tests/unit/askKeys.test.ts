@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  arrows, isFreeText, pickKeys, submitKeys, textKeys, opensPicker,
+  arrows, isFreeText, pickKeys, submitKeys, textKeys, opensPicker, askSig,
   DOWN, UP, ENTER
 } from '../../src/renderer/src/components/terminal/askKeys'
 import type { AskInfo } from '../../src/shared/types'
@@ -95,5 +95,37 @@ describe('opensPicker', () => {
     expect(opensPicker('fix the bug in app.ts')).toBe(false)
     expect(opensPicker('/clear')).toBe(false)
     expect(opensPicker('')).toBe(false)
+  })
+})
+
+describe('askSig', () => {
+  it('returns empty string for null', () => {
+    expect(askSig(null)).toBe('')
+  })
+
+  it('is unchanged when only cursorRow changes (live prompt re-parsing)', () => {
+    const base = ask({ title: 'Select files', options: ['File A', 'File B'] })
+    const sig1 = askSig(base)
+    const sig2 = askSig(ask({ title: 'Select files', options: ['File A', 'File B'], cursorRow: 1 }))
+    expect(sig1).toBe(sig2)
+  })
+
+  it('is unchanged when only checked changes (live prompt re-parsing)', () => {
+    const base = ask({ title: 'Select files', options: ['File A', 'File B'], checked: [false, false] })
+    const sig1 = askSig(base)
+    const sig2 = askSig(ask({ title: 'Select files', options: ['File A', 'File B'], checked: [true, false] }))
+    expect(sig1).toBe(sig2)
+  })
+
+  it('changes when the title differs', () => {
+    const sig1 = askSig(ask({ title: 'Select files', options: ['File A', 'File B'] }))
+    const sig2 = askSig(ask({ title: 'Select folders', options: ['File A', 'File B'] }))
+    expect(sig1).not.toBe(sig2)
+  })
+
+  it('changes when options differ while count stays the same (stale-state hazard)', () => {
+    const sig1 = askSig(ask({ title: 'Select files', options: ['FileA.txt', 'FileB.txt'] }))
+    const sig2 = askSig(ask({ title: 'Select files', options: ['FileC.txt', 'FileD.txt'] }))
+    expect(sig1).not.toBe(sig2)
   })
 })
