@@ -4330,3 +4330,99 @@
 .composer__input:disabled { opacity: 0.6; cursor: not-allowed; }
 .composer__input::placeholder { color: var(--text-faint); }
 .composer__actions { display: flex; align-items: center; gap: 4px; padding-bottom: 2px; }
+
+/* ------------------------------ Chat mode: pane --------------------------- */
+.panechat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+.panechat__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.panechat__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.panechat__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 16px 20px;
+  max-width: var(--reading-max, none);
+  margin-inline: auto;
+  width: 100%;
+}
+.panechat__empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.panechat__empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.panechat__working {
+  margin: 10px 0 4px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.panechat__working-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.panechat__tail {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow: hidden;
+}
+.panechat__jump {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--overlay);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
