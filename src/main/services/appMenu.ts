@@ -92,7 +92,10 @@ export function setupAppMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
+        // ⌘R is owned by the renderer (chat-mode toggle, Shell.tsx) — keep the
+        // menu item and its default label/behavior, just stop the menu from
+        // registering the accelerator so the in-app shortcut reaches it.
+        { role: 'reload', accelerator: 'CmdOrCtrl+R', registerAccelerator: false },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
