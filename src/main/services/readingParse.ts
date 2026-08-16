@@ -70,12 +70,37 @@ function textOf(content: string | RawContent[] | undefined): string {
     .join('\n')
 }
 
-export function parseConversation(lines: string[]): ReadingMessage[] {
-  const out: ReadingMessage[] = []
-  const toolIndexById = new Map<string, number>() // tool_use id → index in `out`
-  let lastUserText = ''
-  let synth = 0
+/**
+ * Everything a conversation parse must remember BETWEEN chunks. A transcript is
+ * read incrementally (a full parse on first sight, then only appended bytes), and
+ * a `tool_result` routinely lands in a later chunk than its `tool_use` — so this
+ * state has to survive the chunk boundary or every tool row would stay stuck on
+ * `ok: null`, dedup would miss at the seam, and synthesized ids would restart at
+ * `m0` and collide with an earlier chunk's.
+ */
+export interface ConversationParseState {
+  /** tool_use id → the message object it created (a REFERENCE, so trimming the
+   * conversation array can't invalidate it). */
+  pendingTools: Map<string, ReadingMessage>
+  /** carried across chunks so compaction replays still dedup at a boundary. */
+  lastUserText: string
+  /** monotonic across chunks so synthesized ids never collide. */
+  synth: number
+}
 
+export function newConversationParseState(): ConversationParseState {
+  return { pendingTools: new Map(), lastUserText: '', synth: 0 }
+}
+
+/**
+ * Parse `lines` and APPEND to `messages`, resolving tool results against tools
+ * already present (possibly created by an earlier chunk).
+ */
+export function appendConversation(
+  messages: ReadingMessage[],
+  lines: string[],
+  state: ConversationParseState
+): void {
   for (const line of lines) {
     const s = line.trim()
     if (!s || s[0] !== '{') continue
@@ -91,22 +116,31 @@ export function parseConversation(lines: string[]): ReadingMessage[] {
     const parsedTs = Date.parse(o.timestamp ?? '')
     const ts = Number.isFinite(parsedTs) ? parsedTs : 0
     const content = o.message?.content
-    const baseId = str(o.uuid) || `m${synth++}`
+    const baseId = str(o.uuid) || `m${state.synth++}`
 
     // tool_result blocks: pair to the tool row they complete (don't render as text).
     if (Array.isArray(content)) {
       for (const b of content) {
         if (b && b.type === 'tool_result' && typeof b.tool_use_id === 'string') {
-          const idx = toolIndexById.get(b.tool_use_id)
-          if (idx != null && out[idx].tool) out[idx].tool!.ok = b.is_error ? false : true
+          const msg = state.pendingTools.get(b.tool_use_id)
+          if (msg?.tool) {
+            msg.tool.ok = b.is_error ? false : true
+            state.pendingTools.delete(b.tool_use_id)
+          }
         }
       }
       // tool_use blocks → compact tool rows.
       for (const b of content) {
         if (b && b.type === 'tool_use' && typeof b.name === 'string') {
           const id = str(b.id) || `${baseId}-${b.name}`
-          out.push({ id, role: 'tool', ts, tool: { name: b.name, summary: toolSummary(b.name, b.input), ok: null } })
-          if (b.id) toolIndexById.set(b.id, out.length - 1)
+          const msg: ReadingMessage = {
+            id,
+            role: 'tool',
+            ts,
+            tool: { name: b.name, summary: toolSummary(b.name, b.input), ok: null }
+          }
+          messages.push(msg)
+          if (b.id) state.pendingTools.set(b.id, msg)
         }
       }
     }
@@ -115,13 +149,19 @@ export function parseConversation(lines: string[]): ReadingMessage[] {
     const text = textOf(content).trim()
     if (!text) continue
     if (o.type === 'user') {
-      if (text === lastUserText) continue // compaction replays the same prompt
-      lastUserText = text
+      if (text === state.lastUserText) continue // compaction replays the same prompt
+      state.lastUserText = text
     } else {
-      lastUserText = '' // an assistant turn ends the consecutive-user window
+      state.lastUserText = '' // an assistant turn ends the consecutive-user window
     }
-    out.push({ id: baseId, role: o.type === 'user' ? 'user' : 'assistant', ts, text })
+    messages.push({ id: baseId, role: o.type === 'user' ? 'user' : 'assistant', ts, text })
   }
+}
+
+/** One-shot parse of a complete set of lines (fresh array + fresh state). */
+export function parseConversation(lines: string[]): ReadingMessage[] {
+  const out: ReadingMessage[] = []
+  appendConversation(out, lines, newConversationParseState())
   return out
 }
 

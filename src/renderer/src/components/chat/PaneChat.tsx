@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { SquareTerminal, ChevronDown, Loader2 } from 'lucide-react'
-import { useReadingStore, normalizeReadingCwd } from '../../state/useReadingStore'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import { useReadingStore } from '../../state/useReadingStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { getPaneSample, paneVisibleText } from '../terminal/terminalPool'
@@ -10,6 +10,7 @@ import { AskCard } from './AskCard'
 import { Composer } from './Composer'
 
 const POLL_MS = 700 // chat mode is the primary surface — faster than the side panel
+const IDLE_POLL_MS = 2500 // a chat pane on a BACKGROUND tab: keep fresh, stay cheap
 const TAIL_MS = 300 // local buffer read, no IPC
 const TAIL_LINES = 8
 
@@ -21,13 +22,16 @@ const TAIL_LINES = 8
 export function PaneChat({
   cwd,
   leafId,
+  active,
   onShowTerminal
 }: {
   cwd: string | null
   leafId: string
+  /** Whether this pane's TAB is the active one (background tabs poll slower). */
+  active: boolean
   onShowTerminal: () => void
 }): React.ReactElement {
-  const conv = useReadingStore((s) => (cwd ? s.byCwd[normalizeReadingCwd(cwd)] : undefined))
+  const conv = useReadingStore((s) => s.byLeaf[leafId])
   const load = useReadingStore((s) => s.load)
   const pane = useMunuStore((s) => s.panes[leafId])
   const state = pane?.state ?? 'idle'
@@ -37,31 +41,39 @@ export function PaneChat({
   const [workingSince, setWorkingSince] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [claudeHere, setClaudeHere] = useState(true)
+  const inFlight = useRef(false)
 
   const messages = conv?.messages ?? []
   const { ref: bodyRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
     `${messages.length}:${state === 'asking' && ask ? 1 : 0}:${tail.length}`
   )
 
-  // Poll this pane's conversation.
+  // Poll this pane's conversation. A chat pane stays mounted on inactive tabs, so
+  // it backs off there; the in-flight guard keeps a slow disk from stacking calls.
   useEffect(() => {
     if (!cwd) return
     let stop = false
     const refresh = (): void => {
+      if (inFlight.current) return
+      inFlight.current = true
       const sample = getPaneSample(leafId)
-      void paneClaudeActive(leafId).then((active) => {
-        if (stop) return
-        setClaudeHere(active)
-        void load(cwd, leafId, sample, active)
-      })
+      void paneClaudeActive(leafId)
+        .then((live) => {
+          if (stop) return
+          setClaudeHere(live)
+          return load(cwd, leafId, sample, live)
+        })
+        .finally(() => {
+          inFlight.current = false
+        })
     }
     refresh()
-    const iv = setInterval(refresh, POLL_MS)
+    const iv = setInterval(refresh, active ? POLL_MS : IDLE_POLL_MS)
     return () => {
       stop = true
       clearInterval(iv)
     }
-  }, [cwd, leafId, load])
+  }, [cwd, leafId, load, active])
 
   // Live raw tail of the hidden terminal while Claude works.
   useEffect(() => {
@@ -103,9 +115,8 @@ export function PaneChat({
           {state === 'working' && <Loader2 size={12} className="spin" />}
           {state === 'working' ? `working · ${elapsed}s` : state === 'asking' ? 'needs you' : 'ready'}
         </span>
-        <button className="iconbtn iconbtn--sm" title="Show the terminal (⌘R)" onClick={onShowTerminal}>
-          <SquareTerminal size={14} />
-        </button>
+        {/* No "show the terminal" button here: the floating pane controls sit on top
+            of this corner (z-index 6) and already offer that toggle, as does ⌘R. */}
       </div>
 
       <div className="panechat__body" ref={bodyRef} onScroll={onScroll}>
@@ -146,7 +157,14 @@ export function PaneChat({
         </button>
       )}
 
-      <Composer leafId={leafId} disabled={state === 'asking'} onSentPicker={onShowTerminal} />
+      {/* Gate on `claudeHere`: without it a prompt is written straight to the shell,
+          where backticks / $() / ; / a leading `git` would EXECUTE in the project. */}
+      <Composer
+        leafId={leafId}
+        disabled={state === 'asking' || !claudeHere}
+        noClaude={!claudeHere}
+        onSentPicker={onShowTerminal}
+      />
     </div>
   )
 }

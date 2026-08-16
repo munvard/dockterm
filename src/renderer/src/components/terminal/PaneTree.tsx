@@ -23,10 +23,23 @@ import { confirmCloseLeaves } from './closeGuard'
 import { toRelProjectPath } from './projectPath'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
+import { focusPaneTerminal } from './terminalPool'
 import { PaneChat } from '../chat/PaneChat'
 
 function sameSizes(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5)
+}
+
+/** Leaving chat mode must hand the keyboard back: the terminal host is still
+ * `display:none` this tick, and TerminalView's focus effect keys off `active`
+ * (unchanged), so focus after the next paint. */
+export function refocusIfTerminal(leafId: string): void {
+  requestAnimationFrame(() => {
+    const fallback = useAppStore.getState().settings?.chat.defaultMode ?? 'terminal'
+    if ((useWorkspaceStore.getState().paneView[leafId] ?? fallback) !== 'chat') {
+      focusPaneTerminal(leafId)
+    }
+  })
 }
 
 /** Double-quote a path when it contains whitespace (works on Windows + POSIX). */
@@ -38,12 +51,15 @@ function TerminalPane({
   leaf,
   tabId,
   focused,
+  tabActive,
   canClose,
   hideBar
 }: {
   leaf: LeafNode
   tabId: string
   focused: boolean
+  /** Whether this pane's tab is the active one (chat mode backs off when not). */
+  tabActive: boolean
   canClose: boolean
   /** Single-pane tab: skip the per-pane title bar (the tab already names it). */
   hideBar: boolean
@@ -217,6 +233,7 @@ function TerminalPane({
           onMouseDown={act(() => {
             focusPane(tabId, leaf.id)
             useWorkspaceStore.getState().togglePaneView(leaf.id, defaultMode)
+            refocusIfTerminal(leaf.id)
           })}
         >
           {chatOn ? <SquareTerminal size={14} /> : <MessagesSquare size={14} />}
@@ -286,10 +303,16 @@ function TerminalPane({
             key={leaf.id}
             cwd={paneCwdValue}
             leafId={leaf.id}
-            onShowTerminal={() => useWorkspaceStore.getState().setPaneView(leaf.id, 'terminal')}
+            active={tabActive}
+            onShowTerminal={() => {
+              useWorkspaceStore.getState().setPaneView(leaf.id, 'terminal')
+              refocusIfTerminal(leaf.id)
+            }}
           />
         )}
-        {focused && (t?.composeOverlay ?? true) && (
+        {/* The floating ✎ would land right on the Composer's Send button, and chat
+            mode already has its own ⌘⇧⏎ maximize control — so terminal only. */}
+        {!chatOn && focused && (t?.composeOverlay ?? true) && (
           <button
             className="pane__compose"
             title="Compose a long prompt (⌘⇧⏎)"
@@ -326,6 +349,7 @@ export function PaneTree({
         leaf={node}
         tabId={tabId}
         focused={tabActive && node.id === focusedLeafId}
+        tabActive={tabActive}
         canClose={canClose}
         hideBar={depth === 0}
       />

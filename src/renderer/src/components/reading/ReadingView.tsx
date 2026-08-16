@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BookOpen, X, ChevronDown, PanelRight, PictureInPicture2 } from 'lucide-react'
-import { useReadingStore, normalizeReadingCwd } from '../../state/useReadingStore'
+import { useReadingStore } from '../../state/useReadingStore'
 import { useAppStore } from '../../state/useAppStore'
 import { getPaneSample } from '../terminal/terminalPool'
 import { paneClaudeActive } from '../terminal/paneClaudeActive'
@@ -15,7 +15,9 @@ export function ReadingView({
   leafId: string | null
   onHeaderMouseDown?: (e: React.MouseEvent) => void
 }): React.ReactElement {
-  const conv = useReadingStore((s) => (cwd ? s.byCwd[normalizeReadingCwd(cwd)] : undefined))
+  // Per-LEAF, matching how main binds transcripts. With no focused leaf we load
+  // (and select) the '' key, which is always empty → the empty state renders.
+  const conv = useReadingStore((s) => s.byLeaf[leafId ?? ''])
   const load = useReadingStore((s) => s.load)
   const setReadingOpen = useAppStore((s) => s.setReadingOpen)
   const floating = useAppStore((s) => s.settings?.reading.floating) ?? false

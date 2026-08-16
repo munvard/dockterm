@@ -123,7 +123,8 @@ export function SettingsPanel() {
         readUserConfig: false,
         paths: { skills: '', commands: '', agents: '', mcpConfig: '' }
       },
-      chat: { defaultMode: 'terminal' }
+      chat: { defaultMode: 'terminal' },
+      reading: { floating: false }
     })
   }
 

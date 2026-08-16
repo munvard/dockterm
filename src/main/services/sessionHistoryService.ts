@@ -3,7 +3,13 @@ import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
-import { parseConversation, sliceCompleteLines, parseTailSlice } from './readingParse'
+import {
+  appendConversation,
+  newConversationParseState,
+  sliceCompleteLines,
+  parseTailSlice,
+  type ConversationParseState
+} from './readingParse'
 import type { SessionHistory, ReadingConversation, ReadingMessage } from '@shared/types'
 
 /**
@@ -21,6 +27,7 @@ const TAIL_BYTES = 512 * 1024 // how much of each transcript's tail to fingerpri
 const MAX_PROMPTS = 5000
 const MAX_READ_BYTES = 64 * 1024 * 1024
 const MIN_HITS = 2 // sample lines that must appear for a confident session match
+const MAX_CONV_MESSAGES = 2000 // bound a cached conversation (trimmed from the front)
 
 interface Sess {
   sessionId: string
@@ -34,12 +41,25 @@ const byFile = new Map<string, Sess>() // transcript path → loaded session (ca
 const leafBind = new Map<string, string>() // pane leafId → its currently bound transcript
 
 /** Parsed conversations per transcript, grown by reading only appended bytes —
- * chat mode polls at 700ms, so re-reading the whole tail each time is too costly. */
+ * chat mode polls at 700ms, so re-reading the whole tail each time is too costly.
+ * `state` carries the parse across chunk boundaries (tool pairing, dedup, ids). */
 interface ConvCache {
   messages: ReadingMessage[]
   offset: number
+  state: ConversationParseState
 }
 const convByFile = new Map<string, ConvCache>()
+
+/** Bound a long-running conversation: drop the OLDEST messages, then forget any
+ * pending tool whose row is no longer retained (its result can never render). */
+function trimConversation(cache: ConvCache): void {
+  if (cache.messages.length <= MAX_CONV_MESSAGES) return
+  cache.messages.splice(0, cache.messages.length - MAX_CONV_MESSAGES)
+  const live = new Set<ReadingMessage>(cache.messages)
+  for (const [id, msg] of cache.state.pendingTools) {
+    if (!live.has(msg)) cache.state.pendingTools.delete(id)
+  }
+}
 
 const norm = (p: string): string => p.replace(/[\\/]+$/, '')
 const enabled = (): boolean => getSettings().sessionHistory.enabled
@@ -253,6 +273,10 @@ const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: ''
  * dropped when Claude is gone and nothing matches), but parses FULL content into
  * ReadingMessage[] rather than just user prompts. Reads incrementally — a full
  * parse on first sight, then only appended bytes.
+ *
+ * NOTE: deliberately NOT gated on `enabled()`. That setting is "show the
+ * checkpoints rail"; the Reading panel and chat mode are separate surfaces and
+ * must not go silently blank when the rail is turned off.
  */
 export async function getConversation(
   cwd: string,
@@ -260,7 +284,6 @@ export async function getConversation(
   leafId: string,
   claudeActive: boolean
 ): Promise<ReadingConversation> {
-  if (!enabled()) return emptyConversation(cwd)
   const nc = norm(cwd)
   const hint = leafBind.get(leafId) ?? null
   const positive = await bestMatch(nc, sample, hint)
@@ -268,11 +291,17 @@ export async function getConversation(
   else if (!claudeActive) leafBind.delete(leafId)
   const path = leafBind.get(leafId)
   if (!path) return emptyConversation(nc)
+  // A transient stat/read failure must NOT blank a live conversation (it would
+  // flash chat mode's "isn't running Claude" empty state) — fall back to cache.
+  const cached = (): ReadingConversation | null => {
+    const c = convByFile.get(path)
+    return c ? { sessionId: byFile.get(path)?.sessionId ?? '', cwd: nc, messages: c.messages } : null
+  }
   let size: number
   try {
     size = (await stat(path)).size
   } catch {
-    return emptyConversation(nc)
+    return cached() ?? emptyConversation(nc)
   }
 
   let cache = convByFile.get(path)
@@ -283,13 +312,16 @@ export async function getConversation(
     try {
       text = await readSlice(path, start, size)
     } catch {
-      return emptyConversation(nc)
+      return cached() ?? emptyConversation(nc)
     }
     const { lines, end } = parseTailSlice(text, start)
-    cache = { messages: parseConversation(lines), offset: end }
+    cache = { messages: [], offset: end, state: newConversationParseState() }
+    appendConversation(cache.messages, lines, cache.state)
+    trimConversation(cache)
     convByFile.set(path, cache)
   } else if (size > cache.offset) {
-    // Grown → parse only what was appended.
+    // Grown → parse only what was appended, carrying the parse state forward so a
+    // tool_result here still resolves the tool_use from an earlier chunk.
     let text: string
     try {
       text = await readSlice(path, cache.offset, size)
@@ -298,7 +330,8 @@ export async function getConversation(
     }
     const { lines, consumed } = sliceCompleteLines(text)
     if (consumed > 0) {
-      cache.messages = cache.messages.concat(parseConversation(lines))
+      appendConversation(cache.messages, lines, cache.state)
+      trimConversation(cache)
       cache.offset += consumed
     }
   }

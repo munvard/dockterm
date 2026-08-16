@@ -4,12 +4,22 @@ import type { ReadingMessage } from '@shared/types'
 
 // Assistant markdown is immutable once written, so sanitize each message once and
 // cache by id — polling re-renders the list but must not re-run marked/DOMPurify.
+const MD_CACHE_MAX = 2000
 const mdCache = new Map<string, string>()
 function renderAssistant(id: string, text: string): string {
   const hit = mdCache.get(id)
   if (hit !== undefined) return hit
   const html = renderMarkdownPreview(text)
-  if (mdCache.size > 2000) mdCache.clear() // bound memory across long/many sessions
+  // Evict the OLDEST half (a Map iterates in insertion order) rather than clearing:
+  // a real session exceeds the cap, and clearing would make every subsequent render
+  // re-run marked + DOMPurify over the whole visible conversation on each poll.
+  if (mdCache.size >= MD_CACHE_MAX) {
+    let drop = Math.floor(mdCache.size / 2)
+    for (const k of mdCache.keys()) {
+      if (drop-- <= 0) break
+      mdCache.delete(k)
+    }
+  }
   mdCache.set(id, html)
   return html
 }

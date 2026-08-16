@@ -10,7 +10,7 @@ import { TopBar } from './TopBar'
 import { Dock } from './Dock'
 import { Divider } from './Divider'
 import { TabStrip } from '../terminal/TabStrip'
-import { PaneTree } from '../terminal/PaneTree'
+import { PaneTree, refocusIfTerminal } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
 import { HistoryRail } from '../history/HistoryRail'
 import { HistoryFloating } from '../history/HistoryFloating'
@@ -150,7 +150,10 @@ export function Shell() {
         const tab = ws.tabs.find((tb) => tb.id === ws.activeId)
         const leafId = tab?.focusedLeafId
         const fallback = useAppStore.getState().settings?.chat.defaultMode ?? 'terminal'
-        if (leafId) ws.togglePaneView(leafId, fallback)
+        if (leafId) {
+          ws.togglePaneView(leafId, fallback)
+          refocusIfTerminal(leafId) // back to the terminal → give it the keyboard
+        }
       } else if (e.key >= '1' && e.key <= '9') {
         const tab = ws.tabs[Number(e.key) - 1]
         if (tab) {

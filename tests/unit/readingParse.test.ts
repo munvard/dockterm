@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { parseConversation, toolSummary, sliceCompleteLines, parseTailSlice } from '../../src/main/services/readingParse'
+import {
+  parseConversation,
+  appendConversation,
+  newConversationParseState,
+  toolSummary,
+  sliceCompleteLines,
+  parseTailSlice
+} from '../../src/main/services/readingParse'
+import type { ReadingMessage } from '../../src/shared/types'
 
 const rec = (o: unknown): string => JSON.stringify(o)
 
@@ -79,6 +87,83 @@ describe('parseConversation', () => {
 
   it('ignores blank lines and non-JSON', () => {
     expect(parseConversation(['', '   ', 'not json'])).toEqual([])
+  })
+})
+
+// The service parses a transcript INCREMENTALLY (first-sight tail, then appended
+// bytes), so the parse state has to survive a chunk boundary.
+describe('appendConversation (incremental / cross-chunk)', () => {
+  it('resolves a tool_result that arrives in a LATER chunk than its tool_use', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    appendConversation(
+      msgs,
+      [rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'foo.ts' } }] } })],
+      st
+    )
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].tool?.ok).toBe(null) // still running after chunk 1
+
+    appendConversation(
+      msgs,
+      [rec({ type: 'user', uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 't1', is_error: false, content: 'ok' }] } })],
+      st
+    )
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].tool?.ok).toBe(true)
+  })
+
+  it('resolves a FAILED tool_result across a chunk boundary', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    appendConversation(msgs, [rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'tool_use', id: 't9', name: 'Bash', input: { command: 'false' } }] } })], st)
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u9', message: { content: [{ type: 'tool_result', tool_use_id: 't9', is_error: true }] } })], st)
+    expect(msgs[0].tool?.ok).toBe(false)
+  })
+
+  it('keeps the tool row resolvable even after the array is trimmed from the front (references, not indices)', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    appendConversation(msgs, [
+      rec({ type: 'user', uuid: 'old1', message: { content: 'ancient' } }),
+      rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'x.ts' } }] } })
+    ], st)
+    msgs.splice(0, 1) // simulate the service's front-trim; the tool row moves to index 0
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u2', message: { content: [{ type: 'tool_result', tool_use_id: 't1' }] } })], st)
+    expect(msgs.find((m) => m.role === 'tool')?.tool?.ok).toBe(true)
+  })
+
+  it('does not collide synthesized ids across chunks', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    // No uuid → the id is synthesized. A per-chunk counter would emit 'm0' twice.
+    appendConversation(msgs, [rec({ type: 'user', message: { content: 'first' } })], st)
+    appendConversation(msgs, [rec({ type: 'user', message: { content: 'second' } })], st)
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0].id).not.toBe(msgs[1].id)
+    expect(new Set(msgs.map((m) => m.id)).size).toBe(msgs.length)
+  })
+
+  it('dedups a compaction-replayed user prompt ACROSS a chunk boundary', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u1', message: { content: 'same' } })], st)
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u2', message: { content: 'same' } })], st)
+    expect(msgs).toHaveLength(1)
+  })
+
+  it('still keeps a repeated prompt when an assistant turn separates the chunks', () => {
+    const msgs: ReadingMessage[] = []
+    const st = newConversationParseState()
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u1', message: { content: 'same' } })], st)
+    appendConversation(msgs, [rec({ type: 'assistant', uuid: 'a1', message: { content: [{ type: 'text', text: 'reply' }] } })], st)
+    appendConversation(msgs, [rec({ type: 'user', uuid: 'u2', message: { content: 'same' } })], st)
+    expect(msgs.filter((m) => m.role === 'user')).toHaveLength(2)
+  })
+
+  it('parseConversation is the fresh-state wrapper: two calls never share state', () => {
+    const line = rec({ type: 'user', message: { content: 'x' } })
+    expect(parseConversation([line])[0].id).toBe(parseConversation([line])[0].id)
   })
 })
 

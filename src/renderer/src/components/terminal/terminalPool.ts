@@ -60,6 +60,13 @@ export function scrollPaneToText(leafId: string, text: string): boolean {
   return pool.get(leafId)?.scrollToText(text) ?? false
 }
 
+/** Put the keyboard back in a pane's terminal. Leaving chat mode doesn't change
+ * `active` (the pane was focused all along), so TerminalView's focus effect never
+ * re-runs — the caller nudges it here instead. No-op for an unpooled leaf. */
+export function focusPaneTerminal(leafId: string): void {
+  pool.get(leafId)?.focus()
+}
+
 /** Which screen buffer a pane is on. Claude Code's fullscreen TUI renders on the
  * `alternate` buffer (like vim/less) — there's no xterm scrollback to seek, and it
  * owns scrolling itself. A shell (or Claude's classic renderer) is on `normal`,

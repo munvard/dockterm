@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CornerDownLeft, Maximize2, Square } from 'lucide-react'
 import { paneWriters } from '../../state/paneWriters'
 import { useComposeStore } from '../../state/useComposeStore'
@@ -13,14 +13,24 @@ import { opensPicker, ESC } from '../terminal/askKeys'
 export function Composer({
   leafId,
   disabled,
+  noClaude = false,
   onSentPicker
 }: {
   leafId: string
   disabled: boolean
+  /** Claude isn't running in this pane — the pty would run the text as a SHELL
+   * command, so input is off and the placeholder says so. */
+  noClaude?: boolean
   onSentPicker: () => void
 }): React.ReactElement {
   const [text, setText] = useState('')
   const taRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // Chat mode mounts this fresh every time it opens, so mount-focus is exactly
+  // "⌘R put the caret somewhere useful".
+  useEffect(() => {
+    taRef.current?.focus()
+  }, [])
 
   const send = (): void => {
     const body = text.trim()
@@ -40,7 +50,13 @@ export function Composer({
         rows={2}
         spellCheck={false}
         disabled={disabled}
-        placeholder={disabled ? 'Answer Claude above to continue…' : 'Message Claude…  ⏎ send · ⇧⏎ newline'}
+        placeholder={
+          noClaude
+            ? 'Claude isn’t running in this terminal — press ⌘R to use the terminal'
+            : disabled
+              ? 'Answer Claude above to continue…'
+              : 'Message Claude…  ⏎ send · ⇧⏎ newline'
+        }
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
