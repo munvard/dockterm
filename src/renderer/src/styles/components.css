@@ -4426,3 +4426,7 @@
   cursor: pointer;
   box-shadow: var(--shadow);
 }
+.panechat__status .spin,
+.panechat__working-head .spin {
+  animation: dt-spin 0.8s linear infinite;
+}

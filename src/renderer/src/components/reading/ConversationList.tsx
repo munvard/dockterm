@@ -32,7 +32,7 @@ function ToolRow({ m }: { m: ReadingMessage }): React.ReactElement {
 
 /** Keep a scroll container pinned to the newest content while the user is at the
  * bottom; report when they've scrolled away so a "jump to latest" can appear. */
-export function useStickyScroll(depKey: number): {
+export function useStickyScroll(depKey: unknown): {
   ref: React.RefObject<HTMLDivElement | null>
   atBottom: boolean
   onScroll: () => void

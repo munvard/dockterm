@@ -39,7 +39,9 @@ export function PaneChat({
   const [claudeHere, setClaudeHere] = useState(true)
 
   const messages = conv?.messages ?? []
-  const { ref: bodyRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(messages.length)
+  const { ref: bodyRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
+    `${messages.length}:${state === 'asking' && ask ? 1 : 0}:${tail.length}`
+  )
 
   // Poll this pane's conversation.
   useEffect(() => {
@@ -66,9 +68,11 @@ export function PaneChat({
     if (state !== 'working') {
       setTail([])
       setWorkingSince(null)
+      setElapsed(0)
       return
     }
     setWorkingSince((cur) => cur ?? Date.now())
+    setElapsed(0)
     const tick = (): void => {
       const lines = paneVisibleText(leafId)
         .split('\n')
@@ -84,7 +88,9 @@ export function PaneChat({
   // Elapsed counter for the working strip.
   useEffect(() => {
     if (workingSince === null) return
-    const iv = setInterval(() => setElapsed(Math.round((Date.now() - workingSince) / 1000)), 500)
+    const tick = (): void => setElapsed(Math.round((Date.now() - workingSince) / 1000))
+    tick()
+    const iv = setInterval(tick, 500)
     return () => clearInterval(iv)
   }, [workingSince])
 
