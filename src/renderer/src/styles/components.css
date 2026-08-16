@@ -682,6 +682,7 @@
   min-height: 0;
   position: relative;
 }
+.pane__termhost { height: 100%; width: 100%; }
 /* Compose launcher floating by the chat — a quiet affordance at the focused
    pane's bottom-right that brightens on hover. */
 .pane__compose {

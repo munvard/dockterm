@@ -177,12 +177,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         delete activity[tabId]
         const paneCwd = { ...s.paneCwd }
         const paneTitle = { ...s.paneTitle }
+        const paneView = { ...s.paneView }
         if (closing)
           for (const l of allLeaves(closing.layout)) {
             delete paneCwd[l.id]
             delete paneTitle[l.id]
+            delete paneView[l.id]
           }
-        return { activity, paneCwd, paneTitle }
+        return { activity, paneCwd, paneTitle, paneView }
       })
     },
 
@@ -233,9 +235,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       set((s) => {
         const paneCwd = { ...s.paneCwd }
         const paneTitle = { ...s.paneTitle }
+        const paneView = { ...s.paneView }
         delete paneCwd[closingLeafId]
         delete paneTitle[closingLeafId]
-        return { paneCwd, paneTitle }
+        delete paneView[closingLeafId]
+        return { paneCwd, paneTitle, paneView }
       })
     },
 

@@ -144,6 +144,13 @@ export function Shell() {
         e.preventDefault()
         e.stopPropagation()
         useAppStore.getState().toggleZen()
+      } else if (e.key === 'r') {
+        e.preventDefault()
+        e.stopPropagation()
+        const tab = ws.tabs.find((tb) => tb.id === ws.activeId)
+        const leafId = tab?.focusedLeafId
+        const fallback = useAppStore.getState().settings?.chat.defaultMode ?? 'terminal'
+        if (leafId) ws.togglePaneView(leafId, fallback)
       } else if (e.key >= '1' && e.key <= '9') {
         const tab = ws.tabs[Number(e.key) - 1]
         if (tab) {

@@ -7,7 +7,9 @@ import {
   Milestone,
   X,
   PenLine,
-  GitCompareArrows
+  GitCompareArrows,
+  MessagesSquare,
+  SquareTerminal
 } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
@@ -21,6 +23,7 @@ import { confirmCloseLeaves } from './closeGuard'
 import { toRelProjectPath } from './projectPath'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
+import { PaneChat } from '../chat/PaneChat'
 
 function sameSizes(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5)
@@ -55,6 +58,10 @@ function TerminalPane({
   const markActivity = useWorkspaceStore((s) => s.markActivity)
   const swapLeaves = useWorkspaceStore((s) => s.swapLeaves)
   const paneTitle = useWorkspaceStore((s) => s.paneTitle[leaf.id])
+  const defaultMode = useAppStore((s) => s.settings?.chat.defaultMode) ?? 'terminal'
+  const paneMode = useWorkspaceStore((s) => s.paneView[leaf.id]) ?? defaultMode
+  const chatOn = paneMode === 'chat'
+  const paneCwdValue = useWorkspaceStore((s) => s.paneCwd[leaf.id]) ?? leaf.cwd
   const pasteRef = useRef<(text: string) => void>(() => {})
   const [dragOver, setDragOver] = useState(false)
   const [reorderOver, setReorderOver] = useState(false)
@@ -203,6 +210,17 @@ function TerminalPane({
             <GitCompareArrows size={14} />
           </button>
         )}
+        <button
+          title={chatOn ? 'Show the terminal (⌘R)' : 'Chat mode — comfortable reading (⌘R)'}
+          aria-label="Toggle chat mode"
+          className={chatOn ? 'pane__active' : undefined}
+          onMouseDown={act(() => {
+            focusPane(tabId, leaf.id)
+            useWorkspaceStore.getState().togglePaneView(leaf.id, defaultMode)
+          })}
+        >
+          {chatOn ? <SquareTerminal size={14} /> : <MessagesSquare size={14} />}
+        </button>
         <button title="Split right" onMouseDown={act(() => split('row'))}>
           <SplitSquareHorizontal size={14} />
         </button>
@@ -225,42 +243,52 @@ function TerminalPane({
         )}
       </div>
       <div className="pane__term">
-        <TerminalView
-          key={`${leaf.id}:${leaf.cwd}`}
-          id={leaf.id}
-          persist
-          kind="main"
-          cwd={leaf.cwd}
-          active={focused}
-          onPasteReady={(p) => {
-            pasteRef.current = p
-            paneWriters.register(leaf.id, p)
-          }}
-          onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
-          onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
-          onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
-          onOpenPath={(raw, line) => {
-            // Resolve a path clicked in output to a project-relative path and open it.
-            const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
-            if (!p) return
-            void useEditorStore.getState().open(p, p.split('/').pop() ?? p, line ?? undefined)
-          }}
-          onHoverPath={(raw, _line, x, y) => {
-            if (!(useAppStore.getState().settings?.terminal.filePreviews ?? true)) return
-            const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
-            if (p) useFilePreviewStore.getState().requestShow(p, x, y)
-          }}
-          onLeavePath={() => useFilePreviewStore.getState().scheduleHide()}
-          onActivity={() => markActivity(tabId)}
-          fontFamily={t?.fontFamily ?? undefined}
-          fontSize={t?.fontSize}
-          cursorStyle={t?.cursorStyle}
-          cursorBlink={t?.cursorBlink}
-          scrollback={t?.scrollback}
-          renderer={t?.renderer}
-          lineHeight={t?.lineHeight}
-          letterSpacing={t?.letterSpacing}
-        />
+        <div className="pane__termhost" style={{ display: chatOn ? 'none' : 'block' }}>
+          <TerminalView
+            key={`${leaf.id}:${leaf.cwd}`}
+            id={leaf.id}
+            persist
+            kind="main"
+            cwd={leaf.cwd}
+            active={focused}
+            onPasteReady={(p) => {
+              pasteRef.current = p
+              paneWriters.register(leaf.id, p)
+            }}
+            onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
+            onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
+            onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
+            onOpenPath={(raw, line) => {
+              // Resolve a path clicked in output to a project-relative path and open it.
+              const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
+              if (!p) return
+              void useEditorStore.getState().open(p, p.split('/').pop() ?? p, line ?? undefined)
+            }}
+            onHoverPath={(raw, _line, x, y) => {
+              if (!(useAppStore.getState().settings?.terminal.filePreviews ?? true)) return
+              const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
+              if (p) useFilePreviewStore.getState().requestShow(p, x, y)
+            }}
+            onLeavePath={() => useFilePreviewStore.getState().scheduleHide()}
+            onActivity={() => markActivity(tabId)}
+            fontFamily={t?.fontFamily ?? undefined}
+            fontSize={t?.fontSize}
+            cursorStyle={t?.cursorStyle}
+            cursorBlink={t?.cursorBlink}
+            scrollback={t?.scrollback}
+            renderer={t?.renderer}
+            lineHeight={t?.lineHeight}
+            letterSpacing={t?.letterSpacing}
+          />
+        </div>
+        {chatOn && (
+          <PaneChat
+            key={leaf.id}
+            cwd={paneCwdValue}
+            leafId={leaf.id}
+            onShowTerminal={() => useWorkspaceStore.getState().setPaneView(leaf.id, 'terminal')}
+          />
+        )}
         {focused && (t?.composeOverlay ?? true) && (
           <button
             className="pane__compose"
