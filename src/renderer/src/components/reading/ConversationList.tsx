@@ -1,6 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { renderMarkdownPreview } from '../terminal/markdown'
+import { conversationDepKey } from './conversationDepKey'
 import type { ReadingMessage } from '@shared/types'
+
+export { conversationDepKey }
 
 // Assistant markdown is immutable once written, so sanitize each message once and
 // cache by id — polling re-renders the list but must not re-run marked/DOMPurify.
@@ -40,22 +43,57 @@ function ToolRow({ m }: { m: ReadingMessage }): React.ReactElement {
   )
 }
 
+/** Rendered markdown can contain <a href> from the transcript's own prose — open
+ * those in the OS browser instead of doing nothing (Electron's renderer has no
+ * navigable window.open target) or navigating the app itself away from itself.
+ * One delegated listener on the list covers every message, including ones added
+ * after the cache above already rendered their HTML. */
+function onConversationClick(e: React.MouseEvent<HTMLDivElement>): void {
+  const a = (e.target as HTMLElement).closest('a[href]')
+  if (!a) return
+  const href = a.getAttribute('href') ?? ''
+  if (!/^https?:\/\//i.test(href)) return
+  e.preventDefault()
+  void window.dockterm.invoke('app:openExternal', { url: href })
+}
+
 /** Keep a scroll container pinned to the newest content while the user is at the
  * bottom; report when they've scrolled away so a "jump to latest" can appear. */
 export function useStickyScroll(depKey: unknown): {
   ref: React.RefObject<HTMLDivElement | null>
+  /** Attach to the single element that wraps everything scrollable inside `ref` —
+   * a ResizeObserver on it catches content growth `depKey` alone can miss (a code
+   * block's late syntax highlighting, a window resize) while the user is pinned. */
+  contentRef: React.RefObject<HTMLDivElement | null>
   atBottom: boolean
   onScroll: () => void
   jumpToLatest: () => void
 } {
   const ref = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
+  const atBottomRef = useRef(atBottom)
+  atBottomRef.current = atBottom
+
   useLayoutEffect(() => {
     const el = ref.current
     if (el && atBottom) el.scrollTop = el.scrollHeight
   }, [depKey, atBottom])
+
+  useEffect(() => {
+    const content = contentRef.current
+    const el = ref.current
+    if (!content || !el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight
+    })
+    ro.observe(content)
+    return () => ro.disconnect()
+  }, [])
+
   return {
     ref,
+    contentRef,
     atBottom,
     onScroll: () => {
       const el = ref.current
@@ -70,10 +108,18 @@ export function useStickyScroll(depKey: unknown): {
   }
 }
 
-/** The rendered conversation rows, shared by the Reading panel and Chat mode. */
-export function ConversationList({ messages }: { messages: ReadingMessage[] }): React.ReactElement {
+/** The rendered conversation rows, shared by the Reading panel and Chat mode.
+ * Memoized on `messages` (a new array only when main actually parsed something
+ * new — see the reading store's revision check) so a parent re-rendering for an
+ * unrelated reason (an elapsed-time tick, a working-strip refresh) doesn't
+ * re-walk a long conversation for nothing. */
+export const ConversationList = memo(function ConversationList({
+  messages
+}: {
+  messages: ReadingMessage[]
+}): React.ReactElement {
   return (
-    <>
+    <div onClick={onConversationClick}>
       {messages.map((m) =>
         m.role === 'tool' ? (
           <ToolRow key={m.id} m={m} />
@@ -91,6 +137,6 @@ export function ConversationList({ messages }: { messages: ReadingMessage[] }): 
           </div>
         )
       )}
-    </>
+    </div>
   )
-}
+})

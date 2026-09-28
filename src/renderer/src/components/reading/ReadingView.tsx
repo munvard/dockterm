@@ -4,7 +4,7 @@ import { useReadingStore } from '../../state/useReadingStore'
 import { useAppStore } from '../../state/useAppStore'
 import { getPaneSample } from '../terminal/terminalPool'
 import { paneClaudeActive } from '../terminal/paneClaudeActive'
-import { ConversationList, useStickyScroll } from './ConversationList'
+import { ConversationList, conversationDepKey, useStickyScroll } from './ConversationList'
 
 export function ReadingView({
   cwd,
@@ -49,7 +49,9 @@ export function ReadingView({
   }, [cwd, leafId, load])
 
   const messages = conv?.messages ?? []
-  const { ref: bodyRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(messages.length)
+  const { ref: bodyRef, contentRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
+    conversationDepKey(messages)
+  )
 
   return (
     <div className="reading">
@@ -76,7 +78,9 @@ export function ReadingView({
             No Claude conversation here yet — run <code>claude</code> in this terminal to start.
           </div>
         ) : (
-          <ConversationList messages={messages} />
+          <div ref={contentRef}>
+            <ConversationList messages={messages} />
+          </div>
         )}
       </div>
       {!atBottom && (

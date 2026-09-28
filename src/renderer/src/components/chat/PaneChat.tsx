@@ -5,7 +5,7 @@ import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { getPaneSample, paneVisibleText } from '../terminal/terminalPool'
 import { paneClaudeActive } from '../terminal/paneClaudeActive'
-import { ConversationList, useStickyScroll } from '../reading/ConversationList'
+import { ConversationList, conversationDepKey, useStickyScroll } from '../reading/ConversationList'
 import { AskCard } from './AskCard'
 import { Composer } from './Composer'
 
@@ -44,8 +44,8 @@ export function PaneChat({
   const inFlight = useRef(false)
 
   const messages = conv?.messages ?? []
-  const { ref: bodyRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
-    `${messages.length}:${state === 'asking' && ask ? 1 : 0}:${tail.length}`
+  const { ref: bodyRef, contentRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
+    `${conversationDepKey(messages)}:${state === 'asking' && ask ? 1 : 0}:${tail.length}`
   )
 
   // Poll this pane's conversation. A chat pane stays mounted on inactive tabs, so
@@ -136,7 +136,7 @@ export function PaneChat({
             </div>
           </div>
         ) : (
-          <>
+          <div ref={contentRef}>
             <ConversationList messages={messages} />
             {ask && state === 'asking' && <AskCard ask={ask} leafId={leafId} />}
             {state === 'working' && (
@@ -147,7 +147,7 @@ export function PaneChat({
                 {tail.length > 0 && <pre className="panechat__tail">{tail.join('\n')}</pre>}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
