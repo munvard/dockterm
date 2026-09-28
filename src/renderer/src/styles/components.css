@@ -66,8 +66,13 @@
   flex-direction: row;
 }
 .dock-wrap {
-  flex: 0 0 auto;
+  /* flex-shrink: 1 (not the old 0) is a safety net for a narrow window —
+     Shell.tsx actively re-clamps its width on resize, but this keeps the
+     terminal from being pushed off-screen for the one frame before that
+     effect runs, or if a saved width predates a smaller display. */
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 80vw;
   overflow: hidden;
 }
 .term-wrap {
@@ -87,8 +92,9 @@
   inset: 0;
 }
 .editor-wrap {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 80vw;
   overflow: hidden;
 }
 .mini-wrap {
@@ -131,6 +137,24 @@
   /* No overflow:hidden — it would clip the notes popover (which drops below the
      bar). Overflowing tools are hidden cleanly by TopBarTools' measurement. */
   justify-content: flex-end;
+}
+.topbar__panels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* "More" overflow menu for panel icons the top bar can't fit. */
+.topbar__overflow {
+  position: relative;
+  display: inline-flex;
+}
+.topbar__overflow .ctxmenu {
+  position: absolute;
+  top: 30px;
+  right: 0;
+}
+.ctxmenu button.is-active {
+  color: var(--accent);
 }
 
 /* Narrow window: shorten the changed-chip to just its count and hide the less
@@ -194,13 +218,15 @@
 .notes__scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* Above floating cards (changes/checkpoints/reading, z-index 90) — a popover
+     opened near one used to render tucked behind it. */
+  z-index: 94;
 }
 .notes__pop {
   position: absolute;
   top: 30px;
   right: 0;
-  z-index: 41;
+  z-index: 95;
   width: 320px;
   max-width: calc(100vw - 16px);
   display: flex;
@@ -1050,7 +1076,9 @@
 /* ------------------------------ Context menu ----------------------------- */
 .ctxmenu {
   position: fixed;
-  z-index: 50;
+  /* Above floating cards (changes/checkpoints/reading, z-index 90) — a menu
+     opened near one used to render tucked behind it. */
+  z-index: 95;
   min-width: 170px;
   background: var(--overlay);
   border: 1px solid var(--border-strong);
@@ -1103,6 +1131,23 @@
 .editor__surface {
   flex: 1 1 auto;
   min-height: 0;
+}
+.editor-stale {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: var(--warning);
+  color: #1d1a08;
+  font-size: 12px;
+}
+.editor-stale span {
+  flex: 1 1 auto;
+}
+.editor-stale .btn {
+  color: #1d1a08;
+  border-color: rgba(0, 0, 0, 0.25);
 }
 
 /* Image viewer + binary card */
@@ -1330,6 +1375,10 @@
   border-left-width: 3px;
   box-shadow: var(--shadow-sm);
   cursor: pointer;
+  /* Preserve embedded newlines (multi-line git/IO errors) while still
+     wrapping long unbroken text such as a path. */
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .toast--error {
   border-left-color: var(--danger);
@@ -1399,7 +1448,9 @@
   position: absolute;
   top: 34px;
   left: 8px;
-  z-index: 30;
+  /* Above floating cards (changes/checkpoints/reading, z-index 90) — matches
+     .ctxmenu/.notes__pop so no popover ends up tucked behind a floating card. */
+  z-index: 95;
   min-width: 210px;
   background: var(--overlay);
   border: 1px solid var(--border-strong);
@@ -1530,7 +1581,8 @@
 .git-row:hover {
   background: var(--raised);
 }
-.git-row:hover .git-row__actions {
+.git-row:hover .git-row__actions,
+.git-row:focus-within .git-row__actions {
   opacity: 1;
 }
 .git-badge {
@@ -2419,7 +2471,12 @@
 .update-pop__bar {
   height: 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  /* The popup itself sits on --overlay, so the track uses --bg (always the
+     opposite end of the surface ramp from --overlay, in every theme) to stay
+     visible as a dented groove — the old fixed white-alpha fill used to
+     nearly vanish against the light themes' pale popup. */
+  background: var(--bg);
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 .update-pop__bar-fill {
