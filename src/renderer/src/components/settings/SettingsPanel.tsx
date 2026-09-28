@@ -9,6 +9,7 @@ import { COMFORT_PRESETS, matchPreset, type ReadingWidth } from '../terminal/com
 import type { CursorStyle, TerminalRenderer, Settings } from '@shared/types'
 import { CHARACTERS } from '../munu/mascots'
 import { Munu } from '../munu/Munu'
+import { k } from '../layout/keyLabel'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -155,7 +156,7 @@ export function SettingsPanel() {
             <div className="stepper">
               <button
                 className="stepper__btn"
-                title="Smaller (⌘−)"
+                title={`Smaller (${k('⌘−', 'Ctrl+-')})`}
                 disabled={zoom <= 0.7}
                 onClick={() => void setZoom(zoom - 0.1)}
               >
@@ -164,7 +165,7 @@ export function SettingsPanel() {
               <span className="stepper__value">{Math.round(zoom * 100)}%</span>
               <button
                 className="stepper__btn"
-                title="Bigger (⌘+)"
+                title={`Bigger (${k('⌘+', 'Ctrl+=')})`}
                 disabled={zoom >= 2}
                 onClick={() => void setZoom(zoom + 0.1)}
               >
@@ -176,7 +177,8 @@ export function SettingsPanel() {
             </div>
           </Field>
           <div className="settings-note">
-            Scales the whole app — chrome, terminals and the editor. Shortcuts: ⌘+ / ⌘− / ⌘0.
+            Scales the whole app — chrome, terminals and the editor. Shortcuts:{' '}
+            {k('⌘+ / ⌘− / ⌘0', 'Ctrl+= / Ctrl+- / Ctrl+0')}.
           </div>
         </Section>
 
@@ -340,8 +342,8 @@ export function SettingsPanel() {
             />
           </Field>
           <div className="settings-note">
-            Press <code>⌘⇧⏎</code> to write a long prompt in a roomy editor, then Insert or Send it
-            into Claude.
+            Press <code>{k('⌘⇧⏎', 'Ctrl+Shift+Enter')}</code> to write a long prompt in a roomy
+            editor, then Insert or Send it into Claude.
           </div>
           <Field label="Hover file previews">
             <Toggle
@@ -426,8 +428,8 @@ export function SettingsPanel() {
             </select>
           </Field>
           <div className="settings-note">
-            Try a preset, or fine-tune below. Zen mode (<code>⌘.</code> or the top-bar button) hides
-            the chrome for a calm reading canvas.
+            Try a preset, or fine-tune below. Zen mode (<code>{k('⌘.', 'Ctrl+.')}</code> or the
+            top-bar button) hides the chrome for a calm reading canvas.
           </div>
           <Field label="New terminals open in">
             <select
@@ -441,7 +443,8 @@ export function SettingsPanel() {
           </Field>
           <div className="settings-note">
             Chat mode renders Claude’s replies as formatted text with a real input box. The
-            terminal keeps running underneath — press <code>⌘R</code> in any pane to switch.
+            terminal keeps running underneath — press <code>{k('⌘R', 'Ctrl+R')}</code> in any pane
+            to switch.
           </div>
         </Section>
 
