@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { safeUrl, keysOf } from './secretMask'
+import { safeUrl, keysOf, maskCommandLine } from './secretMask'
 import { listInstalledPlugins } from './pluginDirs'
 import { getSettings } from './settingsService'
 import type { McpServerView, McpSource, McpReadResult, McpTransport, McpScope } from '@shared/types'
@@ -52,7 +52,7 @@ function serversFromMap(
     }
     if (typeof def.command === 'string') {
       const args = Array.isArray(def.args) ? def.args.map((a) => String(a)) : []
-      view.command = [def.command, ...args].join(' ')
+      view.command = maskCommandLine(def.command, args)
     }
     if (typeof def.url === 'string') view.url = safeUrl(def.url)
     servers.push(view)
