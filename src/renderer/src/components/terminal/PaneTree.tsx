@@ -18,12 +18,14 @@ import { useEditorStore } from '../../state/useEditorStore'
 import { useFilePreviewStore } from '../../state/useFilePreviewStore'
 import { useComposeStore } from '../../state/useComposeStore'
 import { useChangesStore } from '../../state/useChangesStore'
+import { useToastStore } from '../../state/useToastStore'
 import { paneWriters } from '../../state/paneWriters'
 import { confirmCloseLeaves } from './closeGuard'
 import { toRelProjectPath } from './projectPath'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
 import { focusPaneTerminal } from './terminalPool'
+import { quotePath } from './terminalSelection'
 import { PaneChat } from '../chat/PaneChat'
 
 function sameSizes(a: number[], b: number[]): boolean {
@@ -42,9 +44,9 @@ export function refocusIfTerminal(leafId: string): void {
   })
 }
 
-/** Double-quote a path when it contains whitespace (works on Windows + POSIX). */
-function quotePath(p: string): string {
-  return /\s/.test(p) ? `"${p}"` : p
+/** Quote a dropped path for the current OS (see terminalSelection.quotePath). */
+function quoteForThisPlatform(p: string): string {
+  return quotePath(p, document.documentElement.dataset.platform ?? '')
 }
 
 function TerminalPane({
@@ -141,7 +143,7 @@ function TerminalPane({
     if (internal) {
       try {
         const { path } = JSON.parse(internal) as { path: string; type: 'file' | 'dir' }
-        if (path) pasteRef.current(quotePath(path))
+        if (path) pasteRef.current(quoteForThisPlatform(path))
       } catch {
         // ignore malformed payload
       }
@@ -154,14 +156,14 @@ function TerminalPane({
       const paths = files
         .map((f) => window.dockterm.pathForFile(f))
         .filter(Boolean)
-        .map(quotePath)
+        .map((p) => quoteForThisPlatform(p))
       if (paths.length) pasteRef.current(paths.join(' '))
       return
     }
 
     // Last resort: plain-text path payload.
     const text = e.dataTransfer.getData('text/plain')
-    if (text) pasteRef.current(quotePath(text))
+    if (text) pasteRef.current(quoteForThisPlatform(text))
   }
 
   // Every split (non-root) pane shows its own label: the live terminal title
@@ -273,6 +275,14 @@ function TerminalPane({
               paneWriters.register(leaf.id, p)
             }}
             onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
+            onCwdFallback={(actualCwd) => {
+              // The folder this pane wanted no longer exists — the shell fell
+              // back to home instead of silently pretending it opened here.
+              useWorkspaceStore.getState().setPaneCwd(leaf.id, actualCwd)
+              useToastStore
+                .getState()
+                .push(`"${leaf.cwd}" is gone — opened a shell in ${actualCwd} instead.`, 'warning')
+            }}
             onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
             onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
             onOpenPath={(raw, line) => {
@@ -296,6 +306,7 @@ function TerminalPane({
             renderer={t?.renderer}
             lineHeight={t?.lineHeight}
             letterSpacing={t?.letterSpacing}
+            macOptionIsMeta={t?.macOptionIsMeta}
           />
         </div>
         {chatOn && (

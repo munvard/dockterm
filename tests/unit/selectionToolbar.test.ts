@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   wrapBracketedPaste,
   clampToolbar,
-  buildClaudeReference
+  buildClaudeReference,
+  quotePath
 } from '../../src/renderer/src/components/terminal/terminalSelection'
 
 describe('wrapBracketedPaste', () => {
@@ -39,6 +40,40 @@ describe('buildClaudeReference', () => {
   it('returns an empty string for an empty/whitespace-only selection', () => {
     expect(buildClaudeReference('')).toBe('')
     expect(buildClaudeReference('\n\n')).toBe('')
+  })
+})
+
+describe('quotePath', () => {
+  it('leaves a plain path unquoted', () => {
+    expect(quotePath('src/app.ts', 'darwin')).toBe('src/app.ts')
+    expect(quotePath('src/app.ts', 'win32')).toBe('src/app.ts')
+  })
+
+  it('POSIX: single-quotes a path with a space', () => {
+    expect(quotePath('my folder/file.ts', 'darwin')).toBe("'my folder/file.ts'")
+    expect(quotePath('my folder/file.ts', 'linux')).toBe("'my folder/file.ts'")
+  })
+
+  it('POSIX: does not let $() or backticks expand inside the quotes', () => {
+    // A double-quoted path would still let bash/zsh run $(...) and `...` — the
+    // fix was to single-quote, which treats the whole thing literally.
+    const evil = 'notes ($(rm -rf ~))'
+    const quoted = quotePath(evil, 'darwin')
+    expect(quoted).toBe("'notes ($(rm -rf ~))'")
+    expect(quoted.startsWith('"')).toBe(false)
+  })
+
+  it('POSIX: escapes an embedded single quote', () => {
+    expect(quotePath("O'Brien's notes", 'darwin')).toBe(`'O'\\''Brien'\\''s notes'`)
+  })
+
+  it('Windows: double-quotes a path with a space and escapes embedded quotes', () => {
+    expect(quotePath('my folder\\file.ts', 'win32')).toBe('"my folder\\file.ts"')
+    expect(quotePath('say "hi"/file.ts', 'win32')).toBe('"say ""hi""/file.ts"')
+  })
+
+  it('quotes a path containing shell metacharacters even without whitespace', () => {
+    expect(quotePath('weird&name.ts', 'darwin')).toBe("'weird&name.ts'")
   })
 })
 
