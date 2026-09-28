@@ -18,7 +18,7 @@ const NEEDS_QUOTE = /[\s"'`$\\!*?[\](){}<>|&;~#]/
 /**
  * Quote a path for safe interpolation at the shell prompt (dropping a file
  * from the tree, or Finder/Explorer, onto a pane). A plain double-quote is NOT
- * safe on POSIX shells — bash/zsh still expand `$()`, backticks and `\` inside
+ * safe on POSIX shells: bash/zsh still expand `$()`, backticks and `\` inside
  * double quotes, so a folder literally named `notes ($(rm -rf ~))` would run
  * when the pasted line is submitted. Single-quoting is the only POSIX style
  * that treats everything inside it literally: close the quote, splice in an

@@ -64,7 +64,7 @@ describe('columnForStringIndex', () => {
   const cell = (chars: string, width = 1): CellSpan => ({ chars, width })
 
   it('is the identity mapping when every cell is width 1', () => {
-    // "abc.ts" — one cell per char, all width 1.
+    // "abc.ts": one cell per char, all width 1.
     const cells = [...'abc.ts'].map((c) => cell(c))
     expect(columnForStringIndex(cells, 0)).toBe(0)
     expect(columnForStringIndex(cells, 3)).toBe(3)
@@ -76,7 +76,7 @@ describe('columnForStringIndex', () => {
     // String indices: 0='中', 1='a', 2='.', 3='t', 4='s'.
     const cells = [cell('中', 2), cell('a'), cell('.'), cell('t'), cell('s')]
     // "a.ts" starts at string index 1, but occupies terminal column 2 (the
-    // wide char took columns 0-1) — the bug this fixes was reporting column 1.
+    // wide char took columns 0-1); the bug this fixes was reporting column 1.
     expect(columnForStringIndex(cells, 1)).toBe(2)
     expect(columnForStringIndex(cells, 5)).toBe(6) // end of "a.ts"
   })

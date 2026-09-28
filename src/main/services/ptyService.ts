@@ -40,7 +40,7 @@ export interface CreatePtyResult {
   /** The directory the shell actually started in. */
   cwd: string
   /** True when `args.cwd` was requested but didn't exist, so we fell back to
-   * the home directory instead — the caller should tell the user rather than
+   * the home directory instead: the caller should tell the user rather than
    * silently pretending the pane opened where it was asked to. */
   cwdFellBack: boolean
 }
@@ -84,8 +84,8 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
     // Without this, session.pty.kill() forks a whole extra Node process
     // (conpty_console_list_agent) to enumerate the console process list. With
     // the RunAsNode Electron fuse disabled (our packaged build), that fork just
-    // relaunches the Electron binary itself — a second DockTerm window opens on
-    // every close. useConptyDll keeps the process list inside the native addon.
+    // relaunches the Electron binary itself, so a second DockTerm window opens
+    // on every close. useConptyDll keeps the process list inside the native addon.
     ...(process.platform === 'win32' ? { useConptyDll: true } : {})
   })
 
@@ -146,8 +146,8 @@ export function writePty(sessionId: string, data: string): void {
  * Empty when the session is gone. Used to warn before closing a busy terminal.
  *
  * On win32, node-pty's `IPty.process` getter (WindowsTerminal.get process) just
- * echoes back `this._name` — the `name` string we passed to `spawn()` at
- * creation, `'xterm-256color'` — it never actually queries the live foreground
+ * echoes back `this._name` (the `name` string we passed to `spawn()` at
+ * creation, `'xterm-256color'`); it never actually queries the live foreground
  * process there. Reporting that static string as if it were real would make
  * every Windows pane look permanently busy (close always warns, Claude-active
  * checks always true). So win32 reports '' ("unknown") instead, and callers
@@ -158,7 +158,7 @@ export function foregroundProcess(sessionId: string): string {
 }
 
 /** True when `webContentsId` is the window that owns `sessionId`'s pty, or the
- * session no longer exists (nothing to protect — the caller's own no-op
+ * session no longer exists (nothing to protect: the caller's own no-op
  * handles that case). Guards pty:write/kill/resize/ack so one window (in
  * particular the overlay, which shares the same IPC surface) can't reach into
  * a PTY session it didn't create. */

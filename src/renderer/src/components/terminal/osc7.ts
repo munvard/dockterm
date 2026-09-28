@@ -17,7 +17,7 @@ export function parseOsc7(payload: string): string | null {
     // malformed percent-encoding — fall back to the raw path
   }
 
-  // A UNC path (\\server\share\dir) arrives as "//server/share/dir" — the pwsh
+  // A UNC path (\\server\share\dir) arrives as "//server/share/dir": the pwsh
   // integration keeps the doubled leading slash to mark it, since the host
   // segment here is our own machine name, not the remote server. Convert every
   // separator to a backslash for the real Windows UNC form.

@@ -16,7 +16,7 @@ const EXT = [
 // Don't start a token right after a word/path char or a ':' (so URL internals
 // like https://host/x.js are skipped); the extension must end at a non-letter.
 // The main class allows both separators (`/` and `\`) so Windows output
-// ("C:\Users\x\bar.ts", "src\index.ts") is matched, not just POSIX paths — a
+// ("C:\Users\x\bar.ts", "src\index.ts") is matched, not just POSIX paths: a
 // leading single-letter drive (`C:`) is only recognized right before that
 // separator, so it can't swallow a URL scheme like "https:".
 const RE = new RegExp(
@@ -66,7 +66,7 @@ export interface CellSpan {
  *
  * A plain string offset drifts off the visible glyph as soon as any wide
  * character (CJK, emoji: width 2) appears earlier on the line, because it
- * still contributes only ONE JS string character — that's what made path-link
+ * still contributes only ONE JS string character, which is what made path-link
  * click targets land on the wrong text. `cells` is the line's cell sequence in
  * display order (one entry per occupied column; the filler cell for the
  * second half of a wide character is simply absent from the sequence).

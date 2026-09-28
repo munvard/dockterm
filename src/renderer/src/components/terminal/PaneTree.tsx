@@ -52,7 +52,7 @@ function quoteForThisPlatform(p: string): string {
 /** Platform-appropriate shortcut label for a tooltip: `mac` on darwin, `win`
  * everywhere else (per the review's global key scheme: Cmd+key on mac,
  * Ctrl+Shift+key on Windows/Linux). A tiny local stand-in for the shared
- * k(mac, win) helper another wave is centralizing in its own hooks module —
+ * k(mac, win) helper another wave is centralizing in its own hooks module:
  * this file shouldn't sit with a hard-coded ⌘ label until that lands. */
 function k(mac: string, win: string): string {
   return (document.documentElement.dataset.platform ?? '') === 'darwin' ? mac : win
@@ -241,7 +241,7 @@ function TerminalPane({
           title={
             chatOn
               ? `Show the terminal (${k('⌘R', 'Ctrl+Shift+R')})`
-              : `Chat mode — comfortable reading (${k('⌘R', 'Ctrl+Shift+R')})`
+              : `Chat mode, comfortable reading (${k('⌘R', 'Ctrl+Shift+R')})`
           }
           aria-label="Toggle chat mode"
           className={chatOn ? 'pane__active' : undefined}
@@ -289,12 +289,12 @@ function TerminalPane({
             }}
             onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
             onCwdFallback={(actualCwd) => {
-              // The folder this pane wanted no longer exists — the shell fell
+              // The folder this pane wanted no longer exists, so the shell fell
               // back to home instead of silently pretending it opened here.
               useWorkspaceStore.getState().setPaneCwd(leaf.id, actualCwd)
               useToastStore
                 .getState()
-                .push(`"${leaf.cwd}" is gone — opened a shell in ${actualCwd} instead.`, 'warning')
+                .push(`"${leaf.cwd}" is gone, opened a shell in ${actualCwd} instead.`, 'warning')
             }}
             onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
             onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}

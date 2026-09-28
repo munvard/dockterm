@@ -87,7 +87,7 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
       if (!wasDrag) return
       // No xterm selection after a drag only means "Claude (or vim, …) grabbed
       // the click and copied on its own" when it has actually turned on mouse
-      // tracking — over plain scrollback it just means nothing was selected,
+      // tracking; over plain scrollback it just means nothing was selected,
       // and reading the clipboard then would show whatever was already there
       // (stale, unrelated to this drag).
       if (!termRef.current.mouseTrackingActive()) return
@@ -120,7 +120,7 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
           pos={pos}
           onSend={() => {
             // term.paste (behind termRef.current.paste) already wraps this in
-            // bracketed-paste markers when the app underneath expects them —
+            // bracketed-paste markers when the app underneath expects them:
             // wrapping it again here regardless of mode was XP-M3.
             if (sendRef.current) termRef.current.paste(buildClaudeReference(sendRef.current))
             setPos(null)

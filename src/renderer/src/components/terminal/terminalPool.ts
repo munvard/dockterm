@@ -25,12 +25,12 @@ function currentPlatform(): string {
 
 // Windows build number, for xterm's conpty-aware reflow/scrollback heuristics
 // (the `windowsPty` terminal option below). Kicked off lazily on the first
-// terminal creation rather than at module load — this module is imported
+// terminal creation rather than at module load: this module is imported
 // (and evaluated) as part of the initial bundle, before App.tsx's effect has
 // had a chance to stamp <html data-platform>, so checking the platform at
 // module scope would always read '' and never fire on a real Windows box.
 // A terminal created before the fetch resolves just gets xterm's
-// pre-conpty-aware defaults for that one instance — safe, only less exact.
+// pre-conpty-aware defaults for that one instance (safe, only less exact).
 let winBuildNumber: number | undefined
 let winBuildKicked = false
 function kickWinBuildNumber(): void {
@@ -101,7 +101,7 @@ export function paneBufferType(leafId: string): 'normal' | 'alternate' | null {
 /** Whether the pane's PTY currently expects bracketed-paste markers around
  * pasted text (set by full-screen apps like Claude Code, vim; a plain shell
  * usually leaves it off). `paneWriters`/`PooledTerminal.paste` already handle
- * this automatically via xterm's own `Terminal.paste` — this is exposed for
+ * this automatically via xterm's own `Terminal.paste`. This is exposed for
  * callers that write to a pane WITHOUT going through that (e.g. a future chat
  * composer sending text directly), so they can decide whether to wrap it
  * themselves instead of assuming either way. */
@@ -135,7 +135,7 @@ export function getPaneSample(leafId: string, count = 40): string[] {
   const out: string[] = []
   for (let i = buf.length - 1; i >= 0 && out.length < count; i--) {
     const line = buf.getLine(i)?.translateToString(true).trim()
-    // The main-process zod schema caps each sample line at 400 chars (app.ts) —
+    // The main-process zod schema caps each sample line at 400 chars (app.ts):
     // an unclamped wide pane's line could exceed that and reject the whole
     // request silently. length is checked on the FULL line so distinctiveness
     // (the >=18 floor) isn't skewed by the cap.
@@ -245,12 +245,12 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     scrollback: opts.scrollback ?? 5000,
     allowProposedApi: true,
     // Off by default: on macOS, Option is how German/French/etc. layouts type
-    // @{}[]|~\ — forcing it to always send Meta breaks that. Opt-in per the
+    // @{}[]|~\, and forcing it to always send Meta breaks that. Opt-in per the
     // terminal.macOptionIsMeta setting for anyone who actually wants Option as
     // a modifier (e.g. Emacs-style bindings).
     macOptionIsMeta: opts.macOptionIsMeta ?? false,
     // Compatibility heuristics for a pty hosted on Windows conpty (reflow +
-    // how growing the viewport pulls rows back from scrollback) — undefined on
+    // how growing the viewport pulls rows back from scrollback); undefined on
     // other platforms, which is xterm's own "not Windows" default.
     windowsPty: platform === 'win32' ? { backend: 'conpty', buildNumber: winBuildNumber } : undefined,
     // Conservatively rescale glyphs that would overlap the next cell — prevents
@@ -286,7 +286,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   term.loadAddon(fit)
   term.loadAddon(search)
   term.loadAddon(serializer)
-  // The default handler calls window.open() with no URL then sets .location —
+  // The default handler calls window.open() with no URL then sets .location:
   // Electron's window-open handling blocks/ignores that (blank popup, dead
   // click). Route through the main process instead, same as OSC 8 above.
   term.loadAddon(
@@ -358,14 +358,14 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
       if (!found.length) return callback(undefined)
       // findPathLinks works on JS string offsets, but a wide character (CJK,
       // emoji) earlier on the line occupies TWO terminal columns for one
-      // string char — so a plain string-index -> column mapping drifts the
+      // string char, so a plain string-index -> column mapping drifts the
       // click target off the actual text. Build the real cell sequence once
       // per line and translate through columnForStringIndex.
       const cells: CellSpan[] = []
       for (let x = 0; x < ln.length; x++) {
         const cell = ln.getCell(x)
         const width = cell?.getWidth() ?? 1
-        if (width === 0) continue // second half of a wide char — no own column
+        if (width === 0) continue // second half of a wide char, no own column
         cells.push({ chars: cell?.getChars() || ' ', width })
       }
       callback(
@@ -414,7 +414,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
       }
       case 'paste':
         // navigator.clipboard.readText() needs a permission grant, and the
-        // app denies EVERY permission request outright (security.ts) — on
+        // app denies EVERY permission request outright (security.ts), so on
         // Windows/Linux (the only platforms this action fires on) that read
         // always failed silently, so Ctrl+Shift+V did nothing. Read via the
         // main process instead, which needs no renderer permission.
@@ -558,7 +558,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // output. One-shot: a detach/reattach never respawns the shell.
   let ptyStarted = false
   // True once p.dispose() has run. pty:create is an async round-trip started
-  // from a callback that closes over this whole scope — if the pane is closed
+  // from a callback that closes over this whole scope: if the pane is closed
   // (a real close, not detach/reattach) before it resolves, the .then below
   // must not resurrect the session's bookkeeping or leave the freshly-spawned
   // process running with nothing tracking it.
@@ -566,7 +566,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   const startPty = (): void => {
     if (ptyStarted) return
     ptyStarted = true
-    // Capture the size actually requested — a resize that lands while this is
+    // Capture the size actually requested: a resize that lands while this is
     // still in flight is dropped by resizeSub (it guards on sessionId, which
     // isn't set yet), so we diff against this once the session exists.
     const requestedCols = term.cols
@@ -598,7 +598,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           return
         }
         if (disposed) {
-          // Torn down while the PTY was still spawning — kill the orphan the
+          // Torn down while the PTY was still spawning: kill the orphan the
           // pool no longer tracks instead of leaking it.
           void window.dockterm.invoke('pty:kill', { sessionId: res.value.sessionId })
           return
@@ -636,7 +636,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   p.refit = safeFit
   p.paste = (text) => {
     // Go through xterm's own paste (not a raw pty:write): it wraps the text in
-    // bracketed-paste markers when — and only when — the app underneath has
+    // bracketed-paste markers when, and only when, the app underneath has
     // turned that mode on, instead of us guessing either way per call site.
     if (sessionId) term.paste(text)
     else pasteQueue += text
@@ -647,7 +647,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   p.focus = () => term.focus()
   p.serialize = () => {
     try {
-      // The live process is what's running, not a picture of it — replaying a
+      // The live process is what's running, not a picture of it: replaying a
       // saved alt-screen frame (Claude's fullscreen UI, vim, …) or terminal
       // modes (mouse tracking, bracketed paste) on restart just leaves xterm
       // in a mode with nothing left alive to drive it.

@@ -27,7 +27,7 @@ export interface TerminalOptions {
   /** xterm letter-spacing in px (reading comfort). */
   letterSpacing?: number
   /** macOS only: treat Option+key as Meta (sends an escape prefix) instead of
-   * letting the OS produce the layout's own character. Off by default — on
+   * letting the OS produce the layout's own character. Off by default: on
    * German/French/etc. layouts Option is how you type @{}[]|~\, and forcing
    * Meta breaks that. */
   macOptionIsMeta?: boolean
@@ -38,7 +38,7 @@ export interface TerminalOptions {
   /** Called with the shell's live working directory (from OSC 7), when reported. */
   onCwd?: (cwd: string) => void
   /** Called once, right after the PTY starts, when the requested cwd didn't
-   * exist and the shell fell back to the home directory — `actualCwd` is where
+   * exist and the shell fell back to the home directory: `actualCwd` is where
    * it actually landed. */
   onCwdFallback?: (actualCwd: string) => void
   /** The terminal's live title from OSC 0/2 (what Claude Code / the shell sets). */
@@ -66,12 +66,12 @@ export interface TerminalHandle {
   /** Write text into the PTY (queued until the session is ready). No newline
    * added. Goes through xterm's own `Terminal.paste`, which wraps the text in
    * bracketed-paste markers only when the app underneath has turned that mode
-   * on — never assume either way from the caller. */
+   * on, never assume either way from the caller. */
   paste: (text: string) => void
   /** The terminal's current selected text ('' if none). */
   getSelection: () => string
   /** True when the app underneath has turned on mouse tracking (Claude's
-   * fullscreen UI, vim, …) — i.e. it can plausibly have grabbed a click itself. */
+   * fullscreen UI, vim, …), i.e. it can plausibly have grabbed a click itself. */
   mouseTrackingActive: () => boolean
 }
 

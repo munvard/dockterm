@@ -49,7 +49,7 @@ describe('toRelProjectPath', () => {
     })
 
     it('preserves the original casing of the returned relative path', () => {
-      // Folding is only for the comparison — the slice still comes from `raw`.
+      // Folding is only for the comparison: the slice still comes from `raw`.
       expect(toRelProjectPath('/Home/Me/Proj/Src/App.ts', root, 'win32')).toBe('Src/App.ts')
     })
   })

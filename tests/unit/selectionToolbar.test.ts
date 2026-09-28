@@ -55,7 +55,7 @@ describe('quotePath', () => {
   })
 
   it('POSIX: does not let $() or backticks expand inside the quotes', () => {
-    // A double-quoted path would still let bash/zsh run $(...) and `...` — the
+    // A double-quoted path would still let bash/zsh run $(...) and `...`: the
     // fix was to single-quote, which treats the whole thing literally.
     const evil = 'notes ($(rm -rf ~))'
     const quoted = quotePath(evil, 'darwin')

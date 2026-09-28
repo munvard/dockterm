@@ -1,13 +1,13 @@
 /** Default platform for the case-fold below: the real one when running in the
  * renderer (App.tsx stamps it onto <html data-platform>), '' in unit tests
- * (node env, no DOM) — which keeps every existing case-sensitive test passing
+ * (node env, no DOM), which keeps every existing case-sensitive test passing
  * unless it opts into a platform explicitly. */
 function currentPlatform(): string {
   return typeof document !== 'undefined' ? (document.documentElement.dataset.platform ?? '') : ''
 }
 
 /** win32 and darwin both default to case-insensitive filesystems (NTFS,
- * APFS) — a path a shell echoes back can differ in case from the project root
+ * APFS): a path a shell echoes back can differ in case from the project root
  * we opened, and it should still resolve. Linux stays case-sensitive. */
 function foldCase(p: string, platform: string): string {
   return platform === 'win32' || platform === 'darwin' ? p.toLowerCase() : p

@@ -9,7 +9,7 @@ import { classify } from './claudeStatus'
  * (fullscreen Claude / vim) OR its pty foreground process isn't a plain shell
  * (inline Claude, node, etc.). Used to keep the session binding sticky.
  *
- * Windows can't report a real foreground process — node-pty's conpty backend
+ * Windows can't report a real foreground process: node-pty's conpty backend
  * just echoes back the name it was spawned with, never the live process (see
  * ptyService.ts's `foregroundProcess`), so `pty:foreground` resolves to '' on
  * win32. In that case we fall back to classifying the on-screen buffer text:

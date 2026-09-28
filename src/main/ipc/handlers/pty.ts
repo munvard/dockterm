@@ -52,7 +52,7 @@ export function registerPtyHandlers(reg: Registrar): void {
     return ok({ sessionId, shell, cwd, cwdFellBack })
   })
 
-  // write/resize/kill/ack all act on an existing session — reject a request
+  // write/resize/kill/ack all act on an existing session: reject a request
   // from a window (in particular the overlay) that isn't the one that created
   // it, instead of letting any window reach into any pty by guessing its id.
   const NOT_OWNER = (): ReturnType<typeof err> =>
