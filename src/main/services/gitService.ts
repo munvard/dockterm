@@ -12,21 +12,27 @@ import type {
 } from '@shared/types'
 
 /**
- * Every git invocation goes through here. `core.hooksPath=` neutralizes any hooks
- * the (possibly untrusted) project repo defines — opening a malicious repo must
- * never run its code (CVE-2024-32002 class). `core.fsmonitor=false` stops a
- * repo-local fsmonitor hook (an arbitrary script honored automatically by plain
- * `git status`) from auto-executing. A block timeout stops a call from hanging
- * forever if a credential helper dialog is left open.
+ * Every git invocation — from this service AND from projectService /
+ * projectInfoService's lighter-weight lookups — goes through here.
+ * `core.hooksPath=` neutralizes any hooks the (possibly untrusted) project repo
+ * defines — opening a malicious repo must never run its code (CVE-2024-32002
+ * class). `core.fsmonitor=false` stops a repo-local fsmonitor hook (an arbitrary
+ * script honored automatically by plain `git status`) from auto-executing.
+ * `GIT_TERMINAL_PROMPT=0` stops a push/pull from opening a native username/
+ * password prompt that would block the main process; `GIT_OPTIONAL_LOCKS=0`
+ * stops our own background status polls from racing a real `.git/index.lock`
+ * (e.g. a commit the user is running by hand in the terminal at the same
+ * moment). A block timeout stops a call from hanging forever if a credential
+ * helper dialog is left open.
  */
-function git(root: string): SimpleGit {
+export function git(root: string): SimpleGit {
   return simpleGit({
     baseDir: root,
     config: ['core.hooksPath=', 'core.fsmonitor=false'],
     unsafe: { allowUnsafeHooksPath: true },
     trimmed: true,
     timeout: { block: 120_000 }
-  })
+  }).env({ ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' })
 }
 
 /** True for simple-git's own "not a git repository" rejection — the only case

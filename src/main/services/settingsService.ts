@@ -271,13 +271,20 @@ export function applySettingsPatch(patch: Partial<Settings>): Settings {
   return getStore().update(merged as unknown as Partial<Settings>)
 }
 
-export function addRecentProject(entry: RecentProject): Settings {
+/** `setAsLastProject` should only be true for the window that owns "last
+ * project" restore-on-launch (the primary window) — a SECONDARY (⌘N) window
+ * opening its own project must not silently redirect what the primary window
+ * reopens next launch. */
+export function addRecentProject(entry: RecentProject, setAsLastProject: boolean): Settings {
   const current = getStore().get()
   const recentProjects = [
     entry,
     ...current.recentProjects.filter((r) => r.path !== entry.path)
   ].slice(0, MAX_RECENT_PROJECTS)
-  return getStore().update({ recentProjects, lastProjectPath: entry.path })
+  return getStore().update({
+    recentProjects,
+    ...(setAsLastProject ? { lastProjectPath: entry.path } : {})
+  })
 }
 
 /** Clears the remembered project if it matches `path` — used when reopening it
