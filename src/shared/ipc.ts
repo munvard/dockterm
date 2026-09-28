@@ -278,12 +278,16 @@ export interface InvokeChannels {
     leafId: string
     claudeActive: boolean
   }) => Result<SessionHistory>
-  /** Full rendered conversation for a pane's bound session (Reading view). */
+  /** Full rendered conversation for a pane's bound session (Reading view).
+   * `sinceRevision`, the caller's last-known `revision`, lets main reply
+   * `{ unchanged: true }` instead of resending a long conversation on a poll
+   * that found nothing new. */
   'reading:get': (req: {
     cwd: string
     sample: string[]
     leafId: string
     claudeActive: boolean
+    sinceRevision?: number
   }) => Result<ReadingConversation>
 
   // updates — manual check + snooze/skip + in-app download/install.
