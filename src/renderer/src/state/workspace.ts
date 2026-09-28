@@ -2,6 +2,15 @@
  * `layout` of terminals (see layout.ts); these reducers only manage the tab list. */
 import type { LayoutNode } from './layout'
 
+/** Last path segment of a filesystem path, on either separator style ('' for a
+ * root path with no segments, e.g. '/' or 'C:\'). Used wherever the UI needs a
+ * short, human name for a project/pane folder — the TopBar's project name and
+ * the window's document.title both derive from this, not from a static
+ * first-opened project, so they follow the FOCUSED pane's actual root. */
+export function basenameOf(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? ''
+}
+
 export interface WsTab {
   id: string
   title: string

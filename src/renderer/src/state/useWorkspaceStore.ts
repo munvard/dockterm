@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { PaneViewMode } from '@shared/types'
 import { useDialogStore } from './useDialogStore'
-import { addTab, removeTab, reorderTabs, renameTab, type WsTab } from './workspace'
+import { addTab, removeTab, reorderTabs, renameTab, basenameOf, type WsTab } from './workspace'
 import {
   splitLeaf,
   closeLeaf,
@@ -30,7 +30,7 @@ let isPrimaryWindow = true
 let currentProjectPath = ''
 
 function titleFromCwd(cwd: string): string {
-  return cwd.split(/[\\/]/).filter(Boolean).pop() || 'Terminal'
+  return basenameOf(cwd) || 'Terminal'
 }
 function makeLeaf(cwd: string): LeafNode {
   return { type: 'leaf', id: uid('pane'), cwd, title: titleFromCwd(cwd) }
