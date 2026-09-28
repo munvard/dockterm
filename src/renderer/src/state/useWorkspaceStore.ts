@@ -188,7 +188,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     resetForProject: (cwd) => {
       currentProjectPath = cwd
       const tab = makeTab(cwd)
-      set({ activity: {} })
+      // Every existing leaf is being discarded — drop its live-cwd/title/view
+      // state too, or it just leaks forever (keyed by a leafId nothing will
+      // ever look up again) across repeated project switches in one window.
+      set({ activity: {}, paneCwd: {}, paneTitle: {}, paneView: {} })
       commit([tab], tab.id)
     },
 
