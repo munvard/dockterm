@@ -16,9 +16,12 @@ import { getSessionHistory, getConversation } from '../../services/sessionHistor
 import type { Settings } from '@shared/types'
 import type { Registrar } from '../register'
 
+/** `workspace` is per-window session state, never shared state — see the same
+ * strip in ipc/handlers/settings.ts's broadcast(). */
 function broadcastSettings(next: Settings): void {
+  const shared = { ...next, workspace: null }
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('settings:changed', next)
+    if (!win.isDestroyed()) win.webContents.send('settings:changed', shared)
   }
 }
 
