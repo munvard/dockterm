@@ -1,6 +1,5 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { homedir } from 'node:os'
 import type {
   SkillView,
   CommandView,
@@ -10,8 +9,9 @@ import type {
   AgentsReadResult,
   ItemScope
 } from '@shared/types'
-import { listInstalledPlugins } from './pluginDirs'
+import { listInstalledPlugins, claudeConfigDir } from './pluginDirs'
 import { getSettings } from './settingsService'
+import { resolveInside, isRegularFile } from './pathJail'
 
 function parseFrontmatter(text: string): { fm: Record<string, string>; body: string } {
   const match = text.replace(/^﻿/, '').match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
@@ -47,9 +47,15 @@ function readSkillsDir(root: string, dir: string, scope: ItemScope): SkillView[]
   if (!existsSync(dir)) return []
   const out: SkillView[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    // Dirent type checks (isDirectory/isFile/isSymbolicLink) report the
+    // entry's own type without following a symlink, so a symlinked skill
+    // folder is already skipped here.
     if (!entry.isDirectory()) continue
     const skillMd = join(dir, entry.name, 'SKILL.md')
-    if (!existsSync(skillMd)) continue
+    // The folder itself is confirmed real, but SKILL.md inside it could still
+    // be a symlink (following it to an arbitrary file) or a FIFO (hanging the
+    // read) — refuse anything that isn't a plain regular file.
+    if (!isRegularFile(skillMd)) continue
     const { fm, body } = parseFrontmatter(readFileSync(skillMd, 'utf8'))
     out.push({
       slashName: fm.name || entry.name,
@@ -70,7 +76,10 @@ function readCommandsDir(root: string, dir: string, scope: ItemScope): CommandVi
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       if (entry.isDirectory()) {
         walk(join(current, entry.name), prefix ? `${prefix}:${entry.name}` : entry.name)
-      } else if (entry.name.endsWith('.md')) {
+        // entry.isFile() (like isDirectory()) reflects the directory entry's
+        // own type, not a followed symlink — so a symlinked "command.md"
+        // pointing outside the project is skipped instead of read through.
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
         const file = join(current, entry.name)
         const base = entry.name.slice(0, -3)
         const { fm, body } = parseFrontmatter(readFileSync(file, 'utf8'))
@@ -114,7 +123,7 @@ export function readSkills(root: string, includeUser: boolean): SkillsReadResult
   if (custom.skills) skills.push(...readSkillsDir(root, custom.skills, 'user'))
   if (custom.commands) commands.push(...readCommandsDir(root, custom.commands, 'user'))
   if (includeUser) {
-    const userClaude = join(homedir(), '.claude')
+    const userClaude = claudeConfigDir()
     skills.push(...readSkillsDir(root, join(userClaude, 'skills'), 'user'))
     commands.push(...readCommandsDir(root, join(userClaude, 'commands'), 'user'))
     // Plugin-provided skills/commands (superpowers etc.) — this is what was missing.
@@ -133,7 +142,7 @@ export function readAgents(root: string, includeUser: boolean): AgentsReadResult
   const custom = getSettings().claude.paths
   if (custom.agents) agents.push(...readAgentsDir(root, custom.agents, 'user'))
   if (includeUser) {
-    agents.push(...readAgentsDir(root, join(homedir(), '.claude', 'agents'), 'user'))
+    agents.push(...readAgentsDir(root, join(claudeConfigDir(), 'agents'), 'user'))
     for (const p of listInstalledPlugins()) {
       agents.push(...readAgentsDir(root, join(p.path, 'agents'), 'plugin'))
     }
@@ -233,17 +242,20 @@ export function createSkill(
     .toLowerCase()
   if (!safe) throw new Error('Please choose a valid name')
 
+  // resolveInside canonicalizes every existing ancestor (including a symlinked
+  // `.claude`), so a project that plants `.claude` as a symlink pointing
+  // outside itself can't turn "create a skill" into a write anywhere on disk.
   if (kind === 'command') {
-    const dir = join(root, '.claude', 'commands')
+    const dir = resolveInside(root, join('.claude', 'commands'))
     mkdirSync(dir, { recursive: true })
-    const file = join(dir, `${safe}.md`)
+    const file = resolveInside(root, join('.claude', 'commands', `${safe}.md`))
     if (existsSync(file)) throw new Error('A command with that name already exists')
     writeFileSync(file, commandTemplate(safe), { flag: 'wx' })
     return toRel(root, file)
   }
 
-  const dir = join(root, '.claude', 'skills', safe)
-  const file = join(dir, 'SKILL.md')
+  const dir = resolveInside(root, join('.claude', 'skills', safe))
+  const file = resolveInside(root, join('.claude', 'skills', safe, 'SKILL.md'))
   if (existsSync(file)) throw new Error('A skill with that name already exists')
   mkdirSync(dir, { recursive: true })
   writeFileSync(file, SKILL_TEMPLATES[template](safe), { flag: 'wx' })
