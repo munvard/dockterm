@@ -12,7 +12,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        # Every platform DockTerm ships for gets a CI leg — Linux was
+        # missing entirely, so a Linux-only regression (e.g. the
+        # shellIntegration/osc7/overlay code paths gated on process.platform
+        # === 'linux') could land without ever failing a check.
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

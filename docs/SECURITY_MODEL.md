@@ -12,14 +12,30 @@ tokens, no remote content.** This document is the model behind those claims.
 - Production loads from a custom **`app://` protocol** (correct MIME + CSP, avoids
   `file://` elevated privileges). Dev loads the Vite server URL.
 - Navigation is blocked (`will-navigate`), `window.open` is denied, and external
-  http/https links are opened via `shell.openExternal` after an allowlist check.
+  links are opened via `shell.openExternal` only after a scheme check
+  (`http(s)://` only — not a per-domain allowlist; any https link can open the
+  system browser, the same as clicking one in any other app).
 - `setPermissionRequestHandler` / `setPermissionCheckHandler` deny everything.
 - **CSP** (production): no remote origins; `worker-src blob:` for Monaco/xterm
   workers; `unsafe-eval` only for the packaged `app://` origin (Monaco needs it),
-  never with any remote script present.
+  never with any remote script present. Set both via `webRequest.onHeadersReceived`
+  and directly on every `protocol.handle('app', ...)` response (the two hooks
+  aren't guaranteed to overlap for every request), gated to packaged builds only.
+- `ELECTRON_RENDERER_URL` (electron-vite's dev-server URL) is honored by the
+  trusted-sender check and the overlay's initial load **only when
+  `!app.isPackaged`** — a packaged build can't be pointed at an arbitrary origin
+  just because that variable is set in its environment.
+- The munu overlay window gets its own, smaller IPC allowlist (`munu:*`,
+  `settings:get/set`, `app:getInfo`, `activity:get`) enforced centrally in the
+  registrar — it has no access to `fs:*`/`git:*`/`pty:*`/`project:*` even
+  though it's an equally trusted (`app://`) renderer.
 - **Fuses** flipped at package time (`build/afterPack.cjs`): `RunAsNode` off,
   `EnableNodeOptionsEnvironmentVariable` off, `EnableNodeCliInspectArguments` off,
-  `OnlyLoadAppFromAsar` on. asar integrity is embedded.
+  `OnlyLoadAppFromAsar` on, `GrantFileProtocolExtraPrivileges` off (`file://` is
+  never used to load app content). Asar integrity validation is **not** enabled:
+  it requires electron-builder to embed a matching integrity header at package
+  time, which this project's afterPack-driven fuse flip doesn't do — turning the
+  fuse on without that pairing would make the packaged app refuse to launch.
 
 ## IPC discipline
 
@@ -70,6 +86,22 @@ No telemetry, analytics, or crash reporting exist in the code. At runtime the ap
 makes no network calls except the git operations you initiate, the external links
 you click, and an optional check to GitHub for new releases (used for in-app
 updates; on by default and toggleable in Settings → "Check automatically").
+
+The update check itself only ever downloads from
+`https://github.com/munvard/dockterm/releases/download/…` (pinned prefix, checked
+before every download), and verifies the downloaded installer's sha512 against
+the release's electron-builder-generated `latest*.yml` before opening/relaunching
+it. A missing or unreachable checksum degrades to "download without a verifiable
+hash" rather than refusing to update at all — the pinned HTTPS host is the
+baseline guarantee either way.
+
+## Linux notes
+
+Electron's Chromium sandbox needs a `setuid` helper that some distros, and most
+containers/CI runners, don't have set up. If the AppImage (or the `.deb`) refuses
+to start with a sandbox error, run it with `--no-sandbox`. This does not affect
+`contextIsolation`/`nodeIntegration`/renderer-process isolation, which are
+Electron/DockTerm settings independent of the OS-level Chromium sandbox.
 
 ## What we do not claim
 
