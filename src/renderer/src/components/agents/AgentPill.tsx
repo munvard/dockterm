@@ -27,7 +27,12 @@ export function AgentPill() {
   if (count === 0) return null
 
   const lead = activity?.agents.find((a) => a.phase === 'running')
-  const tip = `${count} agent${count === 1 ? '' : 's'} running — click for live activity`
+  // The count spans every open window/project, not just this one — say so once
+  // more than one project has running agents, so the number isn't mistaken for
+  // "here" only.
+  const projects = new Set(activity?.agents.map((a) => a.project) ?? [])
+  const scope = projects.size > 1 ? ' across all projects' : ''
+  const tip = `${count} agent${count === 1 ? '' : 's'} running${scope} — click for live activity`
 
   return (
     <button
