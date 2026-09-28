@@ -42,6 +42,10 @@ function mapGitError(e: unknown): Err {
   ) {
     return err('NETWORK', msg)
   }
+  // Keep the full message (not just the first line) for dubious-ownership: git's
+  // own text includes the exact `git config --global --add safe.directory <path>`
+  // fix, which used to get truncated away and misread as "not a repo".
+  if (lower.includes('dubious ownership')) return err('GIT', msg.trim())
   return err('GIT', msg.split('\n')[0])
 }
 

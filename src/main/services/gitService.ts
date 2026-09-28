@@ -14,25 +14,38 @@ import type {
 /**
  * Every git invocation goes through here. `core.hooksPath=` neutralizes any hooks
  * the (possibly untrusted) project repo defines — opening a malicious repo must
- * never run its code (CVE-2024-32002 class). A block timeout stops a call from
- * hanging forever if a credential helper dialog is left open.
+ * never run its code (CVE-2024-32002 class). `core.fsmonitor=false` stops a
+ * repo-local fsmonitor hook (an arbitrary script honored automatically by plain
+ * `git status`) from auto-executing. A block timeout stops a call from hanging
+ * forever if a credential helper dialog is left open.
  */
 function git(root: string): SimpleGit {
   return simpleGit({
     baseDir: root,
-    config: ['core.hooksPath='],
+    config: ['core.hooksPath=', 'core.fsmonitor=false'],
     unsafe: { allowUnsafeHooksPath: true },
     trimmed: true,
     timeout: { block: 120_000 }
   })
 }
 
+/** True for simple-git's own "not a git repository" rejection — the only case
+ * `checkIsRepo()` is supposed to resolve `false` for. Every OTHER failure (dubious
+ * ownership / safe.directory, permission errors, EMFILE, a timed-out credential
+ * prompt, …) must surface as a real error instead of silently reading as "no
+ * repo here", which used to show "Git not initialized" for a perfectly real repo. */
+function isNotARepoError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e)
+  return /not a git repository/i.test(msg)
+}
+
 export async function getStatus(root: string): Promise<GitStatusView> {
   const g = git(root)
-  let isRepo = false
+  let isRepo: boolean
   try {
     isRepo = await g.checkIsRepo()
-  } catch {
+  } catch (e) {
+    if (!isNotARepoError(e)) throw e
     isRepo = false
   }
   if (!isRepo) return notRepoView()
