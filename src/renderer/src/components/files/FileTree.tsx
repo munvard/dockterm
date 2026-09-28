@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import {
   ChevronRight,
   ChevronDown,
@@ -54,6 +54,7 @@ export function FileTree() {
   const [children, setChildren] = useState<Record<string, TreeNode[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [menu, setMenu] = useState<Menu | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TreeNode[]>([])
@@ -63,6 +64,7 @@ export function FileTree() {
 
   const openFile = useEditorStore((s) => s.open)
   const closeTab = useEditorStore((s) => s.close)
+  const renamePath = useEditorStore((s) => s.renamePath)
   const projectName = useAppStore((s) => s.project?.name ?? 'Files')
   const activeRoot = useAppStore((s) => s.activeRoot)
   const headerName =
@@ -73,18 +75,46 @@ export function FileTree() {
   const toast = useToastStore((s) => s.push)
 
   const load = useCallback(
-    async (relPath: string) => {
+    async (relPath: string, opts?: { silent?: boolean }) => {
       const res = await window.dockterm.invoke('fs:readTree', { relPath })
-      if (res.ok) setChildren((prev) => ({ ...prev, [relPath]: res.value }))
-      else toast(res.error.message, 'error')
+      if (res.ok) {
+        setChildren((prev) => ({ ...prev, [relPath]: res.value }))
+        return
+      }
+      if (opts?.silent) {
+        // A background refresh of a dir that's gone (e.g. deleted outside
+        // DockTerm) — drop it quietly instead of re-toasting on every
+        // fs:watch tick while it stays expanded-but-missing.
+        setExpanded((prev) => {
+          if (!prev.has(relPath)) return prev
+          const next = new Set(prev)
+          next.delete(relPath)
+          return next
+        })
+        setChildren((prev) => {
+          if (!(relPath in prev)) return prev
+          const next = { ...prev }
+          delete next[relPath]
+          return next
+        })
+        return
+      }
+      toast(res.error.message, 'error')
     },
     [toast]
   )
 
-  const refresh = useCallback(() => {
-    void load('')
-    for (const dir of expandedRef.current) void load(dir)
-  }, [load])
+  // Default silent: called from the fs:watch background refresh, where a
+  // missing expanded dir shouldn't re-toast on every tick. The explicit
+  // Refresh button passes silent: false so a real failure still surfaces.
+  const refresh = useCallback(
+    (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent ?? true
+      void load('', { silent })
+      for (const dir of expandedRef.current) void load(dir, { silent })
+    },
+    [load]
+  )
 
   // (Re)load the tree on mount and whenever the dock retargets to another
   // project root (focusing a pane in a different directory).
@@ -125,7 +155,7 @@ export function FileTree() {
     toast(`Copied ${paths.length} path${paths.length > 1 ? 's' : ''}`, 'success')
   }
 
-  useEffect(() => window.dockterm.on('fs:watch', refresh), [refresh])
+  useEffect(() => window.dockterm.on('fs:watch', () => refresh({ silent: true })), [refresh])
 
   // Live file search (debounced): a jailed, bounded recursive name match in main,
   // shown as a flat result list while there's a query.
@@ -166,12 +196,29 @@ export function FileTree() {
   useEffect(() => {
     if (!menu) return
     const close = () => setMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
     window.addEventListener('click', close)
     window.addEventListener('blur', close)
+    window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('click', close)
       window.removeEventListener('blur', close)
+      window.removeEventListener('keydown', onKey)
     }
+  }, [menu])
+
+  // Keep the menu on-screen — it's positioned at the raw click coordinates,
+  // which can put it past the right/bottom edge near a window border.
+  useLayoutEffect(() => {
+    if (!menu || !menuRef.current) return
+    const el = menuRef.current
+    const rect = el.getBoundingClientRect()
+    const x = Math.min(menu.x, window.innerWidth - rect.width - 4)
+    const y = Math.min(menu.y, window.innerHeight - rect.height - 4)
+    if (x !== menu.x) el.style.left = `${Math.max(4, x)}px`
+    if (y !== menu.y) el.style.top = `${Math.max(4, y)}px`
   }, [menu])
 
   const toggleDir = (node: TreeNode) => {
@@ -234,8 +281,10 @@ export function FileTree() {
       return
     }
     if (node.type === 'file') {
-      closeTab(node.relPath)
-      void openFile(toRelPath, name)
+      // Re-point the open tab in place instead of close+reopen — the latter
+      // used to silently drop unsaved edits by re-reading the (now-moved)
+      // file from disk under its new name.
+      renamePath(node.relPath, toRelPath, name)
     }
     await load(dir)
   }
@@ -341,7 +390,11 @@ export function FileTree() {
           <button className="iconbtn iconbtn--sm" title="New folder" onClick={() => void newFolder('')}>
             <FolderPlus size={14} />
           </button>
-          <button className="iconbtn iconbtn--sm" title="Refresh" onClick={refresh}>
+          <button
+            className="iconbtn iconbtn--sm"
+            title="Refresh"
+            onClick={() => refresh({ silent: false })}
+          >
             <RefreshCw size={13} />
           </button>
         </div>
@@ -418,13 +471,28 @@ export function FileTree() {
         </div>
       )}
       {menu && (
-        <div className="ctxmenu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="ctxmenu"
+          ref={menuRef}
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {(menu.node === null || menu.node.type === 'dir') && (
             <>
-              <button onClick={() => void newFile(menu.node ? menu.node.relPath : '')}>
+              <button
+                onClick={() => {
+                  setMenu(null)
+                  void newFile(menu.node ? menu.node.relPath : '')
+                }}
+              >
                 <FilePlus size={13} /> New File
               </button>
-              <button onClick={() => void newFolder(menu.node ? menu.node.relPath : '')}>
+              <button
+                onClick={() => {
+                  setMenu(null)
+                  void newFolder(menu.node ? menu.node.relPath : '')
+                }}
+              >
                 <FolderPlus size={13} /> New Folder
               </button>
               {menu.node && <div className="ctxmenu__sep" />}
@@ -432,13 +500,32 @@ export function FileTree() {
           )}
           {menu.node && (
             <>
-              <button onClick={() => void renameNode(menu.node!)}>
+              <button
+                onClick={() => {
+                  const node = menu.node!
+                  setMenu(null)
+                  void renameNode(node)
+                }}
+              >
                 <Pencil size={13} /> Rename
               </button>
-              <button onClick={() => reveal(menu.node!)}>
+              <button
+                onClick={() => {
+                  const node = menu.node!
+                  setMenu(null)
+                  reveal(node)
+                }}
+              >
                 <FolderInput size={13} /> Reveal in OS
               </button>
-              <button className="ctxmenu__danger" onClick={() => void deleteNode(menu.node!)}>
+              <button
+                className="ctxmenu__danger"
+                onClick={() => {
+                  const node = menu.node!
+                  setMenu(null)
+                  void deleteNode(node)
+                }}
+              >
                 <Trash2 size={13} /> Delete
               </button>
             </>
