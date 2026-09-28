@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { renderMarkdownPreview } from '../terminal/markdown'
 import { conversationDepKey } from './conversationDepKey'
 import type { ReadingMessage } from '@shared/types'
@@ -63,14 +63,18 @@ export function useStickyScroll(depKey: unknown): {
   ref: React.RefObject<HTMLDivElement | null>
   /** Attach to the single element that wraps everything scrollable inside `ref` —
    * a ResizeObserver on it catches content growth `depKey` alone can miss (a code
-   * block's late syntax highlighting, a window resize) while the user is pinned. */
-  contentRef: React.RefObject<HTMLDivElement | null>
+   * block's late syntax highlighting, a window resize) while the user is pinned.
+   * A callback ref (not a plain RefObject): the content wrapper is conditionally
+   * rendered (an empty-state card shows before it exists), so the observer has to
+   * attach whenever that node actually mounts, not just once on first render. */
+  contentRef: (node: HTMLDivElement | null) => void
   atBottom: boolean
   onScroll: () => void
   jumpToLatest: () => void
 } {
   const ref = useRef<HTMLDivElement | null>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
+  const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null)
+  const contentRef = useCallback((node: HTMLDivElement | null) => setContentEl(node), [])
   const [atBottom, setAtBottom] = useState(true)
   const atBottomRef = useRef(atBottom)
   atBottomRef.current = atBottom
@@ -81,15 +85,14 @@ export function useStickyScroll(depKey: unknown): {
   }, [depKey, atBottom])
 
   useEffect(() => {
-    const content = contentRef.current
     const el = ref.current
-    if (!content || !el || typeof ResizeObserver === 'undefined') return
+    if (!contentEl || !el || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(() => {
       if (atBottomRef.current) el.scrollTop = el.scrollHeight
     })
-    ro.observe(content)
+    ro.observe(contentEl)
     return () => ro.disconnect()
-  }, [])
+  }, [contentEl])
 
   return {
     ref,
