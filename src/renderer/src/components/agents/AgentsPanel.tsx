@@ -16,9 +16,12 @@ export function AgentsPanel() {
   const updatePrefs = useAppStore((s) => s.updatePreferences)
   const openFile = useEditorStore((s) => s.open)
 
+  // Re-read whenever the focused pane's project changes — otherwise this kept
+  // showing the first-opened project's agents after switching to another one.
+  const activeRoot = useAppStore((s) => s.activeRoot)
   useEffect(() => {
     void read()
-  }, [read])
+  }, [read, activeRoot])
 
   const readUserConfig = settings?.claude.readUserConfig ?? false
   const toggleUser = async (): Promise<void> => {

@@ -28,8 +28,13 @@ export function ReviewPanel() {
   const stage = useGitStore((s) => s.stage)
   const setOpenPanel = useAppStore((s) => s.setOpenPanel)
   const beginner = useAppStore((s) => s.settings?.git.beginnerMode ?? true)
+  const activeRoot = useAppStore((s) => s.activeRoot)
 
+  // Re-read whenever the focused pane's project changes — otherwise this kept
+  // showing the first-opened project's diff, and an open diff pane could point
+  // at a file from a project that's no longer focused.
   useEffect(() => {
+    useReviewStore.getState().closeDiff()
     void review.refresh()
     void review.refreshCheckpoint()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -42,7 +47,7 @@ export function ReviewPanel() {
       if (timer) clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [activeRoot])
 
   const files = review.files
   const totalIns = files.reduce((a, f) => a + f.insertions, 0)
@@ -101,7 +106,8 @@ export function ReviewPanel() {
               title: 'Create checkpoint',
               label: 'Label (optional)',
               placeholder: 'before refactor',
-              confirmLabel: 'Create'
+              confirmLabel: 'Create',
+              allowEmpty: true
             })
             if (label !== null) void review.createCheckpoint(label)
           }}
