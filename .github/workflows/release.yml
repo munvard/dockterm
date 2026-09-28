@@ -23,7 +23,11 @@ jobs:
           # parallel jobs each build + notarize their own arch's .dmg.
           - { os: macos-14, args: '--mac --arm64', label: mac-arm64 }
           - { os: macos-14, args: '--mac --x64', label: mac-x64 }
-          - { os: ubuntu-latest, args: '--linux --x64', label: linux-x64 }
+          # Pinned to 22.04 (not ubuntu-latest, which has moved to 24.04):
+          # AppImages/debs built against a newer glibc than the target
+          # machine has refuse to run, so building on the OLDER LTS keeps the
+          # widest range of end-user distros working.
+          - { os: ubuntu-22.04, args: '--linux --x64', label: linux-x64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -101,8 +105,15 @@ jobs:
             -q ".[] | select(.tag_name==\"$TAG\") | .assets[] | \"\(.id) \(.name)\"" \
             | while read -r ID NAME; do
                 case "$NAME" in
-                  *.blockmap|latest*.yml)
+                  *.blockmap)
                     gh api --method DELETE "repos/$REPO/releases/assets/$ID" ;;
+                  # latest*.yml (electron-builder's generated update-info,
+                  # with the sha512 of each installer) is KEPT and left with
+                  # its original name — DockTerm's in-app update checker
+                  # fetches it by that exact name to verify a downloaded
+                  # installer's checksum before running it. Deleting it here
+                  # (as this job used to) silently turned that check off for
+                  # every user.
                   *mac-arm64.dmg)
                     gh api --method PATCH "repos/$REPO/releases/assets/$ID" -f name="DockTerm-$VER-macOS-Apple-Silicon.dmg" >/dev/null ;;
                   *mac-x64.dmg)
