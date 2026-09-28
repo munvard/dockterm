@@ -286,6 +286,11 @@ export interface AgentActivitySettings {
 export interface WorkspacePersist {
   tabs: { id: string; title: string; layout: unknown; focusedLeafId: string }[]
   activeId: string
+  /** The project root this workspace was saved for. A workspace only restores
+   * into the SAME project — optional so an older persisted file (saved before
+   * this field existed) is treated as "unknown project" (don't restore) rather
+   * than "restore into anything". */
+  projectPath?: string
 }
 
 export interface Checkpoint {
