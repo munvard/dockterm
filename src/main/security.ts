@@ -8,7 +8,7 @@ const EXTERNAL_URL = /^https?:\/\//i
  *   `app://` origin only and there is never remote script to abuse it.
  * - `worker-src blob:` is required by Monaco and xterm web workers.
  */
-const PROD_CSP = [
+export const PROD_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
@@ -25,7 +25,11 @@ const PROD_CSP = [
 export function isTrustedSender(url: string | undefined): boolean {
   if (!url) return false
   if (url.startsWith('app://')) return true
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  // ELECTRON_RENDERER_URL only ever matters in dev (electron-vite sets it to
+  // point at the Vite dev server). Gating it behind !app.isPackaged means a
+  // packaged build can never be tricked into trusting an arbitrary origin
+  // just because that env var happens to be set in its environment.
+  const devUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
   if (devUrl && url.startsWith(devUrl)) return true
   if (!app.isPackaged && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(url)) return true
   return false

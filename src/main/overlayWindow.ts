@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
@@ -80,7 +80,13 @@ function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center
     // clamped to the work area, so even a tall card's footer stays above the dock.
     const d = screen.getPrimaryDisplay()
     const x = Math.round(d.bounds.x + (d.bounds.width - w) / 2)
-    overlay.setBounds({ x, y: d.bounds.y, width: w, height: h })
+    // macOS/Windows intentionally sit at the very top of the display bounds
+    // (macOS to cover the notch; Windows has no reserved top strip in the
+    // common case). Linux desktop panels vary widely and are often docked at
+    // the TOP of the screen, so bounds.y there would place munu under/behind
+    // the panel — use workArea.y instead so it rests just below it.
+    const y = isLinux ? d.workArea.y : d.bounds.y
+    overlay.setBounds({ x, y, width: w, height: h })
   }
 }
 
@@ -134,7 +140,10 @@ export function createOverlayWindow(): BrowserWindow {
   if (isLinux) overlay.setIgnoreMouseEvents(false)
   else overlay.setIgnoreMouseEvents(true, { forward: true })
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  // Only ever honored in dev (electron-vite sets this for the Vite dev
+  // server) — a packaged build must never load overlay content from a URL an
+  // environment variable could point anywhere.
+  const devUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
   void overlay.loadURL(devUrl ? `${devUrl}/overlay.html` : OVERLAY_URL)
   overlay.once('ready-to-show', () => {
     placeOverlay(W, H)
