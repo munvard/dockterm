@@ -11,5 +11,10 @@
   <true/>
   <key>com.apple.security.inherit</key>
   <true/>
+  <!-- Matches entitlements.mac.plist: the shell PTY's child processes (e.g.
+       Claude Code's own CLI voice mode) need this too, not just the parent
+       app bundle. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
 </dict>
 </plist>

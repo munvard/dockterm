@@ -65,6 +65,19 @@ exports.default = async function afterPack(context) {
     [FuseV1Options.RunAsNode]: false,
     [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
     [FuseV1Options.EnableNodeCliInspectArguments]: false,
-    [FuseV1Options.OnlyLoadAppFromAsar]: true
+    [FuseV1Options.OnlyLoadAppFromAsar]: true,
+    // file:// is never used to load app content (production loads over the
+    // custom app:// scheme; see protocol.ts), so it doesn't need the extra
+    // privileges Electron grants it by default.
+    [FuseV1Options.GrantFileProtocolExtraPrivileges]: false
+    // NOT flipping EnableEmbeddedAsarIntegrityValidation here: that fuse
+    // requires electron-builder to also EMBED a matching integrity header in
+    // the asar at package time (its own "asarIntegrity" support), which this
+    // afterPack-driven flipFuses call does not do. Turning the fuse on
+    // without that pairing makes Electron refuse to load the asar at all —
+    // i.e. the packaged app would fail to launch for EVERY user, signed or
+    // not. Enabling it safely needs electron-builder's built-in fuses
+    // config (or a verified newer electron-builder version) plus a real
+    // signed-build test, neither of which this change can verify.
   })
 }
