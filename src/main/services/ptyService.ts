@@ -34,9 +34,22 @@ export interface CreatePtyArgs {
   win: BrowserWindow
 }
 
-export function createPty(args: CreatePtyArgs): { sessionId: string; shell: string } {
+export interface CreatePtyResult {
+  sessionId: string
+  shell: string
+  /** The directory the shell actually started in. */
+  cwd: string
+  /** True when `args.cwd` was requested but didn't exist, so we fell back to
+   * the home directory instead — the caller should tell the user rather than
+   * silently pretending the pane opened where it was asked to. */
+  cwdFellBack: boolean
+}
+
+export function createPty(args: CreatePtyArgs): CreatePtyResult {
   const shell = detectShell()
-  const cwd = args.cwd && existsSync(args.cwd) ? args.cwd : os.homedir()
+  const requestedCwd = args.cwd
+  const cwdFellBack = !!requestedCwd && !existsSync(requestedCwd)
+  const cwd = requestedCwd && !cwdFellBack ? requestedCwd : os.homedir()
   const settings = getSettings()
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -67,7 +80,13 @@ export function createPty(args: CreatePtyArgs): { sessionId: string; shell: stri
     cols: clamp(args.cols, PTY.MIN_COLS, PTY.MAX_COLS),
     rows: clamp(args.rows, PTY.MIN_ROWS, PTY.MAX_ROWS),
     cwd,
-    env
+    env,
+    // Without this, session.pty.kill() forks a whole extra Node process
+    // (conpty_console_list_agent) to enumerate the console process list. With
+    // the RunAsNode Electron fuse disabled (our packaged build), that fork just
+    // relaunches the Electron binary itself — a second DockTerm window opens on
+    // every close. useConptyDll keeps the process list inside the native addon.
+    ...(process.platform === 'win32' ? { useConptyDll: true } : {})
   })
 
   const id = `pty-${++counter}`
@@ -94,7 +113,7 @@ export function createPty(args: CreatePtyArgs): { sessionId: string; shell: stri
     disposeSession(id)
   })
 
-  return { sessionId: id, shell: shell.file }
+  return { sessionId: id, shell: shell.file, cwd, cwdFellBack }
 }
 
 function flushSession(session: Session): void {
@@ -124,9 +143,28 @@ export function writePty(sessionId: string, data: string): void {
 }
 
 /** The foreground process name of a session's pty ('zsh', 'node', 'claude', …).
- * Empty when the session is gone. Used to warn before closing a busy terminal. */
+ * Empty when the session is gone. Used to warn before closing a busy terminal.
+ *
+ * On win32, node-pty's `IPty.process` getter (WindowsTerminal.get process) just
+ * echoes back `this._name` — the `name` string we passed to `spawn()` at
+ * creation, `'xterm-256color'` — it never actually queries the live foreground
+ * process there. Reporting that static string as if it were real would make
+ * every Windows pane look permanently busy (close always warns, Claude-active
+ * checks always true). So win32 reports '' ("unknown") instead, and callers
+ * fall back to a buffer-text heuristic (see paneClaudeActive.ts). */
 export function foregroundProcess(sessionId: string): string {
+  if (process.platform === 'win32') return ''
   return sessions.get(sessionId)?.pty.process ?? ''
+}
+
+/** True when `webContentsId` is the window that owns `sessionId`'s pty, or the
+ * session no longer exists (nothing to protect — the caller's own no-op
+ * handles that case). Guards pty:write/kill/resize/ack so one window (in
+ * particular the overlay, which shares the same IPC surface) can't reach into
+ * a PTY session it didn't create. */
+export function isSessionOwner(sessionId: string, webContentsId: number): boolean {
+  const session = sessions.get(sessionId)
+  return !session || session.ownerId === webContentsId
 }
 
 export function resizePty(sessionId: string, cols: number, rows: number): void {

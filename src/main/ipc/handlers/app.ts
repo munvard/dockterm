@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, clipboard } from 'electron'
+import os from 'node:os'
 import { z } from 'zod'
 import { ok } from '@shared/result'
 import { APP_NAME } from '@shared/constants'
@@ -22,13 +23,22 @@ function broadcastSettings(next: Settings): void {
   }
 }
 
+/** Windows build number out of os.release() ("10.0.22621" -> 22621). Xterm's
+ * conpty reflow/scrollback heuristics (windowsPty) key off this. */
+function windowsBuildNumber(release: string): number | undefined {
+  const m = /^\d+\.\d+\.(\d+)/.exec(release)
+  return m ? parseInt(m[1], 10) : undefined
+}
+
 export function registerAppHandlers(reg: Registrar): void {
   reg('app:getInfo', z.void(), () =>
     ok({
       name: APP_NAME,
       version: app.getVersion(),
       platform: process.platform,
-      home: app.getPath('home')
+      home: app.getPath('home'),
+      windowsBuildNumber:
+        process.platform === 'win32' ? windowsBuildNumber(os.release()) : undefined
     })
   )
 

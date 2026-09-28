@@ -49,6 +49,9 @@ export interface AppInfo {
   platform: string
   /** The user's home directory — for "open a terminal here" quick starts. */
   home: string
+  /** Windows build number (from os.release()), win32 only — xterm's conpty
+   * reflow/scrollback heuristics key off this. Undefined elsewhere. */
+  windowsBuildNumber?: number
 }
 
 /** Application-menu items that route to the focused renderer (File/View, etc.). */
@@ -71,6 +74,13 @@ export interface CreatePtyReq {
 export interface CreatePtyRes {
   sessionId: string
   shell: string
+  /** The directory the shell actually started in — may differ from the
+   * requested cwd (see cwdFellBack). */
+  cwd: string
+  /** True when the requested cwd didn't exist and the shell fell back to the
+   * home directory instead — the renderer should tell the user, not pretend
+   * the pane opened where it was asked to. */
+  cwdFellBack: boolean
 }
 export interface WritePtyReq {
   sessionId: string

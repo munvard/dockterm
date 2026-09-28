@@ -7,7 +7,8 @@ import {
   resizePty,
   ackPty,
   killPty,
-  foregroundProcess
+  foregroundProcess,
+  isSessionOwner
 } from '../../services/ptyService'
 import { loadBuffers, saveBuffers } from '../../services/terminalBufferStore'
 import type { Registrar } from '../register'
@@ -42,26 +43,41 @@ export function registerPtyHandlers(reg: Registrar): void {
   reg('pty:create', createSchema, (req, event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return err('UNKNOWN', 'No window associated with this request')
-    const { sessionId, shell } = createPty({ cols: req.cols, rows: req.rows, cwd: req.cwd, win })
-    return ok({ sessionId, shell })
+    const { sessionId, shell, cwd, cwdFellBack } = createPty({
+      cols: req.cols,
+      rows: req.rows,
+      cwd: req.cwd,
+      win
+    })
+    return ok({ sessionId, shell, cwd, cwdFellBack })
   })
 
-  reg('pty:write', writeSchema, (req) => {
+  // write/resize/kill/ack all act on an existing session — reject a request
+  // from a window (in particular the overlay) that isn't the one that created
+  // it, instead of letting any window reach into any pty by guessing its id.
+  const NOT_OWNER = (): ReturnType<typeof err> =>
+    err('VALIDATION', 'Not the owner of this terminal session')
+
+  reg('pty:write', writeSchema, (req, event) => {
+    if (!isSessionOwner(req.sessionId, event.sender.id)) return NOT_OWNER()
     writePty(req.sessionId, req.data)
     return ok(undefined)
   })
 
-  reg('pty:resize', resizeSchema, (req) => {
+  reg('pty:resize', resizeSchema, (req, event) => {
+    if (!isSessionOwner(req.sessionId, event.sender.id)) return NOT_OWNER()
     resizePty(req.sessionId, req.cols, req.rows)
     return ok(undefined)
   })
 
-  reg('pty:kill', sessionSchema, (req) => {
+  reg('pty:kill', sessionSchema, (req, event) => {
+    if (!isSessionOwner(req.sessionId, event.sender.id)) return NOT_OWNER()
     killPty(req.sessionId)
     return ok(undefined)
   })
 
-  reg('pty:ack', ackSchema, (req) => {
+  reg('pty:ack', ackSchema, (req, event) => {
+    if (!isSessionOwner(req.sessionId, event.sender.id)) return NOT_OWNER()
     ackPty(req.sessionId, req.bytes)
     return ok(undefined)
   })
