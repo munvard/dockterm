@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTerminal, type TerminalOptions } from './useTerminal'
 import { useAppStore } from '../../state/useAppStore'
 import { SelectionToolbar } from './SelectionToolbar'
-import { clampToolbar, wrapBracketedPaste, buildClaudeReference, type Pt } from './terminalSelection'
+import { clampToolbar, buildClaudeReference, type Pt } from './terminalSelection'
 
 type Props = TerminalOptions & {
   /** Receives a stable paste function once the terminal mounts (for drag-drop). */
@@ -22,6 +22,7 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<Pt | null>(null)
   const sendRef = useRef('') // the text the toolbar will send
+  const clipBeforeRef = useRef('') // clipboard content sampled at mousedown
 
   const term = useTerminal({
     ...options,
@@ -63,6 +64,13 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
       down.dragged = false
       down.x = e.clientX
       down.y = e.clientY
+      if (down.on) {
+        // Sample the clipboard BEFORE the drag, so the post-drag read below can
+        // tell "the app really just copied something" from "nothing changed".
+        void window.dockterm.invoke('clipboard:read', undefined).then((r) => {
+          clipBeforeRef.current = r.ok ? r.value : ''
+        })
+      }
     }
     const onMove = (e: MouseEvent): void => {
       if (down.on && Math.hypot(e.clientX - down.x, e.clientY - down.y) > DRAG_PX) down.dragged = true
@@ -77,13 +85,19 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
         return
       }
       if (!wasDrag) return
-      // Claude grabbed the mouse + copied — read its clipboard shortly after.
+      // No xterm selection after a drag only means "Claude (or vim, …) grabbed
+      // the click and copied on its own" when it has actually turned on mouse
+      // tracking — over plain scrollback it just means nothing was selected,
+      // and reading the clipboard then would show whatever was already there
+      // (stale, unrelated to this drag).
+      if (!termRef.current.mouseTrackingActive()) return
       const x = e.clientX
       const y = e.clientY
+      const before = clipBeforeRef.current
       window.setTimeout(() => {
         void window.dockterm.invoke('clipboard:read', undefined).then((r) => {
           const t = r.ok ? r.value.trim() : ''
-          if (t) show(t, x, y)
+          if (t && t !== before.trim()) show(t, x, y)
         })
       }, CLAUDE_COPY_MS)
     }
@@ -105,8 +119,10 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
         <SelectionToolbar
           pos={pos}
           onSend={() => {
-            if (sendRef.current)
-              termRef.current.paste(wrapBracketedPaste(buildClaudeReference(sendRef.current)))
+            // term.paste (behind termRef.current.paste) already wraps this in
+            // bracketed-paste markers when the app underneath expects them —
+            // wrapping it again here regardless of mode was XP-M3.
+            if (sendRef.current) termRef.current.paste(buildClaudeReference(sendRef.current))
             setPos(null)
           }}
           onCopy={() => {
