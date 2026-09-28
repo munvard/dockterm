@@ -51,11 +51,20 @@ export function buildIntegration(
     case 'bash':
       // --rcfile runs our init (which sources profile + bashrc); -i for interactive.
       return { args: ['--rcfile', join(dir, 'bash-integration.bash'), '-i'], env: {} }
-    case 'pwsh':
+    case 'pwsh': {
+      // -ExecutionPolicy Bypass is scoped to THIS process only (a command-line
+      // launch flag, not a persistent policy change) — without it, dot-sourcing
+      // our script is blocked outright under the "Restricted" policy that ships
+      // on Windows PowerShell 5.1, so the hook never installs. The path itself
+      // is single-quoted in the -Command string, so a literal `'` in it (e.g. a
+      // Windows username like "O'Brien") needs escaping to `''` or it would
+      // terminate the string early.
+      const scriptPath = join(dir, 'pwsh-integration.ps1').replace(/'/g, "''")
       return {
-        args: [...baseArgs, '-NoExit', '-Command', `. '${join(dir, 'pwsh-integration.ps1')}'`],
+        args: [...baseArgs, '-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', `. '${scriptPath}'`],
         env: {}
       }
+    }
     default:
       return null
   }
@@ -79,29 +88,50 @@ precmd_functions+=(_dockterm_osc7)
 # Restore ZDOTDIR so the interactive session sees the user's own value.
 [ -n "$DOCKTERM_USER_ZDOTDIR" ] && export ZDOTDIR="$DOCKTERM_USER_ZDOTDIR"
 `
-const BASH_INIT = `# DockTerm shell integration (auto-generated)
+export const BASH_INIT = `# DockTerm shell integration (auto-generated)
 # We run bash with --rcfile (interactive, non-login), which skips the normal
 # login startup. Re-source it so the system prompt (e.g. macOS /etc/bashrc) and
 # PATH are preserved, then add the OSC 7 directory hook.
 [ -r /etc/profile ] && . /etc/profile
-if [ -f ~/.bash_profile ]; then . ~/.bash_profile;
-elif [ -f ~/.bash_login ]; then . ~/.bash_login;
-elif [ -f ~/.profile ]; then . ~/.profile; fi
-[ -f ~/.bashrc ] && . ~/.bashrc
+if [ -f ~/.bash_profile ]; then
+  . ~/.bash_profile
+  [ -f ~/.bashrc ] && . ~/.bashrc
+elif [ -f ~/.bash_login ]; then
+  . ~/.bash_login
+  [ -f ~/.bashrc ] && . ~/.bashrc
+elif [ -f ~/.profile ]; then
+  . ~/.profile
+  # Debian's default ~/.profile already sources ~/.bashrc itself when running
+  # bash — sourcing it again here would redefine every alias/PATH entry twice.
+else
+  [ -f ~/.bashrc ] && . ~/.bashrc
+fi
 _dockterm_osc7() { printf '\\033]7;file://%s%s\\a' "\${HOSTNAME}" "\${PWD}"; }
 case "$PROMPT_COMMAND" in
   *_dockterm_osc7*) ;;
   *) PROMPT_COMMAND="_dockterm_osc7\${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
 esac
 `
-const PWSH_INIT = `# DockTerm shell integration (auto-generated)
+export const PWSH_INIT = `# DockTerm shell integration (auto-generated)
 $global:__dockterm_origPrompt = $function:prompt
 function global:prompt {
-  $loc = (Get-Location).ProviderPath
-  $esc = [char]27; $bel = [char]7
-  $p = $loc -replace '\\\\','/'
-  [Console]::Write("$esc]7;file://$($env:COMPUTERNAME)/$p$bel")
-  if ($__dockterm_origPrompt) { & $__dockterm_origPrompt } else { "PS $loc> " }
+  $loc = Get-Location
+  # Only a real filesystem location has a meaningful OSC 7 path — a PSDrive
+  # like HKLM:\\, Cert:\\ or Env:\\ has a "ProviderPath" too, but writing it out
+  # as if it were a folder would send the dock/jail somewhere nonsensical.
+  if ($loc.Provider.Name -eq 'FileSystem') {
+    $esc = [char]27; $bel = [char]7
+    $raw = $loc.ProviderPath -replace '\\\\','/'
+    if ($raw.StartsWith('//')) {
+      # UNC path (\\\\server\\share\\dir -> //server/share/dir): keep the double
+      # slash so the renderer can tell it apart from a local drive path and
+      # rebuild \\\\server\\share\\dir instead of discarding the server name.
+      [Console]::Write("$esc]7;file://$($env:COMPUTERNAME)$raw$bel")
+    } else {
+      [Console]::Write("$esc]7;file://$($env:COMPUTERNAME)/$raw$bel")
+    }
+  }
+  if ($__dockterm_origPrompt) { & $__dockterm_origPrompt } else { "PS $($loc.Path)> " }
 }
 `
 
