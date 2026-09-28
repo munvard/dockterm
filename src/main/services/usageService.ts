@@ -1,9 +1,9 @@
 import { BrowserWindow } from 'electron'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
+import { claudeConfigDir, claudeJsonPath } from './claudeConfigDir'
 import type { UsageSnapshot, UsageTotals, UsageBucket, UsageWindow } from '@shared/types'
 
 /**
@@ -19,7 +19,7 @@ import type { UsageSnapshot, UsageTotals, UsageBucket, UsageWindow } from '@shar
  * never message content.
  */
 
-const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+const PROJECTS_DIR = join(claudeConfigDir(), 'projects')
 const WINDOW_DAYS = 30
 const KEEP_DAYS = 35
 const DAY_MS = 86_400_000
@@ -259,8 +259,25 @@ function budgetsForTier(tier: string | null): PlanBudgets {
   return PLAN.pro // pro / free / unknown — the conservative default
 }
 
+function mtimeOf(p: string): number {
+  try {
+    return statSync(p).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+// readPlanTier used to re-read and re-parse two JSON config files on every
+// broadcast() call (every scan tick that saw new bytes, i.e. roughly every 5s
+// while Claude is active) even though the rate-limit tier almost never
+// changes. Cache by the primary file's mtime.
+let planTierCache: { mtime: number; tier: string | null } | null = null
+
 /** The user's Claude plan tier, read from local config (null if not found). */
 export function readPlanTier(): string | null {
+  const path = claudeJsonPath()
+  const mtime = mtimeOf(path)
+  if (planTierCache && planTierCache.mtime === mtime) return planTierCache.tier
   const tryJson = (p: string): Record<string, unknown> | null => {
     try {
       return JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
@@ -268,15 +285,18 @@ export function readPlanTier(): string | null {
       return null
     }
   }
-  const cfg = tryJson(join(homedir(), '.claude.json'))
+  const cfg = tryJson(path)
   const acct = cfg?.oauthAccount as
     | { organizationRateLimitTier?: string; userRateLimitTier?: string }
     | undefined
-  if (acct?.userRateLimitTier) return acct.userRateLimitTier
-  if (acct?.organizationRateLimitTier) return acct.organizationRateLimitTier
-  const creds = tryJson(join(homedir(), '.claude', '.credentials.json'))
-  const oauth = creds?.claudeAiOauth as { rateLimitTier?: string } | undefined
-  return oauth?.rateLimitTier ?? null
+  let tier = acct?.userRateLimitTier ?? acct?.organizationRateLimitTier ?? null
+  if (!tier) {
+    const creds = tryJson(join(claudeConfigDir(), '.credentials.json'))
+    const oauth = creds?.claudeAiOauth as { rateLimitTier?: string } | undefined
+    tier = oauth?.rateLimitTier ?? null
+  }
+  planTierCache = { mtime, tier }
+  return tier
 }
 
 /** Resolve the budgets to use now: the user's chosen plan, or auto-detected. */

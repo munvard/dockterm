@@ -1,7 +1,7 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
+import { claudeConfigDir } from './claudeConfigDir'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
 import {
   appendConversation,
@@ -22,7 +22,7 @@ import type { SessionHistory, ReadingConversation, ReadingMessage } from '@share
  * nothing → empty rail. Read-only throughout.
  */
 
-const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+const PROJECTS_DIR = join(claudeConfigDir(), 'projects')
 const TAIL_BYTES = 512 * 1024 // how much of each transcript's tail to fingerprint
 const MAX_PROMPTS = 5000
 const MAX_READ_BYTES = 64 * 1024 * 1024
