@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useAppStore } from '../../state/useAppStore'
 import { useToastStore } from '../../state/useToastStore'
+import { useDialogStore } from '../../state/useDialogStore'
 import { useThemeStore } from '../../state/useThemeStore'
 import { THEMES } from '../../state/themes'
 import { DEFAULT_MONO, FONT_CHOICES } from '../terminal/terminalTheme'
@@ -59,6 +60,18 @@ export function SettingsPanel() {
   const setZoom = useAppStore((s) => s.setZoom)
   const themeSel = useThemeStore((st) => st.selection)
   const selectTheme = useThemeStore((st) => st.select)
+  const confirmDialog = useDialogStore((st) => st.confirm)
+
+  // Font picker: a known stack matches a preset; anything else is "custom".
+  // Computed with optional chaining and hooked up *before* the early return
+  // below, so this hook still runs on the render where `settings` is still
+  // null (first mount, before settings:get resolves) — calling useState only
+  // once settings exists would change the hook count between renders and
+  // trip React's rules of hooks.
+  const fontValue = settings?.terminal.fontFamily ?? null
+  const matchedFont = FONT_CHOICES.find((f) => f.value === (fontValue ?? ''))
+  const [customFont, setCustomFont] = useState(fontValue !== null && !matchedFont)
+
   if (!settings) return null
   const s = settings
   const zoom = s.ui.zoom ?? 1.1
@@ -81,11 +94,6 @@ export function SettingsPanel() {
     readingWidth: s.terminal.readingWidth
   })
 
-  // Font picker: a known stack matches a preset; anything else is "custom".
-  const fontValue = s.terminal.fontFamily
-  const matchedFont = FONT_CHOICES.find((f) => f.value === (fontValue ?? ''))
-  const [customFont, setCustomFont] = useState(fontValue !== null && !matchedFont)
-
   const checkUpdates = async (): Promise<void> => {
     const res = await window.dockterm.invoke('update:check', undefined)
     if (res.ok && res.value.upToDate) {
@@ -93,7 +101,15 @@ export function SettingsPanel() {
     }
   }
 
-  const resetDefaults = () => {
+  const resetDefaults = async (): Promise<void> => {
+    const ok = await confirmDialog({
+      title: 'Reset preferences',
+      message: 'Reset terminal, editor, git and Claude config preferences to their defaults?',
+      detail: 'Your project, files and git history are not affected.',
+      confirmLabel: 'Reset',
+      danger: true
+    })
+    if (!ok) return
     selectTheme('dockterm-dark')
     void update({
       terminal: {
@@ -640,7 +656,7 @@ export function SettingsPanel() {
         </Section>
 
         <Section title="Reset">
-          <button className="btn btn--ghost btn--sm" onClick={resetDefaults}>
+          <button className="btn btn--ghost btn--sm" onClick={() => void resetDefaults()}>
             Reset preferences to defaults
           </button>
         </Section>
