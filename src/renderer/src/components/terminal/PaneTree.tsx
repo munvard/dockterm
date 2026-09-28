@@ -49,6 +49,15 @@ function quoteForThisPlatform(p: string): string {
   return quotePath(p, document.documentElement.dataset.platform ?? '')
 }
 
+/** Platform-appropriate shortcut label for a tooltip: `mac` on darwin, `win`
+ * everywhere else (per the review's global key scheme: Cmd+key on mac,
+ * Ctrl+Shift+key on Windows/Linux). A tiny local stand-in for the shared
+ * k(mac, win) helper another wave is centralizing in its own hooks module —
+ * this file shouldn't sit with a hard-coded ⌘ label until that lands. */
+function k(mac: string, win: string): string {
+  return (document.documentElement.dataset.platform ?? '') === 'darwin' ? mac : win
+}
+
 function TerminalPane({
   leaf,
   tabId,
@@ -229,7 +238,11 @@ function TerminalPane({
           </button>
         )}
         <button
-          title={chatOn ? 'Show the terminal (⌘R)' : 'Chat mode — comfortable reading (⌘R)'}
+          title={
+            chatOn
+              ? `Show the terminal (${k('⌘R', 'Ctrl+Shift+R')})`
+              : `Chat mode — comfortable reading (${k('⌘R', 'Ctrl+Shift+R')})`
+          }
           aria-label="Toggle chat mode"
           className={chatOn ? 'pane__active' : undefined}
           onMouseDown={act(() => {
@@ -326,7 +339,7 @@ function TerminalPane({
         {!chatOn && focused && (t?.composeOverlay ?? true) && (
           <button
             className="pane__compose"
-            title="Compose a long prompt (⌘⇧⏎)"
+            title={`Compose a long prompt (${k('⌘⇧⏎', 'Ctrl+Shift+Enter')})`}
             aria-label="Compose a long prompt"
             onClick={() => useComposeStore.getState().openCompose()}
           >
