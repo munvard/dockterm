@@ -3,36 +3,10 @@ import { languageForFile } from '../components/editor/language'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
 import { useAppStore } from './useAppStore'
+import { renameEditorTab, type EditorTab, type EditorTabKind } from './editorTabs'
 
-export type EditorTabKind = 'text' | 'image' | 'binary'
-
-export interface EditorTab {
-  relPath: string
-  name: string
-  kind: EditorTabKind
-  content: string
-  /** image tabs only */
-  dataUrl?: string
-  /** image/binary tabs */
-  size?: number
-  mtimeMs: number
-  dirty: boolean
-  language: string
-  /** The absolute project root this tab was opened under. The window's
-   * "active" root follows the focused pane, so a background tab must pin its
-   * own root — otherwise a save after focus moves elsewhere would land in the
-   * wrong repo (RU-C3). Sent back with fs:readFile/writeFile; main validates
-   * it against the window's known roots before trusting it. */
-  root: string
-  /** Set when the file changed on disk while this tab was dirty, so the
-   * change couldn't be silently pulled in (RU-I12). Shown as a banner. */
-  staleOnDisk?: boolean
-  /** Bumped whenever content is refreshed from disk outside of save() (a
-   * silent background reload, or an explicit "Reload" after staleOnDisk) —
-   * lets the editor push the new text into an already-open Monaco model
-   * without mistaking it for a plain re-render. */
-  diskRevision?: number
-}
+// Re-exported for existing consumers that import the type from here.
+export type { EditorTab, EditorTabKind }
 
 /** The project root a newly-opened tab should be pinned to. */
 function currentRoot(): string {
@@ -136,15 +110,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({ tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, dirty } : t)) })),
 
   renamePath: (fromRelPath, toRelPath, name) =>
-    set((s) => ({
-      tabs: s.tabs.map((t) =>
-        t.relPath === fromRelPath
-          ? { ...t, relPath: toRelPath, name, language: t.kind === 'text' ? languageForFile(name) : t.language }
-          : t
-      ),
-      activePath: s.activePath === fromRelPath ? toRelPath : s.activePath,
-      goto: s.goto && s.goto.relPath === fromRelPath ? { ...s.goto, relPath: toRelPath } : s.goto
-    })),
+    set((s) => renameEditorTab(s, fromRelPath, toRelPath, name)),
 
   save: async (relPath, content) => {
     const tab = get().tabs.find((t) => t.relPath === relPath)
