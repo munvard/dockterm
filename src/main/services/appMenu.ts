@@ -1,12 +1,18 @@
 import { app, Menu, BrowserWindow, shell, type MenuItemConstructorOptions } from 'electron'
 import { createWindow } from '../window'
+import { getOverlay } from '../overlayWindow'
 import type { MenuAction } from '@shared/ipc'
 
 const isMac = process.platform === 'darwin'
 
-/** Route a File/View menu item to the focused renderer (it owns tabs/panes). */
+/** Route a File/View menu item to the focused renderer (it owns tabs/panes).
+ * The munu overlay is a BrowserWindow too (always present, never focused for
+ * typing) — never let it stand in for "the app window" here. */
 function send(action: MenuAction): void {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const overlay = getOverlay()
+  const focused = BrowserWindow.getFocusedWindow()
+  const win =
+    focused && focused !== overlay ? focused : BrowserWindow.getAllWindows().find((w) => w !== overlay)
   win?.webContents.send('menu:action', { action })
 }
 
@@ -109,7 +115,14 @@ export function setupAppMenu(): void {
     {
       label: 'Window',
       submenu: [
-        { role: 'minimize' },
+        // On win/linux, role 'minimize'/'close' default to Ctrl+M / Ctrl+W —
+        // both real terminal control characters (Ctrl+M is a carriage
+        // return, Ctrl+W deletes a word). registerAccelerator: false keeps
+        // the menu item and its label but stops Electron from grabbing the
+        // key globally, so it reaches the terminal like every other plain
+        // Ctrl+letter. macOS keeps its normal Cmd+M / Cmd+W (never conflicts
+        // with the PTY, which only sees Ctrl combos).
+        isMac ? { role: 'minimize' } : { role: 'minimize', registerAccelerator: false },
         { role: 'zoom' },
         ...(isMac
           ? ([
@@ -118,7 +131,7 @@ export function setupAppMenu(): void {
               { type: 'separator' },
               { role: 'window' }
             ] as MenuItemConstructorOptions[])
-          : ([{ role: 'close' }] as MenuItemConstructorOptions[]))
+          : ([{ role: 'close', registerAccelerator: false }] as MenuItemConstructorOptions[]))
       ]
     },
     {

@@ -2,26 +2,36 @@ import { useEffect } from 'react'
 import { useAppStore } from '../state/useAppStore'
 import { useEditorStore } from '../state/useEditorStore'
 import { useWorkspaceStore } from '../state/useWorkspaceStore'
-import type { PanelId } from '@shared/types'
+import { useComposeStore } from '../state/useComposeStore'
+import { useDialogStore } from '../state/useDialogStore'
+import { confirmCloseLeaves } from '../components/terminal/closeGuard'
+import { refocusIfTerminal } from '../components/terminal/PaneTree'
+import { detectPlatform, matchShortcut } from './keys'
 
-const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
+const platform = detectPlatform()
 
 /**
- * Global, platform-adaptive shortcuts that never steal keys the shell/TUI needs:
- * macOS uses Cmd+letter (the OS keeps these from the PTY); Windows/Linux uses
- * Ctrl+Shift+letter (plain Ctrl+letter is left for the shell). Ctrl/Cmd+W only
- * acts when the editor has focus.
+ * The ONE global, platform-adaptive shortcut registry. See ./keys.ts
+ * (matchShortcut) for the actual key -> shortcut mapping and the modifier
+ * rules; this hook only resolves a match against the app's stores. Nothing
+ * else in the renderer should add a second window keydown capture listener —
+ * two capture listeners on the same target both fire for one keypress and
+ * can act twice (or race) on it.
  */
 export function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // A confirm/prompt dialog owns the keyboard while it's open (Modal
+      // traps focus) — never let a global shortcut act on the app underneath
+      // it, e.g. a second "close" firing while one is already pending.
+      const dialogs = useDialogStore.getState()
+      if (dialogs.confirmState || dialogs.promptState) return
+
+      const matched = matchShortcut(e, platform)
+      if (!matched) return
+
       const app = useAppStore.getState()
-      const key = e.key.toLowerCase()
-      const cmdOnly = isMac && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
-      const ctrlShift = !isMac && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey
-      const withShift = isMac
-        ? e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey
-        : e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey
+      const ws = useWorkspaceStore.getState()
 
       const fire = (fn: () => void): void => {
         e.preventDefault()
@@ -29,67 +39,81 @@ export function useShortcuts(): void {
         fn()
       }
 
-      const panel = (letter: string, id: PanelId): boolean => {
-        if ((cmdOnly && key === letter) || (ctrlShift && key === letter)) {
-          fire(() => app.togglePanel(id))
-          return true
+      switch (matched.id) {
+        case 'panel:files':
+          return fire(() => app.togglePanel('files'))
+        case 'panel:git':
+          return fire(() => app.togglePanel('git'))
+        case 'panel:review':
+          return fire(() => app.togglePanel('review'))
+        case 'panel:mcp':
+          return fire(() => app.togglePanel('mcp'))
+        case 'toggleMiniTerm':
+          return fire(() => app.toggleMiniTerm())
+        case 'openProject':
+          return fire(() => void app.openProjectDialog())
+        case 'newTab': {
+          const cwd = app.activeRoot || app.homeDir
+          if (cwd) fire(() => ws.open(cwd))
+          return
         }
-        return false
-      }
-
-      if (panel('b', 'files')) return
-      if (panel('g', 'git')) return
-      if (panel('r', 'review')) return
-      if (withShift && key === 'm') return fire(() => app.togglePanel('mcp'))
-      if ((cmdOnly || ctrlShift) && key === 'j') return fire(() => app.toggleMiniTerm())
-      if ((cmdOnly || ctrlShift) && key === 'o') return fire(() => void app.openProjectDialog())
-
-      // Native terminal tab/window shortcuts so users coming from Terminal.app,
-      // GNOME Terminal or Windows Terminal feel at home:
-      //   New tab    — ⌘T (mac) / Ctrl+Shift+T (win/linux)
-      //   New window — ⌘N (mac) / Ctrl+Shift+N (win/linux)
-      //   Close tab  — ⌘W (mac) / Ctrl+Shift+W (win/linux); see the 'w' block below.
-      if ((cmdOnly && key === 't') || (ctrlShift && key === 't')) {
-        const cwd = app.activeRoot || app.homeDir
-        if (cwd) return fire(() => useWorkspaceStore.getState().open(cwd))
-      }
-      if ((cmdOnly && key === 'n') || (ctrlShift && key === 'n')) {
-        return fire(() => void window.dockterm.invoke('window:new', undefined))
-      }
-
-      // Command palette: Cmd/Ctrl+Shift+P, or Cmd+K (mac) / Ctrl+Shift+K (win)
-      if ((withShift && key === 'p') || (cmdOnly && key === 'k') || (ctrlShift && key === 'k')) {
-        return fire(() => app.setPaletteOpen(!app.paletteOpen))
-      }
-
-      // Settings: Cmd+, / Ctrl+,
-      if ((isMac ? e.metaKey : e.ctrlKey) && key === ',') {
-        return fire(() => app.setOpenPanel('settings'))
-      }
-
-      // UI zoom: Cmd/Ctrl + = / - / 0 (resets to 100%). Scales the whole UI.
-      const zoomMod = (isMac ? e.metaKey : e.ctrlKey) && !e.altKey
-      if (zoomMod) {
-        const current = app.settings?.ui.zoom ?? 1.1
-        if (key === '=' || key === '+') return fire(() => void app.setZoom(current + 0.1))
-        if (key === '-' || key === '_') return fire(() => void app.setZoom(current - 0.1))
-        if (key === '0') return fire(() => void app.setZoom(1))
-      }
-
-      // Close — native: ⌘W (mac) / Ctrl+Shift+W (win/linux) closes the active
-      // terminal tab. When the editor is focused, its own close combo (⌘W on mac,
-      // Ctrl+W on win/linux) closes the editor tab instead. Plain Ctrl+W (no
-      // shift) is always left for the shell's delete-word.
-      if (key === 'w') {
-        const inEditor = !!document.activeElement?.closest('.editor')
-        const editor = useEditorStore.getState()
-        const editorClose = isMac ? cmdOnly : e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey
-        if (inEditor && editor.activePath && editorClose) {
-          return fire(() => editor.closeActive())
+        case 'newWindow':
+          return fire(() => void window.dockterm.invoke('window:new', undefined))
+        case 'splitRight':
+          return fire(() => ws.splitFocused('row'))
+        case 'toggleChat': {
+          const tab = ws.tabs.find((t) => t.id === ws.activeId)
+          const leafId = tab?.focusedLeafId
+          if (!leafId) return
+          return fire(() => {
+            const fallback = app.settings?.chat.defaultMode ?? 'terminal'
+            ws.togglePaneView(leafId, fallback)
+            refocusIfTerminal(leafId) // back to the terminal → give it the keyboard
+          })
         }
-        if (cmdOnly || ctrlShift) {
-          const ws = useWorkspaceStore.getState()
-          if (ws.activeId) return fire(() => ws.close(ws.activeId))
+        case 'toggleZen':
+          return fire(() => app.toggleZen())
+        case 'palette':
+          return fire(() => app.setPaletteOpen(!app.paletteOpen))
+        case 'compose':
+          return fire(() => useComposeStore.getState().openCompose())
+        case 'settings':
+          return fire(() => app.setOpenPanel('settings'))
+        case 'zoomIn': {
+          const current = app.settings?.ui.zoom ?? 1.1
+          return fire(() => void app.setZoom(current + 0.1))
+        }
+        case 'zoomOut': {
+          const current = app.settings?.ui.zoom ?? 1.1
+          return fire(() => void app.setZoom(current - 0.1))
+        }
+        case 'zoomReset':
+          return fire(() => void app.setZoom(1))
+        case 'switchTab': {
+          const tab = ws.tabs[matched.tabIndex ?? -1]
+          if (tab) fire(() => ws.setActive(tab.id))
+          return
+        }
+        case 'close': {
+          // Editor focused -> close the editor tab. Otherwise -> close the
+          // focused terminal pane, confirming first if it's still running
+          // something. Closing a whole TAB (all its panes) is a separate
+          // action (TabStrip's ✕, or the menu's Close Tab) that confirms
+          // against every leaf in it, not just the focused one.
+          const inEditor = !!document.activeElement?.closest('.editor')
+          const editor = useEditorStore.getState()
+          if (inEditor && editor.activePath) {
+            return fire(() => editor.closeActive())
+          }
+          const tab = ws.tabs.find((t) => t.id === ws.activeId)
+          const leafId = tab?.focusedLeafId
+          if (!leafId) return
+          fire(() => {
+            void confirmCloseLeaves([leafId]).then((proceed) => {
+              if (proceed) useWorkspaceStore.getState().closeFocused()
+            })
+          })
+          return
         }
       }
     }

@@ -11,6 +11,8 @@ import { Toaster } from './components/common/Toaster'
 import { DialogHost } from './components/common/DialogHost'
 import { UpdatePopup } from './components/common/UpdatePopup'
 import { CommandPalette } from './components/command-palette/CommandPalette'
+import { allLeaves } from './state/layout'
+import { confirmCloseLeaves } from './components/terminal/closeGuard'
 
 export default function App() {
   const ready = useAppStore((s) => s.ready)
@@ -59,9 +61,17 @@ export default function App() {
         case 'newTab':
           if (projectPath) ws.open(projectPath)
           break
-        case 'closeTab':
-          ws.closeFocused()
+        case 'closeTab': {
+          // "Close Tab" closes the WHOLE active tab (every pane in it), so it
+          // must confirm against every leaf, not just the focused one — same
+          // guard as TabStrip's ✕ button.
+          const tab = ws.tabs.find((t) => t.id === ws.activeId)
+          if (!tab) break
+          void confirmCloseLeaves(allLeaves(tab.layout).map((l) => l.id)).then((proceed) => {
+            if (proceed) useWorkspaceStore.getState().close(tab.id)
+          })
           break
+        }
         case 'splitRight':
           ws.splitFocused('row')
           break

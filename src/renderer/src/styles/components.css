@@ -1239,7 +1239,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Above every other overlay (compose 110, filepreview 105, palette 151) so
+     a confirm/prompt dialog can never render behind one of them — only the
+     toaster (200) stays above it, so an error toast is still visible. */
+  z-index: 180;
 }
 .modal {
   background: var(--overlay);
