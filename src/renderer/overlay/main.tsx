@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Munu } from '@renderer/components/munu/Munu'
-import { isFreeText, pickKeys, submitKeys, textKeys, ESC } from '@renderer/components/terminal/askKeys'
-import type { AgentActivity, MascotCharacter, MunuAsk, MunuGlobal, MunuState, Settings } from '@shared/types'
+import { isFreeText } from '@renderer/components/terminal/askKeys'
+import type {
+  AgentActivity,
+  MascotCharacter,
+  MunuAnswerAction,
+  MunuAsk,
+  MunuGlobal,
+  MunuState,
+  Settings
+} from '@shared/types'
 import { playAsk, playDone } from './sounds'
 import { MunuPopup } from './MunuPopup'
 import { Swarm } from './Swarm'
@@ -17,8 +25,8 @@ const setInteractive = (v: boolean): void => {
 const setFocusable = (v: boolean): void => {
   void window.dockterm.invoke('munu:setFocusable', { focusable: v })
 }
-const sendKeys = (leafId: string, keys: string[]): void => {
-  if (keys.length) void window.dockterm.invoke('munu:answer', { leafId, keys })
+const sendAnswer = (ask: MunuAsk, action: MunuAnswerAction): void => {
+  if (ask.token) void window.dockterm.invoke('munu:answer', { leafId: ask.leafId, token: ask.token, action })
 }
 const focusTerminal = (): void => {
   void window.dockterm.invoke('munu:focus', undefined)
@@ -206,7 +214,7 @@ function Overlay() {
       setTyping(i)
       return
     }
-    sendKeys(primary.leafId, pickKeys(primary, i))
+    sendAnswer(primary, { kind: 'pick', index: i })
     if (primary.multiSelect) focusTerminal()
   }
 
@@ -215,20 +223,20 @@ function Overlay() {
   // changed box top-to-bottom, then Enter on Submit.
   const submitMulti = (): void => {
     if (!primary || primary.submitIndex == null) return
-    sendKeys(primary.leafId, submitKeys(primary, selected))
+    sendAnswer(primary, { kind: 'submit', selected: [...selected] })
   }
 
   // Send the typed free-text answer: select that row (entering Claude's text
   // field), type the text, Enter.
   const sendText = (): void => {
     if (!primary || typing == null) return
-    sendKeys(primary.leafId, textKeys(primary, typing, draft))
+    sendAnswer(primary, { kind: 'text', index: typing, text: draft })
     setTyping(null)
     setDraft('')
   }
 
   const cancel = (): void => {
-    if (primary) sendKeys(primary.leafId, [ESC])
+    if (primary) sendAnswer(primary, { kind: 'cancel' })
   }
 
   const writeMunu = (patch: Partial<Settings['munu']>): void => {

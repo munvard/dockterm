@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { ShieldQuestion, CornerDownLeft, TriangleAlert } from 'lucide-react'
 import { pickKeys, submitKeys, textKeys, isFreeText, askSig, ESC } from '../terminal/askKeys'
+import { answerPane } from '../../state/munuAnswer'
 import type { AskInfo } from '@shared/types'
 
-/** Send answer keys through the paced writer main already uses for munu, so the
- * timing Claude's TUI expects is identical no matter which surface answered.
- * `munu:answer` is zod-validated (each key chunk capped at 2000 chars) — a very
- * long free-text answer can fail that check, and since this was previously fired
- * with `void`, the card just sat there with the draft silently gone. Report
- * whether it actually landed so the caller can keep the draft and show an error
- * instead of pretending the answer was sent. */
+/** Send answer keys through the paced writer the munu overlay's answers use, so
+ * the timing Claude's TUI expects is identical no matter which surface answered.
+ * This window owns the pane, so it writes locally: no IPC round trip and no
+ * raw-key channel through main. Resolves true once the keys are queued. */
 async function sendKeys(leafId: string, keys: string[]): Promise<boolean> {
-  if (!keys.length) return true
-  const r = await window.dockterm.invoke('munu:answer', { leafId, keys })
-  return r.ok
+  if (keys.length) answerPane(leafId, keys)
+  return true
 }
 
 /**

@@ -49,7 +49,17 @@ export interface MunuAsk extends AskInfo {
   /** true when the user can currently see this pane (its window is focused and
    * its tab is active) — the overlay then suppresses the option card. */
   visible: boolean
+  /** One-shot answer token, issued by main to the overlay only (never by a window). */
+  token?: string
 }
+/** What the overlay may ask an asking pane to do. Semantic on purpose: the
+ * owning renderer turns it into key presses, so the overlay never supplies raw
+ * bytes for a PTY. */
+export type MunuAnswerAction =
+  | { kind: 'pick'; index: number }
+  | { kind: 'cancel' }
+  | { kind: 'submit'; selected: number[] }
+  | { kind: 'text'; index: number; text: string }
 export interface MunuGlobal {
   state: MunuState
   asks: MunuAsk[]

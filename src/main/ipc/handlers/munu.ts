@@ -10,6 +10,7 @@ import {
   showMainWindows
 } from '../../services/munuService'
 import { getOverlayBounds, moveOverlay, beginOverlayDrag, dragOverlay } from '../../overlayWindow'
+import { CONTROL_CHARS } from '../../services/munuAskTokens'
 import type { Registrar } from '../register'
 
 // .finite() on every plain z.number() below: without it, Infinity/-Infinity
@@ -44,10 +45,22 @@ const reportSchema = z.object({
   asks: z.array(askSchema).max(64),
   activeTabId: z.string().max(ID_MAX).optional()
 })
-const answerSchema = z.object({
+const optionIndex = z.number().int().min(0).max(31)
+export const answerActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('pick'), index: optionIndex }),
+  z.object({ kind: z.literal('cancel') }),
+  z.object({ kind: z.literal('submit'), selected: z.array(optionIndex).max(32) }),
+  z.object({
+    kind: z.literal('text'),
+    index: optionIndex,
+    // No control characters: typed text must not carry Enter, Ctrl-C or Esc.
+    text: z.string().max(2000).refine((t) => !CONTROL_CHARS.test(t), 'control characters')
+  })
+])
+export const answerSchema = z.object({
   leafId: z.string().max(ID_MAX),
-  // chunks are mostly tiny (arrows/Enter/digits); one may be typed free text.
-  keys: z.array(z.string().max(2000)).max(80)
+  token: z.string().min(1).max(ID_MAX),
+  action: answerActionSchema
 })
 const interactiveSchema = z.object({ interactive: z.boolean() })
 const resizeSchema = z.object({
@@ -62,10 +75,11 @@ export function registerMunuHandlers(reg: Registrar): void {
     return ok(undefined)
   })
 
-  reg('munu:answer', answerSchema, (req) => {
-    answerMunu(req.leafId, req.keys)
-    return ok(undefined)
-  })
+  reg('munu:answer', answerSchema, (req) =>
+    answerMunu(req.leafId, req.token, req.action)
+      ? ok(undefined)
+      : err('VALIDATION', 'Stale or unknown answer token')
+  )
 
   reg('munu:focus', z.void(), () => {
     focusMunu()

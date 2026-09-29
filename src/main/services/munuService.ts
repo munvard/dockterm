@@ -11,12 +11,14 @@ import {
   setOverlayInteractive as setOverlayClickThrough
 } from '../overlayWindow'
 import { wantReveal } from './munuReveal'
-import type { MunuAsk, MunuGlobal, MunuState } from '@shared/types'
+import { createAskTokens, isActionValidFor } from './munuAskTokens'
+import type { MunuAnswerAction, MunuAsk, MunuGlobal, MunuState } from '@shared/types'
 
 const isLinux = process.platform === 'linux'
 
 /** Per-window aggregate, keyed by webContents id. */
 const windowStates = new Map<number, MunuGlobal>()
+const askTokens = createAskTokens()
 let blockerId: number | null = null
 let lastNotified: MunuState = 'idle'
 
@@ -78,11 +80,12 @@ function stopCursorPoll(): void {
 }
 
 export function reportMunu(wcId: number, payload: MunuGlobal): void {
-  windowStates.set(wcId, payload)
+  windowStates.set(wcId, { ...payload, asks: askTokens.sync(wcId, payload.asks) })
   pushGlobal()
 }
 
 export function dropWindowMunu(wcId: number): void {
+  askTokens.dropWindow(wcId)
   if (windowStates.delete(wcId)) pushGlobal()
 }
 
@@ -127,22 +130,16 @@ function ownerOfPrimaryAsk(): { wc: Electron.WebContents; ask: MunuAsk } | null 
   return fallback
 }
 
-/** The window owning a specific asking pane (used to route answers exactly). */
-function ownerByLeaf(leafId: string): Electron.WebContents | null {
-  for (const [wcId, g] of windowStates) {
-    if (g.asks.some((a) => a.leafId === leafId)) {
-      const wc = webContents.fromId(wcId)
-      if (wc && !wc.isDestroyed()) return wc
-    }
-  }
-  return null
-}
-
-/** Forward the overlay's synthesized key chunks to the pane that's asking; the
- * renderer writes them into the PTY one at a time, paced. */
-export function answerMunu(leafId: string, keys: string[]): void {
-  const wc = ownerByLeaf(leafId)
-  if (wc) wc.send('munu:doAnswer', { leafId, keys })
+/** Route the overlay's semantic answer to the window that owns the asking pane.
+ * The token must be the one main issued for that pane's CURRENT prompt; it is
+ * spent on first use. The owning renderer builds the key presses itself. */
+export function answerMunu(leafId: string, token: string, action: MunuAnswerAction): boolean {
+  const hit = askTokens.consume(token, leafId)
+  if (!hit || !isActionValidFor(hit.ask, action)) return false
+  const wc = webContents.fromId(hit.wcId)
+  if (!wc || wc.isDestroyed()) return false
+  wc.send('munu:doAnswer', { leafId, action })
+  return true
 }
 
 export function resizeMunu(width: number, height: number, expanded = false): void {

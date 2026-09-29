@@ -1,4 +1,4 @@
-import type { AskInfo } from '@shared/types'
+import type { AskInfo, MunuAnswerAction } from '@shared/types'
 
 /**
  * The exact key sequences Claude's menus understand, extracted from the munu
@@ -51,6 +51,32 @@ export function textKeys(ask: AskInfo, index: number, text: string): string[] {
   const select =
     !ask.multiSelect && index < 9 ? [String(index + 1)] : [...arrows(ask.cursorRow, index), ENTER]
   return [...select, text, ENTER]
+}
+
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
+
+/** The key chunks for a semantic answer from the overlay, built from THIS
+ * window's own current view of the ask. null when the action does not fit the
+ * ask (index out of range, free text into a normal row, nothing to submit) or
+ * the text carries control characters. The overlay never supplies raw keys. */
+export function actionKeys(ask: AskInfo, action: MunuAnswerAction): string[] | null {
+  const n = ask.options.length
+  switch (action.kind) {
+    case 'cancel':
+      return [ESC]
+    case 'pick':
+      if (action.index < 0 || action.index >= n || isFreeText(ask.options[action.index])) return null
+      return pickKeys(ask, action.index)
+    case 'text':
+      if (action.index < 0 || action.index >= n || !isFreeText(ask.options[action.index])) return null
+      if (CONTROL_CHARS.test(action.text)) return null
+      return textKeys(ask, action.index, action.text)
+    case 'submit': {
+      if (ask.submitIndex == null || action.selected.some((i) => i < 0 || i >= n)) return null
+      const keys = submitKeys(ask, new Set(action.selected))
+      return keys.length ? keys : null
+    }
+  }
 }
 
 /** Content signature of a prompt, to tell a stale menu from a genuinely new one.

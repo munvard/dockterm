@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { useMunuStore } from '../../state/useMunuStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
-import { paneWriters } from '../../state/paneWriters'
+import { answerPane } from '../../state/munuAnswer'
+import { actionKeys } from '../terminal/askKeys'
 
 /**
  * Bridges this window's munu state to the main process (which drives the floating
@@ -31,40 +32,20 @@ export function useMunuBridge(): void {
     }
   }, [panes, done, activeId])
 
-  // The overlay answered the asking pane's menu. Write the key chunks into the
-  // PTY ONE AT A TIME, ~70ms apart, through a single serialized queue — Claude's
-  // TUI (ink) coalesces a burst of bytes into one keypress and drops the rest,
-  // so a paced stream is the only way arrow navigation / toggles register. The
-  // queue also keeps rapid clicks from interleaving.
-  useEffect(() => {
-    const queue: { leafId: string; key: string }[] = []
-    let draining = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const drain = (): void => {
-      const item = queue.shift()
-      if (!item) {
-        draining = false
-        return
-      }
-      paneWriters.write(item.leafId, item.key)
-      timer = setTimeout(drain, 70)
-    }
-    const off = window.dockterm.on('munu:doAnswer', ({ leafId, keys }) => {
-      // Every munu answer resolves the prompt (toggles don't send keys), so close
-      // the card / tuck munu right away instead of waiting for the classifier to
-      // notice the menu is gone (the stale menu lingers in the buffer ~2s).
-      useMunuStore.getState().markAnswered(leafId)
-      for (const key of keys) queue.push({ leafId, key })
-      if (!draining) {
-        draining = true
-        drain()
-      }
-    })
-    return () => {
-      off()
-      if (timer) clearTimeout(timer)
-    }
-  }, [])
+  // The overlay answered the asking pane's menu. Main only forwards a semantic
+  // action it has already checked against a one-shot token; THIS window builds the
+  // key presses from its own view of the ask, so the overlay never supplies raw
+  // bytes for a PTY. A stale or mismatching action is dropped.
+  useEffect(
+    () =>
+      window.dockterm.on('munu:doAnswer', ({ leafId, action }) => {
+        const pane = useMunuStore.getState().panes[leafId]
+        if (!pane || pane.state !== 'asking' || !pane.ask) return
+        const keys = actionKeys(pane.ask, action)
+        if (keys?.length) answerPane(leafId, keys)
+      }),
+    []
+  )
 
   // The overlay asked to jump to the asking pane (window raise handled in main).
   useEffect(

@@ -29,6 +29,7 @@ import type {
   SkillTemplate,
   ProjectInfoData,
   MunuGlobal,
+  MunuAnswerAction,
   UsageSnapshot,
   AgentActivity,
   SessionHistory,
@@ -327,7 +328,7 @@ export interface InvokeChannels {
   'munu:report': (req: MunuGlobal) => Result<void>
   /** Answer the asking pane `leafId` by writing `keys` (a sequence of individual
    * key chunks — digits, arrows, Enter) one at a time, paced, into its PTY. */
-  'munu:answer': (req: { leafId: string; keys: string[] }) => Result<void>
+  'munu:answer': (req: { leafId: string; token: string; action: MunuAnswerAction }) => Result<void>
   'munu:focus': (req: void) => Result<void>
   'munu:setInteractive': (req: { interactive: boolean }) => Result<void>
   /** Make the overlay focusable while the user types into munu's text field
@@ -360,7 +361,7 @@ export interface EventChannels {
   'munu:reveal': boolean
   /** main → the window owning an asking pane: key chunks to write into the PTY
    * one at a time, paced, so the TUI registers each as a separate keypress. */
-  'munu:doAnswer': { leafId: string; keys: string[] }
+  'munu:doAnswer': { leafId: string; action: MunuAnswerAction }
   /** main → the window owning an asking pane: focus that pane. */
   'munu:doFocus': { tabId: string; leafId: string }
   /** main → renderer: a newer release is available (poll-based). */

@@ -11,7 +11,6 @@ describe('isChannelAllowedForSender', () => {
 
   it('allows the munu:*, settings:get/set, app:getInfo, and activity:get channels for the overlay', () => {
     const allowed = [
-      'munu:report',
       'munu:answer',
       'munu:focus',
       'munu:setInteractive',
@@ -33,7 +32,7 @@ describe('isChannelAllowedForSender', () => {
   })
 
   it('blocks fs/git/pty/project channels for the overlay', () => {
-    const blocked = ['fs:readFile', 'fs:writeFile', 'git:status', 'pty:write', 'pty:kill', 'project:setActiveRoot']
+    const blocked = ['fs:readFile', 'fs:writeFile', 'git:status', 'pty:write', 'pty:kill', 'project:setActiveRoot', 'munu:report']
     for (const channel of blocked) {
       expect(isChannelAllowedForSender(channel, true)).toBe(false)
     }

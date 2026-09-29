@@ -12,7 +12,6 @@
  * unit-testable without pulling in the entire handler-registration graph.
  */
 export const OVERLAY_ALLOWED_CHANNELS = new Set<string>([
-  'munu:report',
   'munu:answer',
   'munu:focus',
   'munu:setInteractive',
