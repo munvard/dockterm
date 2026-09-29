@@ -106,9 +106,12 @@ export function buildMenuTemplate(platform: NodeJS.Platform, deps: MenuDeps): Me
         { label: 'Force Reload', click: (_item, win) => (win as BrowserWindow | undefined)?.webContents.reloadIgnoringCache() },
         { role: 'toggleDevTools' },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        // Their win/linux defaults are plain Ctrl+0 / Ctrl+Plus / Ctrl+-, which the
+        // terminal owns (Ctrl+- is readline's undo). The renderer zooms on
+        // Ctrl+Shift+ these keys, so show that and never register the plain ones.
+        { role: 'resetZoom', ...(isMac ? {} : { accelerator: 'Ctrl+Shift+0', registerAccelerator: false }) },
+        { role: 'zoomIn', ...(isMac ? {} : { accelerator: 'Ctrl+Shift+=', registerAccelerator: false }) },
+        { role: 'zoomOut', ...(isMac ? {} : { accelerator: 'Ctrl+Shift+-', registerAccelerator: false }) },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]

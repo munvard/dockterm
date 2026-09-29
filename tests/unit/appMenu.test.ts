@@ -19,9 +19,6 @@ function items(template: MenuItemConstructorOptions[]): MenuItemConstructorOptio
 /** Roles whose win/linux default accelerator is NOT a plain Ctrl+letter. */
 const SAFE_ROLES = new Set([
   'toggleDevTools', // Ctrl+Shift+I
-  'resetZoom', // Ctrl+0
-  'zoomIn', // Ctrl+Plus
-  'zoomOut', // Ctrl+-
   'togglefullscreen', // F11
   'help',
   'zoom'
@@ -59,6 +56,15 @@ describe.each(['win32', 'linux'] as const)('app menu on %s', (platform) => {
     const t = buildMenuTemplate(platform, deps)
     for (const label of ['New Tab', 'New Window', 'Open Project…', 'Split Right', 'Settings…']) {
       expect(find(t, label).registerAccelerator, label).toBe(false)
+    }
+  })
+
+  it('never registers plain Ctrl+0 / Ctrl+Plus / Ctrl+- (terminal keys); zoom hints show Ctrl+Shift', () => {
+    const zoom = all.filter((i) => ['resetZoom', 'zoomIn', 'zoomOut'].includes(String(i.role)))
+    expect(zoom).toHaveLength(3)
+    for (const z of zoom) {
+      expect(z.registerAccelerator, String(z.role)).toBe(false)
+      expect(String(z.accelerator)).toMatch(/^Ctrl\+Shift\+/)
     }
   })
 

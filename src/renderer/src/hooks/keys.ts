@@ -106,11 +106,14 @@ export function matchShortcut(e: KeyLike, platform: Platform): MatchResult | nul
   // Compose a long prompt — ⌘⇧⏎ (mac) / Ctrl+Shift+⏎ (win/linux).
   if (withShift && e.code === 'Enter') return { id: 'compose' }
 
-  // Settings: Cmd+, / Ctrl+,
-  if ((mac ? e.metaKey : e.ctrlKey) && e.code === 'Comma') return { id: 'settings' }
+  // Settings: Cmd+, (mac) / Ctrl+Shift+, (win/linux). Plain Ctrl+, is the
+  // terminal's.
+  if (primary && e.code === 'Comma') return { id: 'settings' }
 
-  // UI zoom: Cmd/Ctrl + = / - / 0 (resets to 100%).
-  const zoomMod = (mac ? e.metaKey : e.ctrlKey) && !e.altKey
+  // UI zoom: Cmd + = / - / 0 (mac, Shift allowed so Cmd+Shift+= still zooms in)
+  // or Ctrl+Shift + = / - / 0 (win/linux). Plain Ctrl+- is readline's undo and
+  // Ctrl+0 / Ctrl+= are the terminal's. e.code, so Shift doesn't turn = into +.
+  const zoomMod = mac ? e.metaKey && !e.ctrlKey && !e.altKey : ctrlShift
   if (zoomMod) {
     if (e.code === 'Equal' || e.code === 'NumpadAdd') return { id: 'zoomIn' }
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') return { id: 'zoomOut' }

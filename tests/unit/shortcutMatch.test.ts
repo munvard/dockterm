@@ -30,6 +30,31 @@ describe('matchShortcut', () => {
     }
   })
 
+  it('plain Ctrl+, / = / - / 0 (and numpad) on Windows/Linux go to the terminal (I8)', () => {
+    // Ctrl+- is readline's undo (Ctrl+_); Ctrl+0 / Ctrl+= / Ctrl+, are the terminal's.
+    for (const code of ['Comma', 'Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0']) {
+      for (const platform of ['win', 'linux'] as const) {
+        expect(matchShortcut(key({ code, ctrlKey: true }), platform), `Ctrl+${code} on ${platform}`).toBeNull()
+      }
+    }
+  })
+
+  it('settings and zoom use Ctrl+Shift on Windows/Linux and Cmd on mac (I8)', () => {
+    for (const platform of ['win', 'linux'] as const) {
+      const cs = { ctrlKey: true, shiftKey: true }
+      expect(matchShortcut(key({ code: 'Comma', ...cs }), platform)).toEqual({ id: 'settings' })
+      expect(matchShortcut(key({ code: 'Equal', ...cs }), platform)).toEqual({ id: 'zoomIn' })
+      expect(matchShortcut(key({ code: 'Minus', ...cs }), platform)).toEqual({ id: 'zoomOut' })
+      expect(matchShortcut(key({ code: 'Digit0', ...cs }), platform)).toEqual({ id: 'zoomReset' })
+    }
+    expect(matchShortcut(key({ code: 'Comma', metaKey: true }), 'mac')).toEqual({ id: 'settings' })
+    expect(matchShortcut(key({ code: 'Equal', metaKey: true }), 'mac')).toEqual({ id: 'zoomIn' })
+    expect(matchShortcut(key({ code: 'Equal', metaKey: true, shiftKey: true }), 'mac')).toEqual({ id: 'zoomIn' })
+    expect(matchShortcut(key({ code: 'Minus', metaKey: true }), 'mac')).toEqual({ id: 'zoomOut' })
+    expect(matchShortcut(key({ code: 'Digit0', metaKey: true }), 'mac')).toEqual({ id: 'zoomReset' })
+    expect(matchShortcut(key({ code: 'Minus', ctrlKey: true }), 'mac')).toBeNull()
+  })
+
   it('mac: plain Ctrl (no Cmd) never matches an app shortcut', () => {
     const r = matchShortcut(key({ code: 'KeyB', ctrlKey: true }), 'mac')
     expect(r).toBeNull()
