@@ -33,7 +33,13 @@ win:
       arch: [x64]
   icon: build/icon.ico
   artifactName: ${productName}-${version}-windows-${arch}.${ext}
+  # A files list with only "!" patterns makes electron-builder prepend **/*,
+  # which packs the whole repo, so each platform list repeats the includes.
   files:
+    - out/**/*
+    - package.json
+    - build/icon.png
+    - "!**/node_modules/node-pty/prebuilds/**/*.pdb"
     - "!**/node_modules/node-pty/prebuilds/darwin-*/**"
 
 nsis:
@@ -60,7 +66,13 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # A files list with only "!" patterns makes electron-builder prepend **/*,
+  # which packs the whole repo, so each platform list repeats the includes.
   files:
+    - out/**/*
+    - package.json
+    - build/icon.png
+    - "!**/node_modules/node-pty/prebuilds/**/*.pdb"
     - "!**/node_modules/node-pty/prebuilds/win32-*/**"
   # Required alongside entitlements.mac.plist's audio-input entitlement: macOS
   # refuses to even show the mic permission prompt without a usage string, and
@@ -101,7 +113,13 @@ linux:
   maintainer: Menua Vardanyan <taronmenua@gmail.com>
   synopsis: Terminal-first workspace for Claude Code
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
+  # A files list with only "!" patterns makes electron-builder prepend **/*,
+  # which packs the whole repo, so each platform list repeats the includes.
   files:
+    - out/**/*
+    - package.json
+    - build/icon.png
+    - "!**/node_modules/node-pty/prebuilds/**/*.pdb"
     - "!**/node_modules/node-pty/prebuilds/darwin-*/**"
     - "!**/node_modules/node-pty/prebuilds/win32-*/**"
 
