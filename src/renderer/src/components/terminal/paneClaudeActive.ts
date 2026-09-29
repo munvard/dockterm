@@ -1,6 +1,6 @@
 import { paneSessionId, paneBufferType, paneVisibleText } from './terminalPool'
 import { isShellProcess } from './closeGuard'
-import { classify } from './claudeStatus'
+import { claudeOnScreen } from './paneLiveness'
 
 /**
  * Is Claude (or any real program) running in this pane? Since v0.29.4 Claude
@@ -13,8 +13,9 @@ import { classify } from './claudeStatus'
  * just echoes back the name it was spawned with, never the live process (see
  * ptyService.ts's `foregroundProcess`), so `pty:foreground` resolves to '' on
  * win32. In that case we fall back to classifying the on-screen buffer text:
- * only 'working'/'asking' counts as active. We never optimistically say "active"
- * for a prompt we can't actually identify.
+ * Claude counts as active when it is working, asking, or idle at its input box
+ * (an idle Claude is exactly when the user wants to type). A bare shell prompt
+ * never matches.
  */
 export async function paneClaudeActive(leafId: string): Promise<boolean> {
   if (paneBufferType(leafId) === 'alternate') return true
@@ -23,8 +24,7 @@ export async function paneClaudeActive(leafId: string): Promise<boolean> {
   const res = await window.dockterm.invoke('pty:foreground', { sessionId: sid })
   if (!res.ok) return false
   if (res.value.process === '') {
-    const state = classify(paneVisibleText(leafId))
-    return state === 'working' || state === 'asking'
+    return claudeOnScreen(paneVisibleText(leafId))
   }
   return !isShellProcess(res.value.process)
 }

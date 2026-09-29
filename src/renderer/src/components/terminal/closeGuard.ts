@@ -1,5 +1,6 @@
 import { useDialogStore } from '../../state/useDialogStore'
-import { paneSessionId } from './terminalPool'
+import { paneSessionId, paneBufferType, paneVisibleText } from './terminalPool'
+import { unknownProcessLabel } from './paneLiveness'
 
 /** Login shells / interactive shells — closing one of these loses nothing. */
 const SHELLS = new Set([
@@ -37,6 +38,9 @@ async function liveProcess(leafId: string): Promise<string | null> {
   const res = await window.dockterm.invoke('pty:foreground', { sessionId: sid })
   if (!res.ok) return null
   const raw = res.value.process
+  // '' = the platform can't tell (Windows): decide from what's on screen instead
+  // of assuming a shell, which made closing a running Claude never ask.
+  if (raw === '') return unknownProcessLabel(paneVisibleText(leafId), paneBufferType(leafId) === 'alternate')
   return isShellProcess(raw) ? null : raw
 }
 
