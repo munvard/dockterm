@@ -8,7 +8,7 @@ import { join } from 'node:path'
  * does — without permanently editing the user's dotfiles:
  *   - zsh:  point ZDOTDIR at our dir whose startup files re-source the user's
  *   - bash: --rcfile our init file (which sources the user's profile + bashrc)
- *   - pwsh: -Command that wraps the prompt function
+ *   - pwsh: -EncodedCommand (hook inline, no script file, no policy change)
  * Unsupported shells (cmd, fish, …) return null → spawn unchanged (dock falls
  * back to the pane's spawn folder).
  */
@@ -51,20 +51,14 @@ export function buildIntegration(
     case 'bash':
       // --rcfile runs our init (which sources profile + bashrc); -i for interactive.
       return { args: ['--rcfile', join(dir, 'bash-integration.bash'), '-i'], env: {} }
-    case 'pwsh': {
-      // -ExecutionPolicy Bypass is scoped to THIS process only (a command-line
-      // launch flag, not a persistent policy change); without it, dot-sourcing
-      // our script is blocked outright under the "Restricted" policy that ships
-      // on Windows PowerShell 5.1, so the hook never installs. The path itself
-      // is single-quoted in the -Command string, so a literal `'` in it (e.g. a
-      // Windows username like "O'Brien") needs escaping to `''` or it would
-      // terminate the string early.
-      const scriptPath = join(dir, 'pwsh-integration.ps1').replace(/'/g, "''")
-      return {
-        args: [...baseArgs, '-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', `. '${scriptPath}'`],
-        env: {}
-      }
-    }
+    case 'pwsh':
+      // The hook is passed inline as -EncodedCommand (UTF-16LE base64, immune to
+      // quoting in any path or username) and the session then stays interactive
+      // via -NoExit. There is NO script file to dot-source, so no execution policy
+      // override is needed: the policy only governs script FILES, and a Bypass on
+      // this process would apply to the user's whole terminal session, including
+      // scripts from a malicious repo.
+      return { args: [...baseArgs, '-NoExit', '-EncodedCommand', pwshEncodedHook()], env: {} }
     default:
       return null
   }
@@ -135,13 +129,17 @@ function global:prompt {
 }
 `
 
+/** PWSH_INIT as PowerShell's -EncodedCommand expects it: base64 of UTF-16LE. */
+export function pwshEncodedHook(): string {
+  return Buffer.from(PWSH_INIT, 'utf16le').toString('base64')
+}
+
 const FILES: Record<string, string> = {
   '.zshenv': ZSHENV,
   '.zprofile': ZPROFILE,
   '.zlogin': ZLOGIN,
   '.zshrc': ZSHRC,
-  'bash-integration.bash': BASH_INIT,
-  'pwsh-integration.ps1': PWSH_INIT
+  'bash-integration.bash': BASH_INIT
 }
 
 /** Write the integration scripts (idempotent) and return the integration dir. */

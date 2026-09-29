@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { join } from 'node:path'
-import { shellKind, buildIntegration } from '@main/services/shellIntegration'
+import { shellKind, buildIntegration, pwshEncodedHook, PWSH_INIT } from '@main/services/shellIntegration'
 
 describe('shellKind', () => {
   it('classifies shells by basename, ignoring path and .exe', () => {
@@ -32,11 +32,33 @@ describe('buildIntegration', () => {
     expect(out?.args).toEqual(['--rcfile', join('/int', 'bash-integration.bash'), '-i'])
   })
 
-  it('pwsh: appends -NoExit -Command to dot-source the script', () => {
+  it('pwsh: keeps base args, then -NoExit -EncodedCommand <hook>', () => {
     const out = buildIntegration('/usr/bin/pwsh', ['-NoLogo'], '/int', {})
-    expect(out?.args[0]).toBe('-NoLogo')
-    expect(out?.args).toContain('-NoExit')
-    expect(out?.args[out.args.length - 1]).toContain('pwsh-integration.ps1')
+    expect(out?.args).toEqual(['-NoLogo', '-NoExit', '-EncodedCommand', pwshEncodedHook()])
+    expect(out?.env).toEqual({})
+  })
+
+  it('pwsh: never lowers the execution policy for the session', () => {
+    for (const dir of ['/int', "C:\\Users\\O'Brien\\AppData"]) {
+      const args = buildIntegration('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', [], dir, {})!.args
+      const joined = args.join(' ').toLowerCase()
+      expect(joined).not.toContain('executionpolicy')
+      expect(joined).not.toContain('bypass')
+    }
+  })
+
+  it('pwsh: dot-sources no script file, the hook travels inline', () => {
+    const args = buildIntegration('/usr/bin/pwsh', [], '/some/dir', {})!.args
+    expect(args.join(' ')).not.toContain('.ps1')
+    expect(args.join(' ')).not.toContain('/some/dir')
+    expect(args).not.toContain('-Command')
+    expect(args).not.toContain('-File')
+  })
+
+  it('pwsh: the encoded command decodes back to the hook (UTF-16LE base64)', () => {
+    const decoded = Buffer.from(pwshEncodedHook(), 'base64').toString('utf16le')
+    expect(decoded).toBe(PWSH_INIT)
+    expect(decoded).toContain('function global:prompt')
   })
 
   it('returns null for unsupported shells', () => {
