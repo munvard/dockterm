@@ -9,7 +9,7 @@ const checkpointSchema = z.object({
   hash: z.string(),
   branch: z.string(),
   label: z.string(),
-  createdAt: z.number()
+  createdAt: z.number().finite()
 })
 
 const workspaceSchema = z
@@ -22,7 +22,14 @@ const workspaceSchema = z
         focusedLeafId: z.string()
       })
     ),
-    activeId: z.string()
+    activeId: z.string(),
+    /** The project root this workspace was saved for. Restoring it into a
+     * DIFFERENT project used to bleed one project's terminal tabs into another
+     * (e.g. a second window opening a different repo would restore the first
+     * project's tabs). Optional so an older persisted file (with no projectPath)
+     * still migrates forward — the renderer treats a missing value as "don't
+     * restore" rather than "restore regardless". */
+    projectPath: z.string().optional()
   })
   .nullable()
   .default(null)
@@ -123,7 +130,7 @@ const preference = {
     .object({
       checkAutomatically: z.boolean().default(true),
       dismissedVersion: z.string().nullable().default(null),
-      remindAfter: z.number().default(0)
+      remindAfter: z.number().finite().default(0)
     })
     .default({}),
   usage: z
@@ -153,7 +160,10 @@ const preference = {
       size: z.number().int().min(36).max(120).default(56),
       character: z.enum(['munu', 'nvurd', 'guru', 'adanana']).default('munu'),
       pinned: z.boolean().default(false),
-      position: z.object({ x: z.number(), y: z.number() }).nullable().default(null)
+      position: z
+        .object({ x: z.number().finite(), y: z.number().finite() })
+        .nullable()
+        .default(null)
     })
     .default({})
 }
@@ -222,17 +232,59 @@ export function getSettings(): Settings {
   return getStore().get()
 }
 
+/** Top-level Settings keys that hold a preference OBJECT (as opposed to a
+ * scalar like `theme`/`notes`, or the arrays/records with their own dedicated
+ * update functions below). */
+const OBJECT_PATCH_KEYS = [
+  'terminal',
+  'editor',
+  'ui',
+  'git',
+  'claude',
+  'update',
+  'usage',
+  'agentActivity',
+  'sessionHistory',
+  'reading',
+  'chat',
+  'munu',
+  'workspace'
+] as const satisfies readonly (keyof Settings)[]
+
 export function applySettingsPatch(patch: Partial<Settings>): Settings {
-  return getStore().update(patch)
+  // A patch section is merged field-by-field onto the CURRENTLY STORED section
+  // rather than trusting the caller to have sent a complete object. The renderer
+  // is expected to spread its own current settings before patching, but a
+  // partial section (a stale snapshot from a fast double-edit, or a future
+  // caller that forgets to spread) used to be parsed by the per-field schema
+  // defaults and silently reset every OTHER field in that section back to
+  // factory defaults — a real, data-destroying footgun for a "just move a
+  // slider" action.
+  const current = getStore().get()
+  const merged: Record<string, unknown> = { ...patch }
+  for (const key of OBJECT_PATCH_KEYS) {
+    const value = patch[key]
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      merged[key] = { ...(current[key] as object), ...value }
+    }
+  }
+  return getStore().update(merged as unknown as Partial<Settings>)
 }
 
-export function addRecentProject(entry: RecentProject): Settings {
+/** `setAsLastProject` should only be true for the window that owns "last
+ * project" restore-on-launch (the primary window) — a SECONDARY (⌘N) window
+ * opening its own project must not silently redirect what the primary window
+ * reopens next launch. */
+export function addRecentProject(entry: RecentProject, setAsLastProject: boolean): Settings {
   const current = getStore().get()
   const recentProjects = [
     entry,
     ...current.recentProjects.filter((r) => r.path !== entry.path)
   ].slice(0, MAX_RECENT_PROJECTS)
-  return getStore().update({ recentProjects, lastProjectPath: entry.path })
+  return getStore().update({
+    recentProjects,
+    ...(setAsLastProject ? { lastProjectPath: entry.path } : {})
+  })
 }
 
 /** Clears the remembered project if it matches `path` — used when reopening it

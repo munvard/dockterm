@@ -1,4 +1,6 @@
 import { simpleGit, type SimpleGit } from 'simple-git'
+import os from 'node:os'
+import { resolve, sep } from 'node:path'
 import { statusToView, notRepoView } from './gitStatusMap'
 import { readFile as readWorkingFile } from './fileService'
 import type {
@@ -12,30 +14,69 @@ import type {
 } from '@shared/types'
 
 /**
- * Every git invocation goes through here. `core.hooksPath=` neutralizes any hooks
- * the (possibly untrusted) project repo defines — opening a malicious repo must
- * never run its code (CVE-2024-32002 class). A block timeout stops a call from
- * hanging forever if a credential helper dialog is left open.
+ * Every git invocation — from this service AND from projectService /
+ * projectInfoService's lighter-weight lookups — goes through here.
+ * `core.hooksPath=` neutralizes any hooks the (possibly untrusted) project repo
+ * defines — opening a malicious repo must never run its code (CVE-2024-32002
+ * class). `core.fsmonitor=false` stops a repo-local fsmonitor hook (an arbitrary
+ * script honored automatically by plain `git status`) from auto-executing.
+ * `GIT_TERMINAL_PROMPT=0` stops a push/pull from opening a native username/
+ * password prompt that would block the main process; `GIT_OPTIONAL_LOCKS=0`
+ * stops our own background status polls from racing a real `.git/index.lock`
+ * (e.g. a commit the user is running by hand in the terminal at the same
+ * moment). A block timeout stops a call from hanging forever if a credential
+ * helper dialog is left open.
  */
-function git(root: string): SimpleGit {
+export function git(root: string): SimpleGit {
   return simpleGit({
     baseDir: root,
-    config: ['core.hooksPath='],
+    config: ['core.hooksPath=', 'core.fsmonitor=false'],
     unsafe: { allowUnsafeHooksPath: true },
     trimmed: true,
     timeout: { block: 120_000 }
-  })
+  }).env({ ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' })
+}
+
+/** True for simple-git's own "not a git repository" rejection — the only case
+ * `checkIsRepo()` is supposed to resolve `false` for. Every OTHER failure (dubious
+ * ownership / safe.directory, permission errors, EMFILE, a timed-out credential
+ * prompt, …) must surface as a real error instead of silently reading as "no
+ * repo here", which used to show "Git not initialized" for a perfectly real repo. */
+function isNotARepoError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e)
+  return /not a git repository/i.test(msg)
+}
+
+/** True when `toplevel` (git's own discovered repository root) IS the user's
+ * home directory or an ancestor of it. A folder with no `.git` of its own that
+ * happens to sit under a home-rooted dotfiles repo (`git init ~`, yadm,
+ * chezmoi, …) would otherwise have git's normal upward repo discovery silently
+ * treat that unrelated, much broader repo as "the" repo for this folder — so
+ * status/stage/commit/push would act on ~ instead of reading as "not a repo". */
+export function isSuspiciouslyBroadToplevel(toplevel: string): boolean {
+  const t = resolve(toplevel)
+  const home = resolve(os.homedir())
+  return t === home || home.startsWith(t + sep)
 }
 
 export async function getStatus(root: string): Promise<GitStatusView> {
   const g = git(root)
-  let isRepo = false
+  let isRepo: boolean
   try {
     isRepo = await g.checkIsRepo()
-  } catch {
+  } catch (e) {
+    if (!isNotARepoError(e)) throw e
     isRepo = false
   }
   if (!isRepo) return notRepoView()
+
+  try {
+    const toplevel = await g.revparse(['--show-toplevel'])
+    if (isSuspiciouslyBroadToplevel(toplevel)) return notRepoView()
+  } catch (e) {
+    if (!isNotARepoError(e)) throw e
+    return notRepoView()
+  }
 
   let hasCommits = true
   try {

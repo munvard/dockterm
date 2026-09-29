@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { PaneViewMode } from '@shared/types'
-import { addTab, removeTab, reorderTabs, renameTab, type WsTab } from './workspace'
+import { useDialogStore } from './useDialogStore'
+import { addTab, removeTab, reorderTabs, renameTab, basenameOf, type WsTab } from './workspace'
 import {
   splitLeaf,
   closeLeaf,
@@ -20,11 +21,16 @@ let counter = 0
 const uid = (p: string): string => `${p}-${Date.now().toString(36)}-${(++counter).toString(36)}`
 
 /** Only the primary window persists/restores its workspace (secondary windows
- * opened with ⌘N are session-scoped). */
+ * opened with ⌘N are session-scoped). This can flip at runtime: if the primary
+ * window closes, main hands the role to a surviving window (see
+ * useAppStore's `window:primaryChanged` listener + setPrimary below). */
 let isPrimaryWindow = true
+/** The project this workspace belongs to — persisted alongside the tabs so a
+ * DIFFERENT project restoring later never bleeds this one's terminals into it. */
+let currentProjectPath = ''
 
 function titleFromCwd(cwd: string): string {
-  return cwd.split(/[\\/]/).filter(Boolean).pop() || 'Terminal'
+  return basenameOf(cwd) || 'Terminal'
 }
 function makeLeaf(cwd: string): LeafNode {
   return { type: 'leaf', id: uid('pane'), cwd, title: titleFromCwd(cwd) }
@@ -34,19 +40,31 @@ function makeTab(cwd: string): WsTab {
   return { id: uid('tab'), title: titleFromCwd(cwd), layout: leaf, focusedLeafId: leaf.id }
 }
 
+// Persisting on every resize/focus/drag used to write the whole settings file
+// (and broadcast it to every window, notes payload included) on each event.
+// Debounced so a drag-resize or a burst of focus changes coalesces into one write.
+const PERSIST_DEBOUNCE_MS = 300
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
 function persist(tabs: WsTab[], activeId: string): void {
   if (!isPrimaryWindow) return
-  void window.dockterm.invoke('settings:set', {
-    workspace: {
-      tabs: tabs.map((t) => ({
-        id: t.id,
-        title: t.title,
-        layout: t.layout,
-        focusedLeafId: t.focusedLeafId
-      })),
-      activeId
-    }
-  })
+  if (persistTimer) clearTimeout(persistTimer)
+  const projectPath = currentProjectPath
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    void window.dockterm.invoke('settings:set', {
+      workspace: {
+        tabs: tabs.map((t) => ({
+          id: t.id,
+          title: t.title,
+          layout: t.layout,
+          focusedLeafId: t.focusedLeafId
+        })),
+        activeId,
+        projectPath
+      }
+    })
+  }, PERSIST_DEBOUNCE_MS)
 }
 
 interface WorkspaceStore {
@@ -66,6 +84,9 @@ interface WorkspaceStore {
 
   init: (cwd: string, restored: import('@shared/types').WorkspacePersist | null, isPrimary: boolean) => void
   resetForProject: (cwd: string) => void
+  /** React to this window's primary/secondary role changing at runtime (a
+   * primary-window handoff). */
+  setPrimary: (isPrimary: boolean) => void
   open: (cwd: string) => void
   close: (tabId: string) => void
   setActive: (tabId: string) => void
@@ -78,7 +99,7 @@ interface WorkspaceStore {
   closeFocused: () => void
   focusPane: (tabId: string, leafId: string) => void
   resizeSplit: (splitId: string, sizes: number[]) => void
-  makeGrid: (rows: number, cols: number) => void
+  makeGrid: (rows: number, cols: number) => Promise<void>
   /** Point one pane at a different folder; its shell respawns there. */
   retargetLeaf: (tabId: string, leafId: string, cwd: string) => void
   /** Swap two panes' positions in a tab's layout (drag-to-reorder). */
@@ -115,7 +136,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
 
     init: (cwd, restored, isPrimary) => {
       isPrimaryWindow = isPrimary
-      if (isPrimary && restored && Array.isArray(restored.tabs) && restored.tabs.length > 0) {
+      currentProjectPath = cwd
+      // A saved workspace only belongs to the project it was saved for. Restoring
+      // it regardless used to bleed one project's terminal tabs (and cwds) into a
+      // DIFFERENT project opened later in the same (or a newly-primary) window —
+      // an older persisted file with no projectPath at all is treated the same as
+      // a mismatch (don't restore) rather than "restore regardless".
+      const projectMatches = restored?.projectPath === cwd
+      if (isPrimary && projectMatches && restored && Array.isArray(restored.tabs) && restored.tabs.length > 0) {
         try {
           const seenLeafIds = new Set<string>()
           const seenTabIds = new Set<string>()
@@ -158,9 +186,25 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     },
 
     resetForProject: (cwd) => {
+      currentProjectPath = cwd
       const tab = makeTab(cwd)
-      set({ activity: {} })
+      // Every existing leaf is being discarded — drop its live-cwd/title/view
+      // state too, or it just leaks forever (keyed by a leafId nothing will
+      // ever look up again) across repeated project switches in one window.
+      set({ activity: {}, paneCwd: {}, paneTitle: {}, paneView: {} })
       commit([tab], tab.id)
+    },
+
+    setPrimary: (isPrimary) => {
+      const wasPrimary = isPrimaryWindow
+      isPrimaryWindow = isPrimary
+      // Just became primary (the old primary window closed and handed off): the
+      // workspace this window already has was never persisted, so save it now —
+      // otherwise a relaunch would restore nothing until the next edit.
+      if (isPrimary && !wasPrimary) {
+        const { tabs, activeId } = get()
+        persist(tabs, activeId)
+      }
     },
 
     open: (cwd) => {
@@ -255,17 +299,33 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
     resizeSplit: (splitId, sizes) =>
       mapActive((tab) => ({ ...tab, layout: setSizes(tab.layout, splitId, sizes) })),
 
-    makeGrid: (rows, cols) =>
-      mapActive((tab) => {
+    makeGrid: async (rows, cols) => {
+      const { tabs, activeId } = get()
+      const tab = tabs.find((t) => t.id === activeId)
+      if (!tab) return
+      const cellCount = rows * cols
+      const leafCount = allLeaves(tab.layout).length
+      // A grid smaller than the current layout drops the extra panes (and any
+      // shell running in them) — confirm first instead of silently killing them.
+      if (leafCount > cellCount) {
+        const confirmed = await useDialogStore.getState().confirm({
+          title: 'Change grid layout',
+          message: `This layout has room for ${cellCount} pane${cellCount === 1 ? '' : 's'}, but ${leafCount} are open.`,
+          detail: 'The extra panes, and anything running in them, will be closed.',
+          confirmLabel: 'Change layout',
+          danger: true
+        })
+        if (!confirmed) return
+      }
+      mapActive((t) => {
         // Reuse the existing terminals as grid cells so their shells (e.g. a
         // running Claude) are NOT killed. The focused pane becomes the first
-        // cell; only the extra cells get fresh shells. Panes beyond the grid's
-        // capacity are dropped (the grid is smaller than the current layout).
-        const cwd = focusedCwd(tab)
-        const focused = findLeaf(tab.layout, tab.focusedLeafId)
+        // cell; only the extra cells get fresh shells.
+        const cwd = focusedCwd(t)
+        const focused = findLeaf(t.layout, t.focusedLeafId)
         const ordered = [
           ...(focused ? [focused] : []),
-          ...allLeaves(tab.layout).filter((l) => l.id !== focused?.id)
+          ...allLeaves(t.layout).filter((l) => l.id !== focused?.id)
         ]
         let idx = 0
         const nextLeaf = (): LeafNode => {
@@ -275,8 +335,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
         }
         const layout = gridPreset(rows, cols, nextLeaf, () => uid('split'))
         const focusedLeafId = focused && findLeaf(layout, focused.id) ? focused.id : firstLeaf(layout).id
-        return { ...tab, layout, focusedLeafId }
-      }),
+        return { ...t, layout, focusedLeafId }
+      })
+    },
 
     retargetLeaf: (tabId, leafId, cwd) => {
       const { tabs, activeId } = get()

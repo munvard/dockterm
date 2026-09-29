@@ -34,6 +34,19 @@ export function capBuffers(buffers: TerminalBuffer[], maxBytes: number): Termina
   return out
 }
 
+/** Merge a window's freshly-serialized buffers into whatever is already on
+ * disk, by leafId. Each window only knows its OWN terminals — a plain
+ * overwrite let a secondary window's save wipe out every OTHER window's (e.g.
+ * the primary's) scrollback the moment it saved after the primary did, since
+ * `terminal:saveBuffers` is called independently by every open window. `fresh`
+ * entries win and are ordered first (so `capBuffers`' byte budget evicts the
+ * STALEST entries — closed windows/tabs — first, not whichever window saved
+ * least recently). Pure. */
+export function mergeBuffers(fresh: TerminalBuffer[], existing: TerminalBuffer[]): TerminalBuffer[] {
+  const freshIds = new Set(fresh.map((b) => b.leafId))
+  return [...fresh, ...existing.filter((b) => !freshIds.has(b.leafId))]
+}
+
 export function loadBuffers(): TerminalBuffer[] {
   try {
     const raw = JSON.parse(readFileSync(bufferFile(), 'utf8')) as { buffers?: unknown }
@@ -45,7 +58,8 @@ export function loadBuffers(): TerminalBuffer[] {
 
 export function saveBuffers(buffers: TerminalBuffer[]): void {
   try {
-    writeFileSync(bufferFile(), JSON.stringify({ buffers: capBuffers(buffers, MAX_TOTAL_BYTES) }), 'utf8')
+    const merged = mergeBuffers(buffers, loadBuffers())
+    writeFileSync(bufferFile(), JSON.stringify({ buffers: capBuffers(merged, MAX_TOTAL_BYTES) }), 'utf8')
   } catch {
     // best-effort persistence — never block quit on a write error
   }

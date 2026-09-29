@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addTab, removeTab, reorderTabs, renameTab, type WsState } from '@renderer/state/workspace'
+import { addTab, removeTab, reorderTabs, renameTab, basenameOf, type WsState } from '@renderer/state/workspace'
 
 const tab = (id: string) => ({
   id,
@@ -48,5 +48,23 @@ describe('workspace reducers', () => {
   it('renameTab sets a trimmed title and ignores empty', () => {
     expect(renameTab(base, 'a', '  Build  ').tabs[0].title).toBe('Build')
     expect(renameTab(base, 'a', '   ').tabs[0].title).toBe('a')
+  })
+})
+
+describe('basenameOf', () => {
+  it('returns the last POSIX segment', () => {
+    expect(basenameOf('/Users/me/projects/app')).toBe('app')
+  })
+
+  it('returns the last Windows segment', () => {
+    expect(basenameOf('C:\\Users\\me\\projects\\app')).toBe('app')
+  })
+
+  it('ignores a trailing separator', () => {
+    expect(basenameOf('/Users/me/projects/app/')).toBe('app')
+  })
+
+  it('returns empty for the POSIX root', () => {
+    expect(basenameOf('/')).toBe('')
   })
 })

@@ -7,7 +7,18 @@ interface GitState {
   status: GitStatusView | null
   branches: GitBranches | null
   busy: boolean
+  /** True while a git:status request is in flight. */
+  loading: boolean
+  /** Set when the last refresh failed for a reason OTHER than "not a repo" (e.g.
+   * dubious ownership, a permission error, a timeout). The panel must never read
+   * a failed refresh as "not a git repository" — that was the actual cause of
+   * "Git not initialized" showing for a real repo. */
+  error: string | null
   log: string[]
+  /** Commit message draft. Lives here (not component state) so switching panels
+   * or tabs never loses what the user typed. */
+  draftMessage: string
+  setDraftMessage: (message: string) => void
   refresh: () => Promise<void>
   refreshBranches: () => Promise<void>
   stage: (paths: string[]) => Promise<void>
@@ -20,21 +31,46 @@ interface GitState {
   createBranch: (name: string) => Promise<void>
   switchBranch: (name: string) => Promise<void>
   deleteBranch: (name: string) => Promise<void>
+  /** Clear known state (including the commit draft — a message typed for one
+   * repo must never carry over and get committed into a different one) — call
+   * before pointing the store at a different repo root so a slow-arriving status
+   * for the OLD root can never be mistaken for the new one, and the panel shows a
+   * neutral "loading" state instead of stale data. */
   reset: () => void
 }
 
 const toast = (msg: string, kind: 'success' | 'error' | 'info' | 'warning') =>
   useToastStore.getState().push(msg, kind)
 
+// Bumped on every refresh() call. A response only ever applies if it's still the
+// most recent request — an older, slower request (e.g. still in flight from the
+// project root this window just navigated away from) can never clobber a newer
+// one that already landed (out-of-order git:status responses across a fast
+// focus/root switch).
+let refreshSeq = 0
+
 export const useGitStore = create<GitState>((set, get) => ({
   status: null,
   branches: null,
   busy: false,
+  loading: false,
+  error: null,
   log: [],
+  draftMessage: '',
+  setDraftMessage: (message) => set({ draftMessage: message }),
 
   refresh: async () => {
+    const seq = ++refreshSeq
+    set({ loading: true })
     const res = await window.dockterm.invoke('git:status', undefined)
-    if (res.ok) set({ status: res.value })
+    if (seq !== refreshSeq) return // superseded by a newer refresh
+    if (res.ok) {
+      set({ status: res.value, loading: false, error: null })
+    } else {
+      // Keep whatever status we already had on screen; surface the failure
+      // instead of silently going blank (which used to read as "not a repo").
+      set({ loading: false, error: res.error.message })
+    }
   },
 
   refreshBranches: async () => {
@@ -84,6 +120,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       return false
     }
     toast(`Committed ${res.value.hash.slice(0, 7)} — ${res.value.summary}`, 'success')
+    set({ draftMessage: '' })
     await get().refresh()
     return true
   },
@@ -161,5 +198,6 @@ export const useGitStore = create<GitState>((set, get) => ({
     await get().refreshBranches()
   },
 
-  reset: () => set({ status: null, branches: null, log: [] })
+  reset: () =>
+    set({ status: null, branches: null, log: [], loading: false, error: null, draftMessage: '' })
 }))

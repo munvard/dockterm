@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Settings, ProjectInfo, RecentProject, PanelId } from '@shared/types'
 import type { SettingsPatch } from '@shared/ipc'
+import { useToastStore } from './useToastStore'
 
 interface AppState {
   ready: boolean
@@ -27,6 +28,7 @@ interface AppState {
   setZoom: (factor: number) => Promise<void>
   openProjectDialog: () => Promise<void>
   openProject: (path: string) => Promise<void>
+  refreshRecent: () => Promise<void>
   initGitRepo: () => Promise<void>
   togglePanel: (panel: PanelId) => void
   setOpenPanel: (panel: PanelId | null) => void
@@ -74,6 +76,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       isPrimary
     })
     window.dockterm.on('settings:changed', (next) => set({ settings: next }))
+    // The window that owns "primary" (workspace persistence, restoring the last
+    // project) can hand off at runtime — e.g. the primary window closes and this
+    // one becomes primary. Read once at boot above; react to it live here.
+    window.dockterm.on('window:primaryChanged', (nowPrimary) => set({ isPrimary: nowPrimary }))
+    // Main asked this window to open a specific project (a second app launch
+    // pointed at a folder, or a Finder/Explorer "open with").
+    window.dockterm.on('project:openRequested', ({ path }) => {
+      void get().openProject(path)
+    })
 
     // Only the primary window restores the last project; secondary (⌘N) windows
     // open project-less and show the welcome screen (Cursor-style).
@@ -115,14 +126,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  refreshRecent: async () => {
+    const res = await window.dockterm.invoke('project:getRecent', undefined)
+    if (res.ok) set({ recent: res.value })
+  },
+
   initGitRepo: async () => {
     // Initialize in whatever directory the focused pane is in (its resolved
     // root), falling back to the opened project.
     const root = get().activeRoot ?? get().project?.path
     if (!root) return
     const res = await window.dockterm.invoke('project:gitInit', { path: root })
+    if (!res.ok) {
+      useToastStore.getState().push(res.error.message, 'error')
+      return
+    }
     // Only refresh the opened-project info when we initialized THAT folder.
-    if (res.ok && res.value.path === get().project?.path) set({ project: res.value })
+    if (res.value.path === get().project?.path) set({ project: res.value })
   },
 
   togglePanel: (panel) => set((s) => ({ openPanel: s.openPanel === panel ? null : panel })),

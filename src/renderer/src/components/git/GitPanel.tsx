@@ -59,7 +59,10 @@ export function GitPanel() {
   const status = store.status
   const beginner = useAppStore((s) => s.settings?.git.beginnerMode ?? true)
   const initGit = useAppStore((s) => s.initGitRepo)
-  const [message, setMessage] = useState('')
+  const activeRoot = useAppStore((s) => s.activeRoot)
+  const project = useAppStore((s) => s.project)
+  const message = store.draftMessage
+  const setMessage = store.setDraftMessage
   const [branchMenu, setBranchMenu] = useState(false)
   const [showLog, setShowLog] = useState(false)
 
@@ -74,16 +77,53 @@ export function GitPanel() {
     </div>
   )
 
-  if (!status || status.repoState === 'not-repo') {
+  const handleInitGit = async () => {
+    const target = activeRoot ?? project?.path ?? ''
+    const confirmed = await useDialogStore.getState().confirm({
+      title: 'Initialize Git repository',
+      message: 'Create a new Git repository in this folder?',
+      detail: target,
+      confirmLabel: 'Initialize',
+      command: 'git init'
+    })
+    if (!confirmed) return
+    await initGit()
+    await store.refresh()
+  }
+
+  // No status yet: either still loading, or the last refresh failed outright
+  // (never conflate the two with "not a repo" — that was the actual bug behind
+  // "Git not initialized" showing for a real repository).
+  if (!status) {
+    return (
+      <div className="panel">
+        {header}
+        <div className="panel__body git-empty">
+          {store.error ? (
+            <>
+              <p className="git-empty__error">
+                <AlertTriangle size={13} /> Couldn&apos;t read Git status.
+              </p>
+              <p className="git-section__hint">{store.error}</p>
+              <button className="btn btn--ghost btn--sm" onClick={() => void store.refresh()}>
+                <RefreshCw size={13} /> Retry
+              </button>
+            </>
+          ) : (
+            <p>Loading…</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (status.repoState === 'not-repo') {
     return (
       <div className="panel">
         {header}
         <div className="panel__body git-empty">
           <p>This folder isn&apos;t a Git repository.</p>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => void initGit().then(() => store.refresh())}
-          >
+          <button className="btn btn--ghost btn--sm" onClick={() => void handleInitGit()}>
             <GitBranchPlus size={13} /> Initialize Git
           </button>
         </div>
@@ -111,8 +151,8 @@ export function GitPanel() {
   const canCommit = status.staged.length > 0 && message.trim().length > 0
   const doCommit = async () => {
     if (!canCommit) return
-    const committed = await store.commit(message.trim())
-    if (committed) setMessage('')
+    // useGitStore.commit() clears the draft itself on success.
+    await store.commit(message.trim())
   }
 
   return (
@@ -202,6 +242,11 @@ export function GitPanel() {
         )}
       </div>
 
+      {store.error && (
+        <div className="git-note git-note--warn">
+          <AlertTriangle size={12} /> Showing the last known status — refresh failed: {store.error}
+        </div>
+      )}
       {status.repoState === 'empty' && (
         <div className="git-note">No commits yet — make your first commit below.</div>
       )}

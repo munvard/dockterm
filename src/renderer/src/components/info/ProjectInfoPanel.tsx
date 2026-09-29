@@ -14,6 +14,7 @@ function toHttps(remote: string): string {
 export function ProjectInfoPanel() {
   const [info, setInfo] = useState<ProjectInfoData | null>(null)
   const project = useAppStore((s) => s.project)
+  const activeRoot = useAppStore((s) => s.activeRoot)
   const setMiniTermOpen = useAppStore((s) => s.setMiniTermOpen)
   const runInMini = useTerminalBus((s) => s.runInMini)
 
@@ -23,9 +24,12 @@ export function ProjectInfoPanel() {
     })
   }
 
+  // info:get reads the FOCUSED pane's resolved root (activeRoot), not the
+  // static first-opened project — reload on the same signal so this panel
+  // never keeps showing a different project's info after focus moves.
   useEffect(() => {
     load()
-  }, [project?.path])
+  }, [activeRoot])
 
   const pm = info?.packageManager ?? 'npm'
   const runCommand = (name: string): string => (pm === 'npm' ? `npm run ${name}` : `${pm} ${name}`)

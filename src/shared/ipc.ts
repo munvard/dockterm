@@ -351,6 +351,13 @@ export interface EventChannels {
   'session:changed': SessionHistory
   /** main → focused renderer: an application-menu item was chosen. */
   'menu:action': { action: MenuAction }
+  /** main → renderer: this window's primary/secondary role changed at runtime
+   * (the primary window closed and this window took over — workspace
+   * persistence + last-project restore now belong to it). */
+  'window:primaryChanged': boolean
+  /** main → renderer: open this project (a second app launch pointed at a
+   * folder, or the OS "open with" / dock-drop path). */
+  'project:openRequested': { path: string }
 }
 
 export type InvokeChannel = keyof InvokeChannels
@@ -455,7 +462,9 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'usage:changed',
   'activity:changed',
   'session:changed',
-  'menu:action'
+  'menu:action',
+  'window:primaryChanged',
+  'project:openRequested'
 ]
 
 export interface DockTermApi {

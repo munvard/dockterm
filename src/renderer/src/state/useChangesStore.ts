@@ -27,7 +27,16 @@ interface ChangesState {
   setSize: (s: { w: number; h: number }) => void
   setFull: (v: boolean) => void
   expand: (relPath: string | null) => Promise<void>
+  /** Drop any known files/diffs — call before pointing the store at a different
+   * repo root so a slow-arriving list for the OLD root can't land after a
+   * newer one already did. */
+  reset: () => void
 }
+
+// Bumped on every refresh() call; an out-of-order response (a slow request for a
+// root the focused pane already navigated away from) is dropped instead of
+// clobbering a newer one.
+let refreshSeq = 0
 
 export const useChangesStore = create<ChangesState>((set, get) => ({
   open: false,
@@ -39,7 +48,9 @@ export const useChangesStore = create<ChangesState>((set, get) => ({
   diffs: {},
   full: false,
   refresh: async () => {
+    const seq = ++refreshSeq
     const res = await window.dockterm.invoke('review:list', { base: 'working' })
+    if (seq !== refreshSeq) return
     if (!res.ok) return
     const files = res.value
     const exp = get().expanded
@@ -49,6 +60,7 @@ export const useChangesStore = create<ChangesState>((set, get) => ({
     set({ files, diffs: {}, expanded: stillExpanded, ...(files.length === 0 ? { dismissed: false } : {}) })
     if (stillExpanded) {
       const d = await window.dockterm.invoke('review:diffFile', { base: 'working', relPath: stillExpanded })
+      if (seq !== refreshSeq) return
       if (d.ok) set((s) => ({ diffs: { ...s.diffs, [stillExpanded]: d.value } }))
     }
   },
@@ -67,5 +79,6 @@ export const useChangesStore = create<ChangesState>((set, get) => ({
       const res = await window.dockterm.invoke('review:diffFile', { base: 'working', relPath })
       if (res.ok) set((s) => ({ diffs: { ...s.diffs, [relPath]: res.value } }))
     }
-  }
+  },
+  reset: () => set({ files: [], diffs: {}, expanded: null, dismissed: false })
 }))

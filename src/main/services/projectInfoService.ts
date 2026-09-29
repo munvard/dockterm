@@ -1,10 +1,27 @@
-import { execFile } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
+import { git } from './gitService'
 import type { ProjectInfoData, ProjectScript } from '@shared/types'
 
-const run = promisify(execFile)
+/** Strip any embedded credentials (user:token@host) from an HTTPS git remote
+ * URL before it ever reaches the renderer, a log, or gets rendered as a
+ * clickable link — `git remote get-url` returns the credential verbatim when
+ * one is stored in the URL itself. SSH remotes (git@host:org/repo.git) aren't
+ * parseable as a WHATWG URL and never carry a secret in that position (the
+ * "git" user is a fixed protocol user, not a credential), so they pass
+ * through untouched. */
+export function safeUrl(remote: string): string {
+  try {
+    const u = new URL(remote)
+    if (u.username || u.password) {
+      u.username = ''
+      u.password = ''
+    }
+    return u.toString()
+  } catch {
+    return remote
+  }
+}
 
 function detectPackageManager(root: string): string | null {
   if (existsSync(join(root, 'pnpm-lock.yaml'))) return 'pnpm'
@@ -65,7 +82,8 @@ export async function getProjectInfo(root: string): Promise<ProjectInfoData> {
 
   let remote: string | null = null
   try {
-    remote = (await run('git', ['-C', root, 'remote', 'get-url', 'origin'])).stdout.trim() || null
+    const url = (await git(root).raw(['remote', 'get-url', 'origin'])).trim()
+    remote = url ? safeUrl(url) : null
   } catch {
     remote = null
   }

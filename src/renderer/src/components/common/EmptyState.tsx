@@ -1,12 +1,21 @@
+import { useEffect } from 'react'
 import { FolderOpen, Clock, SquareTerminal } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 
 export function EmptyState() {
   const openDialog = useAppStore((s) => s.openProjectDialog)
   const openProject = useAppStore((s) => s.openProject)
+  const refreshRecent = useAppStore((s) => s.refreshRecent)
   const recent = useAppStore((s) => s.recent)
   const homeDir = useAppStore((s) => s.homeDir)
   const error = useAppStore((s) => s.error)
+
+  // The recent-projects list only updates in THIS window when it opens a
+  // project itself — a project opened in another window never reaches it.
+  // Refresh whenever the welcome screen actually becomes visible.
+  useEffect(() => {
+    void refreshRecent()
+  }, [refreshRecent])
 
   return (
     <div className="empty">

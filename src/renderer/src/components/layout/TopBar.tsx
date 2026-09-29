@@ -1,12 +1,26 @@
+import { useEffect } from 'react'
 import { GitBranch, FolderOpen, AppWindow, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useGitStore } from '../../state/useGitStore'
+import { basenameOf } from '../../state/workspace'
 import { TopBarTools } from './TopBarTools'
 
 export function TopBar() {
   const project = useAppStore((s) => s.project)
+  const activeRoot = useAppStore((s) => s.activeRoot)
   const openDialog = useAppStore((s) => s.openProjectDialog)
   const status = useGitStore((s) => s.status)
+
+  // The name/branch follow the FOCUSED pane's resolved root and its live git
+  // status, not the static first-opened project — a second window (or this one
+  // after a `cd`/pane focus change) must show ITS own project, not a stale one.
+  const name = (activeRoot ? basenameOf(activeRoot) : '') || project?.name || ''
+  const displayPath = activeRoot ?? project?.path
+  const branch = status?.branch ?? (activeRoot ? null : project?.branch ?? null)
+
+  useEffect(() => {
+    document.title = name ? `${name} · DockTerm` : 'DockTerm'
+  }, [name])
 
   const dirty = status
     ? status.staged.length + status.unstaged.length + status.untracked.length + status.conflicted.length
@@ -32,15 +46,15 @@ export function TopBar() {
         >
           <AppWindow size={15} />
         </button>
-        {project && (
-          <span className="topbar__name" title={project.path}>
-            {project.name}
+        {name && (
+          <span className="topbar__name" title={displayPath}>
+            {name}
           </span>
         )}
-        {project?.branch && (
+        {branch && (
           <span className="topbar__branch">
             <GitBranch size={12} />
-            {project.branch}
+            {branch}
           </span>
         )}
         {upstream && (upstream.ahead > 0 || upstream.behind > 0) && (

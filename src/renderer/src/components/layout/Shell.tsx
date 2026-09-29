@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { GitBranchPlus, Minimize2 } from 'lucide-react'
+import { GitBranchPlus, Minimize2, X } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useGitStore } from '../../state/useGitStore'
@@ -21,6 +21,7 @@ import { FilePreviewCard } from '../terminal/FilePreviewCard'
 import { ChangesOverlay } from '../changes/ChangesOverlay'
 import { useChangesStore } from '../../state/useChangesStore'
 import { useComposeStore } from '../../state/useComposeStore'
+import { useDialogStore } from '../../state/useDialogStore'
 import { confirmCloseLeaves } from '../terminal/closeGuard'
 import { gcTerminals } from '../terminal/terminalPool'
 import { readingWidthToMax } from '../terminal/comfortPresets'
@@ -35,6 +36,8 @@ export function Shell() {
   const project = useAppStore((s) => s.project)
   const settings = useAppStore((s) => s.settings)
   const initGit = useAppStore((s) => s.initGitRepo)
+  const isPrimary = useAppStore((s) => s.isPrimary)
+  const activeRoot = useAppStore((s) => s.activeRoot)
   const openPanel = useAppStore((s) => s.openPanel)
   const miniTermOpen = useAppStore((s) => s.miniTermOpen)
   const zen = useAppStore((s) => s.zen)
@@ -50,10 +53,7 @@ export function Shell() {
   const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const diffTarget = useReviewStore((s) => s.diffTarget)
   const editorOpen = (hasTabs || diffTarget != null) && !zen
-  // Banner reflects the FOCUSED pane's directory (via the live git status that
-  // follows the active root), not the static first-opened project.
   const gitStatus = useGitStore((s) => s.status)
-  const focusedNotRepo = gitStatus?.repoState === 'not-repo'
 
   const terminals = useWorkspaceStore((s) => s.tabs)
   const activeId = useWorkspaceStore((s) => s.activeId)
@@ -64,9 +64,24 @@ export function Shell() {
   const [miniH, setMiniH] = useState(200)
   const [histW, setHistW] = useState(280)
   const [readingW, setReadingW] = useState(460)
+  // The "not a Git repo" banner can be dismissed per folder rather than forever —
+  // it comes back if the focused pane moves to a DIFFERENT non-repo folder.
+  const [dismissedNotRepoRoot, setDismissedNotRepoRoot] = useState<string | null>(null)
+  // Banner reflects the FOCUSED pane's directory (via the live git status that
+  // follows the active root), not the static first-opened project.
+  const focusedNotRepo =
+    gitStatus?.repoState === 'not-repo' && activeRoot !== null && activeRoot !== dismissedNotRepoRoot
 
   const projectPath = project?.path
   const wsProject = useRef<string | null>(null)
+
+  // This window's primary/secondary role can change at runtime (a primary-window
+  // handoff after the old primary closed) — keep the workspace store's own
+  // module-level flag (which gates whether it persists) in sync reactively,
+  // instead of only reading it once at ws.init().
+  useEffect(() => {
+    useWorkspaceStore.getState().setPrimary(isPrimary)
+  }, [isPrimary])
 
   const activeTab = terminals.find((t) => t.id === activeId)
   const focusedLeafId = activeTab?.focusedLeafId
@@ -101,6 +116,11 @@ export function Shell() {
   // that left the panel showing the first-opened project after a `cd`).
   useEffect(() => {
     if (!focusedCwd) return
+    // Drop whatever git/changes state belonged to the PREVIOUS root immediately —
+    // otherwise the panel briefly (or, if the request fails, indefinitely) shows
+    // another project's status while this window points at a new one.
+    useGitStore.getState().reset()
+    useChangesStore.getState().reset()
     void window.dockterm.invoke('project:setActiveRoot', { path: focusedCwd }).then((res) => {
       if (!res.ok) return
       useAppStore.getState().setActiveRoot(res.value.root)
@@ -109,6 +129,16 @@ export function Shell() {
       void useChangesStore.getState().refresh()
     })
   }, [focusedCwd])
+
+  // Terminal-run git commands (commit, checkout, …) don't touch the app's own
+  // fs watcher target in a way it always sees promptly on every platform — a
+  // window-focus refresh is a cheap backstop so the panel never sits stale for
+  // long after tabbing back in.
+  useEffect(() => {
+    const onFocus = (): void => void useGitStore.getState().refresh()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
 
   // Terminal shortcuts (capture phase so they win over the focused xterm).
   useEffect(() => {
@@ -247,9 +277,33 @@ export function Shell() {
           <span>This folder isn&apos;t a Git repository yet.</span>
           <button
             className="btn btn--ghost btn--sm"
-            onClick={() => void initGit().then(() => useGitStore.getState().refresh())}
+            onClick={() => {
+              const root = activeRoot
+              void useDialogStore
+                .getState()
+                .confirm({
+                  title: 'Initialize Git repository',
+                  message: 'Create a new Git repository in this folder?',
+                  detail: root ?? '',
+                  confirmLabel: 'Initialize',
+                  command: 'git init'
+                })
+                .then((confirmed) => {
+                  if (!confirmed) return
+                  void initGit().then(() => useGitStore.getState().refresh())
+                })
+            }}
           >
             <GitBranchPlus size={13} /> Initialize Git
+          </button>
+          <button
+            className="iconbtn iconbtn--sm"
+            style={{ marginLeft: 'auto' }}
+            title="Dismiss for this folder"
+            aria-label="Dismiss"
+            onClick={() => setDismissedNotRepoRoot(activeRoot)}
+          >
+            <X size={13} />
           </button>
         </div>
       )}
