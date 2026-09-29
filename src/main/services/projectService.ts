@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import os from 'node:os'
-import { git } from './gitService'
+import { git, autoGit } from './gitService'
 import type { ProjectInfo } from '@shared/types'
 
 export function detectGitRepo(path: string): boolean {
@@ -10,7 +10,7 @@ export function detectGitRepo(path: string): boolean {
 
 export async function getBranch(path: string): Promise<string | null> {
   try {
-    const branch = await git(path).raw(['rev-parse', '--abbrev-ref', 'HEAD'])
+    const branch = await (await autoGit(path)).raw(['rev-parse', '--abbrev-ref', 'HEAD'])
     const trimmed = branch.trim()
     return trimmed && trimmed !== 'HEAD' ? trimmed : null
   } catch {

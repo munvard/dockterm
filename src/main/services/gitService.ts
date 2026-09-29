@@ -1,6 +1,6 @@
 import type { SimpleGit } from 'simple-git'
 import { git } from './gitCore'
-import { readOnlyHardening } from './gitTrust'
+import { assertGateOpen, readOnlyHardening } from './gitTrust'
 import os from 'node:os'
 import { resolve, sep } from 'node:path'
 import { statusToView, notRepoView } from './gitStatusMap'
@@ -21,7 +21,7 @@ export { git }
  * repo the user has not trusted and whose config runs commands, every filter
  * driver the repo defines is emptied first: plain `git status` re-hashes racy
  * files through a repo-controlled filter.<x>.clean / .process command. */
-async function readOnlyGit(root: string): Promise<SimpleGit> {
+export async function autoGit(root: string): Promise<SimpleGit> {
   return git(root, { extraConfig: await readOnlyHardening(root) })
 }
 
@@ -48,7 +48,7 @@ export function isSuspiciouslyBroadToplevel(toplevel: string): boolean {
 }
 
 export async function getStatus(root: string): Promise<GitStatusView> {
-  const g = await readOnlyGit(root)
+  const g = await autoGit(root)
   let isRepo: boolean
   try {
     isRepo = await g.checkIsRepo()
@@ -104,6 +104,7 @@ export async function push(
   root: string,
   options: { setUpstream?: boolean; forceWithLease?: boolean }
 ): Promise<string> {
+  await assertGateOpen(root)
   const g = git(root, { userNetworkOp: true })
   const args: string[] = []
   if (options.forceWithLease) args.push('--force-with-lease')
@@ -118,12 +119,13 @@ export async function push(
 }
 
 export async function pull(root: string): Promise<string> {
+  await assertGateOpen(root)
   const r = await git(root, { userNetworkOp: true }).pull()
   return `Updated: ${r.summary.changes} change(s), +${r.summary.insertions} -${r.summary.deletions}.`
 }
 
 export async function branches(root: string): Promise<GitBranches> {
-  const b = await git(root).branchLocal()
+  const b = await (await autoGit(root)).branchLocal()
   return { current: b.current || null, all: b.all }
 }
 
@@ -141,12 +143,12 @@ export async function deleteBranch(root: string, name: string): Promise<void> {
 }
 
 export async function headHash(root: string): Promise<string> {
-  return (await readOnlyGit(root)).revparse(['HEAD'])
+  return (await autoGit(root)).revparse(['HEAD'])
 }
 
 export async function isReachable(root: string, hash: string): Promise<boolean> {
   try {
-    await (await readOnlyGit(root)).raw(['cat-file', '-e', `${hash}^{commit}`])
+    await (await autoGit(root)).raw(['cat-file', '-e', `${hash}^{commit}`])
     return true
   } catch {
     return false
@@ -173,7 +175,7 @@ export async function changedSince(
   checkpointHash: string | null,
   sessionPaths: string[]
 ): Promise<DiffSinceFile[]> {
-  const g = await readOnlyGit(root)
+  const g = await autoGit(root)
 
   if (base === 'checkpoint') {
     if (!checkpointHash) return []
@@ -233,7 +235,7 @@ export async function diffFile(
   const ref = base === 'checkpoint' && checkpointHash ? checkpointHash : 'HEAD'
   let original = ''
   try {
-    original = await (await readOnlyGit(root)).show([`${ref}:${relPath}`])
+    original = await (await autoGit(root)).show(['--no-textconv', `${ref}:${relPath}`])
   } catch {
     original = '' // new file, or no baseline commit
   }

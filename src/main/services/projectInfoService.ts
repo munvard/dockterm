@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { git } from './gitService'
+import { autoGit } from './gitService'
 import type { ProjectInfoData, ProjectScript } from '@shared/types'
 
 /** Strip any embedded credentials (user:token@host) from an HTTPS git remote
@@ -82,7 +82,7 @@ export async function getProjectInfo(root: string): Promise<ProjectInfoData> {
 
   let remote: string | null = null
   try {
-    const url = (await git(root).raw(['remote', 'get-url', 'origin'])).trim()
+    const url = (await (await autoGit(root)).raw(['remote', 'get-url', 'origin'])).trim()
     remote = url ? safeUrl(url) : null
   } catch {
     remote = null

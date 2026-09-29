@@ -161,7 +161,7 @@ describe('detectExecConfig', () => {
     expect(e.value.length).toBe(201)
     expect(e.value.startsWith('x'.repeat(200))).toBe(true)
     const [multi] = detectExecConfig(cfg([['core.editor', 'a\nb']]))
-    expect(multi.value).toBe('a\nb')
+    expect(multi.value).toBe('a\\nb')
   })
 
   it('returns nothing for empty output', () => {

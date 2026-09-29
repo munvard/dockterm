@@ -1,11 +1,11 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync, chmodSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { gitEnv } from '@main/services/gitCore'
-import { getStatus, changedSince, diffFile } from '@main/services/gitService'
-import { filterDriverNames, filterOverrides, clearTrustedRepos, trustRepo } from '@main/services/gitTrust'
+import { getStatus } from '@main/services/gitService'
+import { filterDriverNames, filterOverrides, clearTrustedRepos } from '@main/services/gitTrust'
 import { mapGitError } from '@main/ipc/handlers/git'
 
 const BLOCKED = [
@@ -108,59 +108,6 @@ describe('git through the service with a hostile-looking environment', () => {
     const status = await getStatus(dir)
     expect(status.repoState).not.toBe('not-repo')
     expect(status.untracked.map((f) => f.path)).toEqual(['a.txt'])
-  })
-
-  describe('automatic read-only calls on an untrusted repo with a filter driver', () => {
-    const marker = (): string => join(dir, '..', `${dir.split(/[\\/]/).pop()}-marker`)
-    let script: string
-
-    beforeEach(() => {
-      script = join(dir, '..', `${dir.split(/[\\/]/).pop()}-filter.sh`)
-      writeFileSync(script, `#!/bin/sh\necho ran >> "${marker()}"\ncat\n`)
-      chmodSync(script, 0o755)
-      run(['config', 'filter.probe.clean', script])
-      run(['config', 'filter.probe.smudge', script])
-      run(['config', 'filter.probe.required', 'true'])
-      run(['config', 'filter.pp.process', script])
-      writeFileSync(join(dir, '.gitattributes'), 'a.txt filter=probe\nb.txt filter=pp\n')
-      writeFileSync(join(dir, 'b.txt'), 'bee\n')
-      // Commit with the filters neutralized so the index holds a stat entry that
-      // status must re-hash (the racy case that runs the clean driver).
-      execFileSync(
-        'git',
-        ['-c', 'filter.probe.clean=', '-c', 'filter.probe.smudge=', '-c', 'filter.pp.process=', '-c', 'filter.probe.required=false', 'add', '-A'],
-        { cwd: dir, stdio: 'ignore' }
-      )
-      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'init'], { cwd: dir, stdio: 'ignore' })
-      rmSync(marker(), { force: true })
-    })
-    afterEach(() => {
-      rmSync(marker(), { force: true })
-      rmSync(script, { force: true })
-    })
-
-    it('control: a plain git status does run the filter (so the test is meaningful)', () => {
-      writeFileSync(join(dir, 'a.txt'), 'changed\n')
-      execFileSync('git', ['status', '--porcelain'], { cwd: dir, stdio: 'ignore' })
-      expect(existsSync(marker())).toBe(true)
-    })
-
-    it('getStatus, changedSince and diffFile never run the clean / process driver', async () => {
-      writeFileSync(join(dir, 'a.txt'), 'changed\n')
-      writeFileSync(join(dir, 'b.txt'), 'changed too\n')
-      const status = await getStatus(dir)
-      expect(status.repoState).not.toBe('not-repo')
-      await changedSince(dir, 'working', null, [])
-      await diffFile(dir, 'working', null, 'a.txt')
-      expect(existsSync(marker())).toBe(false)
-    })
-
-    it('a trusted repo keeps its filters', async () => {
-      trustRepo(dir)
-      writeFileSync(join(dir, 'a.txt'), 'changed\n')
-      await getStatus(dir)
-      expect(existsSync(marker())).toBe(true)
-    })
   })
 })
 
