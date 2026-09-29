@@ -5,11 +5,18 @@ import { buildMonacoTheme } from './monacoTheme'
 import { DEFAULT_MONO } from '../terminal/terminalTheme'
 import { EditorTabs } from './EditorTabs'
 import { useEditorStore } from '../../state/useEditorStore'
+import type { EditorTab } from '../../state/editorTabs'
 import { useAppStore } from '../../state/useAppStore'
 import { useThemeStore } from '../../state/useThemeStore'
 
-function modelUri(relPath: string): monaco.Uri {
-  return monaco.Uri.parse(`inmemory://dockterm/${relPath}`)
+/** One Monaco model per tab: the root is part of the URI, so two projects with
+ * the same relative path never share (or overwrite) a model. */
+function modelUri(tab: Pick<EditorTab, 'root' | 'relPath'>): monaco.Uri {
+  return monaco.Uri.from({
+    scheme: 'inmemory',
+    authority: 'dockterm',
+    path: `/${encodeURIComponent(tab.root)}/${tab.relPath}`
+  })
 }
 
 function ImageViewer({ dataUrl }: { dataUrl: string }) {
@@ -63,13 +70,13 @@ export function EditorPane() {
   // user keystroke and re-marked dirty.
   const suppressDirtyRef = useRef(false)
   const seenDiskRevisions = useRef<Record<string, number>>({})
-  const activePath = useEditorStore((s) => s.activePath)
+  const activeId = useEditorStore((s) => s.activeId)
   const tabs = useEditorStore((s) => s.tabs)
   const goto = useEditorStore((s) => s.goto)
   const fontSize = useAppStore((s) => s.settings?.editor.fontSize ?? 13)
   const appTheme = useThemeStore((s) => s.theme)
 
-  const activeTab = tabs.find((t) => t.relPath === activePath) ?? null
+  const activeTab = tabs.find((t) => t.id === activeId) ?? null
   const activeKind = activeTab?.kind ?? null
 
   useEffect(() => {
@@ -91,15 +98,15 @@ export function EditorPane() {
     editorRef.current = editor
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      const path = useEditorStore.getState().activePath
+      const id = useEditorStore.getState().activeId
       const model = editor.getModel()
-      if (path && model) void useEditorStore.getState().save(path, model.getValue())
+      if (id && model) void useEditorStore.getState().save(id, model.getValue())
     })
 
     const sub = editor.onDidChangeModelContent(() => {
       if (suppressDirtyRef.current) return
-      const path = useEditorStore.getState().activePath
-      if (path) useEditorStore.getState().markDirty(path, true)
+      const id = useEditorStore.getState().activeId
+      if (id) useEditorStore.getState().markDirty(id, true)
     })
 
     return () => {
@@ -123,15 +130,15 @@ export function EditorPane() {
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    const tab = tabs.find((t) => t.relPath === activePath)
-    if (!activePath || !tab || tab.kind !== 'text') {
+    const tab = tabs.find((t) => t.id === activeId)
+    if (!activeId || !tab || tab.kind !== 'text') {
       editor.setModel(null)
       return
     }
-    const uri = modelUri(activePath)
+    const uri = modelUri(tab)
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(tab.content, tab.language, uri)
     if (editor.getModel() !== model) editor.setModel(model)
-  }, [activePath, tabs])
+  }, [activeId, tabs])
 
   // Silent disk reload (RU-I12): a tab's content was just refreshed from disk
   // (syncFromDisk or the explicit "Reload" banner action) — push it into an
@@ -144,30 +151,38 @@ export function EditorPane() {
     for (const tab of tabs) {
       if (tab.kind !== 'text') continue
       const rev = tab.diskRevision ?? 0
-      const seen = seenDiskRevisions.current[tab.relPath] ?? 0
+      const seen = seenDiskRevisions.current[tab.id] ?? 0
       if (rev === seen) continue
-      seenDiskRevisions.current[tab.relPath] = rev
-      const model = monaco.editor.getModel(modelUri(tab.relPath))
+      seenDiskRevisions.current[tab.id] = rev
+      const model = monaco.editor.getModel(modelUri(tab))
       if (!model) continue // not open in Monaco yet — it'll read tab.content when activated
-      const isActive = tab.relPath === activePath
+      const isActive = tab.id === activeId
       const pos = isActive ? editor.getPosition() : null
       suppressDirtyRef.current = true
       model.setValue(tab.content)
       suppressDirtyRef.current = false
       if (isActive && pos) editor.setPosition(pos)
     }
-  }, [tabs, activePath])
+  }, [tabs, activeId])
 
   // Listen for external file changes and pull them into any open tab —
   // silently when it has no unsaved edits, or flagged (staleOnDisk) when it
   // does, so a file changed outside DockTerm doesn't just sit stale forever.
   useEffect(() => {
     return window.dockterm.on('fs:watch', (batch) => {
-      const open = new Set(useEditorStore.getState().tabs.map((t) => t.relPath))
+      // The watcher follows the window's active root, so a batch only speaks
+      // for tabs of that root: another project's same-named file is untouched.
+      const root = useAppStore.getState().activeRoot
+      const open = new Map(
+        useEditorStore
+          .getState()
+          .tabs.filter((t) => t.root === root)
+          .map((t) => [t.relPath, t.id])
+      )
       for (const ev of batch.events) {
-        if ((ev.type === 'change' || ev.type === 'unlink') && open.has(ev.relPath)) {
-          void useEditorStore.getState().syncFromDisk(ev.relPath)
-        }
+        if (ev.type !== 'change' && ev.type !== 'unlink') continue
+        const id = open.get(ev.relPath)
+        if (id) void useEditorStore.getState().syncFromDisk(id)
       }
     })
   }, [])
@@ -175,7 +190,7 @@ export function EditorPane() {
   // Jump to a line when a clicked path carried one (e.g. server.ts:42).
   useEffect(() => {
     const editor = editorRef.current
-    if (!editor || !goto || goto.relPath !== activePath) return
+    if (!editor || !goto || goto.id !== activeId) return
     const model = editor.getModel()
     if (!model) return
     const line = Math.min(Math.max(1, goto.line), model.getLineCount())
@@ -183,12 +198,12 @@ export function EditorPane() {
     editor.setPosition({ lineNumber: line, column: 1 })
     editor.focus()
     useEditorStore.getState().clearGoto()
-  }, [goto, activePath, tabs])
+  }, [goto, activeId, tabs])
 
   // Dispose models for closed tabs.
   useEffect(() => {
     const openUris = new Set(
-      tabs.filter((t) => t.kind === 'text').map((t) => modelUri(t.relPath).toString())
+      tabs.filter((t) => t.kind === 'text').map((t) => modelUri(t).toString())
     )
     for (const model of monaco.editor.getModels()) {
       if (model.uri.scheme === 'inmemory' && !openUris.has(model.uri.toString())) {
@@ -206,13 +221,13 @@ export function EditorPane() {
           <span>This file changed on disk since you opened it.</span>
           <button
             className="btn btn--ghost btn--sm"
-            onClick={() => void useEditorStore.getState().reloadFromDisk(activeTab.relPath)}
+            onClick={() => void useEditorStore.getState().reloadFromDisk(activeTab.id)}
           >
             Reload (discard your edits)
           </button>
           <button
             className="btn btn--ghost btn--sm"
-            onClick={() => useEditorStore.getState().dismissStale(activeTab.relPath)}
+            onClick={() => useEditorStore.getState().dismissStale(activeTab.id)}
           >
             Dismiss
           </button>

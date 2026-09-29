@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { modalRegistry } from '../../state/modalState'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -15,6 +16,11 @@ const FOCUSABLE =
 export function Modal({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    modalRegistry.enter()
+    return () => modalRegistry.leave()
+  }, [])
 
   useEffect(() => {
     previouslyFocused.current = document.activeElement as HTMLElement | null

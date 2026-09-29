@@ -4,7 +4,15 @@ import { languageForFile } from '../components/editor/language'
 
 export type EditorTabKind = 'text' | 'image' | 'binary'
 
+/** A tab's identity: the project root plus the path inside it. relPath alone
+ * collides when two projects both have e.g. `src/index.ts`. */
+export function tabKey(root: string, relPath: string): string {
+  return `${root}\u0000${relPath}`
+}
+
 export interface EditorTab {
+  /** tabKey(root, relPath). Changes when the tab is renamed. */
+  id: string
   relPath: string
   name: string
   kind: EditorTabKind
@@ -34,32 +42,44 @@ export interface EditorTab {
 
 export interface EditorTabsState {
   tabs: EditorTab[]
-  activePath: string | null
-  goto: { relPath: string; line: number } | null
+  /** The active tab's id (tabKey), not a bare relPath. */
+  activeId: string | null
+  goto: { id: string; line: number } | null
 }
 
-/** Repoint an open tab's relPath/name in place (a FileTree rename), keeping
- * its content/dirty state — used instead of close+reopen, which used to
+/** Remove a tab; if it was active, the last remaining tab becomes active. */
+export function closeEditorTab(s: EditorTabsState, id: string): EditorTabsState {
+  const tabs = s.tabs.filter((t) => t.id !== id)
+  const activeId = s.activeId === id ? (tabs.length ? tabs[tabs.length - 1].id : null) : s.activeId
+  return { ...s, tabs, activeId }
+}
+
+/** Repoint an open tab's relPath/name in place (a FileTree rename in `root`),
+ * keeping its content/dirty state — used instead of close+reopen, which used to
  * silently discard unsaved edits by re-reading the (now-moved) file fresh
- * from disk under its new name. */
+ * from disk under its new name. Tabs of other roots are never touched. */
 export function renameEditorTab(
   s: EditorTabsState,
+  root: string,
   fromRelPath: string,
   toRelPath: string,
   name: string
 ): EditorTabsState {
+  const fromId = tabKey(root, fromRelPath)
+  const toId = tabKey(root, toRelPath)
   return {
     tabs: s.tabs.map((t) =>
-      t.relPath === fromRelPath
+      t.id === fromId
         ? {
             ...t,
+            id: toId,
             relPath: toRelPath,
             name,
             language: t.kind === 'text' ? languageForFile(name) : t.language
           }
         : t
     ),
-    activePath: s.activePath === fromRelPath ? toRelPath : s.activePath,
-    goto: s.goto && s.goto.relPath === fromRelPath ? { ...s.goto, relPath: toRelPath } : s.goto
+    activeId: s.activeId === fromId ? toId : s.activeId,
+    goto: s.goto && s.goto.id === fromId ? { ...s.goto, id: toId } : s.goto
   }
 }

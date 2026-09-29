@@ -1,45 +1,31 @@
 import { X } from 'lucide-react'
 import { useEditorStore } from '../../state/useEditorStore'
-import { useDialogStore } from '../../state/useDialogStore'
 
 export function EditorTabs() {
   const tabs = useEditorStore((s) => s.tabs)
-  const activePath = useEditorStore((s) => s.activePath)
+  const activeId = useEditorStore((s) => s.activeId)
   const setActive = useEditorStore((s) => s.setActive)
-  const close = useEditorStore((s) => s.close)
+  const requestClose = useEditorStore((s) => s.requestClose)
 
   if (tabs.length === 0) return null
-
-  const closeTab = async (relPath: string, name: string, dirty: boolean): Promise<void> => {
-    if (dirty) {
-      const discard = await useDialogStore.getState().confirm({
-        title: 'Unsaved changes',
-        message: `"${name}" has unsaved changes. Close it and discard them?`,
-        confirmLabel: 'Discard changes',
-        danger: true
-      })
-      if (!discard) return
-    }
-    close(relPath)
-  }
 
   return (
     <div className="tabs" role="tablist">
       {tabs.map((tab) => (
         <div
-          key={tab.relPath}
-          className={`tab${tab.relPath === activePath ? ' tab--active' : ''}`}
-          onMouseDown={() => setActive(tab.relPath)}
+          key={tab.id}
+          className={`tab${tab.id === activeId ? ' tab--active' : ''}`}
+          onMouseDown={() => setActive(tab.id)}
           title={tab.relPath}
           role="tab"
-          aria-selected={tab.relPath === activePath}
+          aria-selected={tab.id === activeId}
         >
           <span className="tab__name">{tab.name}</span>
           <button
             className="tab__close"
             onMouseDown={(e) => {
               e.stopPropagation()
-              void closeTab(tab.relPath, tab.name, tab.dirty)
+              void requestClose(tab.id)
             }}
             aria-label={`Close ${tab.name}`}
           >

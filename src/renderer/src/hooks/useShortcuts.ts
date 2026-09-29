@@ -3,10 +3,10 @@ import { useAppStore } from '../state/useAppStore'
 import { useEditorStore } from '../state/useEditorStore'
 import { useWorkspaceStore } from '../state/useWorkspaceStore'
 import { useComposeStore } from '../state/useComposeStore'
-import { useDialogStore } from '../state/useDialogStore'
 import { confirmCloseLeaves } from '../components/terminal/closeGuard'
 import { refocusIfTerminal } from '../components/terminal/PaneTree'
 import { detectPlatform, matchShortcut } from './keys'
+import { isModalOpen } from '../state/modalState'
 
 const platform = detectPlatform()
 
@@ -21,14 +21,19 @@ const platform = detectPlatform()
 export function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      // A confirm/prompt dialog owns the keyboard while it's open (Modal
-      // traps focus) — never let a global shortcut act on the app underneath
-      // it, e.g. a second "close" firing while one is already pending.
-      const dialogs = useDialogStore.getState()
-      if (dialogs.confirmState || dialogs.promptState) return
-
       const matched = matchShortcut(e, platform)
       if (!matched) return
+
+      // A dialog or overlay owns the keyboard while it's open (Modal traps
+      // focus) — never let a global shortcut act on the app underneath it,
+      // e.g. a second "close" firing while one is already pending. The key is
+      // swallowed, not just ignored: an unhandled Cmd+R would otherwise reach
+      // the native menu and reload the window under the dialog.
+      if (isModalOpen()) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
 
       const app = useAppStore.getState()
       const ws = useWorkspaceStore.getState()
@@ -102,8 +107,9 @@ export function useShortcuts(): void {
           // against every leaf in it, not just the focused one.
           const inEditor = !!document.activeElement?.closest('.editor')
           const editor = useEditorStore.getState()
-          if (inEditor && editor.activePath) {
-            return fire(() => editor.closeActive())
+          if (inEditor && editor.activeId) {
+            const id = editor.activeId
+            return fire(() => void editor.requestClose(id))
           }
           const tab = ws.tabs.find((t) => t.id === ws.activeId)
           const leafId = tab?.focusedLeafId

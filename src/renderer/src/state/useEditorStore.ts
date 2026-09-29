@@ -3,7 +3,7 @@ import { languageForFile } from '../components/editor/language'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
 import { useAppStore } from './useAppStore'
-import { renameEditorTab, type EditorTab, type EditorTabKind } from './editorTabs'
+import { renameEditorTab, closeEditorTab, tabKey, type EditorTab, type EditorTabKind } from './editorTabs'
 
 // Re-exported for existing consumers that import the type from here.
 export type { EditorTab, EditorTabKind }
@@ -18,47 +18,60 @@ const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'av
 
 interface EditorState {
   tabs: EditorTab[]
-  activePath: string | null
+  /** The active tab's id (root + relPath, see tabKey). */
+  activeId: string | null
   /** A pending "jump to this line" request for the editor (from a clicked path). */
-  goto: { relPath: string; line: number } | null
+  goto: { id: string; line: number } | null
   clearGoto: () => void
+  /** Open (or focus) a file of the CURRENT project root. */
   open: (relPath: string, name: string, line?: number) => Promise<void>
-  close: (relPath: string) => void
-  closeActive: () => void
+  /** Close a tab by id, no questions asked. */
+  close: (id: string) => void
+  /** Close a tab by id, asking first when it has unsaved edits. The one path
+   * for the tab's close button and the close shortcut. Resolves true if closed. */
+  requestClose: (id: string) => Promise<boolean>
+  /** Close the file `relPath` of the current root (no prompt: it was deleted). */
+  closeRel: (relPath: string) => void
   closeAll: () => void
-  setActive: (relPath: string) => void
-  markDirty: (relPath: string, dirty: boolean) => void
-  save: (relPath: string, content: string) => Promise<void>
+  setActive: (id: string) => void
+  markDirty: (id: string, dirty: boolean) => void
+  save: (id: string, content: string) => Promise<void>
   /** Point an already-open tab at its file's new location in place, keeping
    * its content/dirty state — used after a FileTree rename instead of
    * close+reopen, which used to silently discard unsaved edits. */
   renamePath: (fromRelPath: string, toRelPath: string, name: string) => void
   /** A file this tab has open changed on disk: silently pull in the new
    * content when the tab has no unsaved edits, otherwise just flag it. */
-  syncFromDisk: (relPath: string) => Promise<void>
+  syncFromDisk: (id: string) => Promise<void>
   /** Clear a staleOnDisk flag without reloading (user chose to keep editing). */
-  dismissStale: (relPath: string) => void
+  dismissStale: (id: string) => void
   /** Explicitly reload from disk, discarding any local edits. */
-  reloadFromDisk: (relPath: string) => Promise<void>
+  reloadFromDisk: (id: string) => Promise<void>
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
-  activePath: null,
+  activeId: null,
   goto: null,
 
   clearGoto: () => set({ goto: null }),
 
   open: async (relPath, name, line) => {
-    if (line != null) set({ goto: { relPath, line } })
-    if (get().tabs.some((t) => t.relPath === relPath)) {
-      set({ activePath: relPath })
+    const root = currentRoot()
+    const id = tabKey(root, relPath)
+    if (line != null) set({ goto: { id, line } })
+    if (get().tabs.some((t) => t.id === id)) {
+      set({ activeId: id })
       return
     }
-    const root = currentRoot()
     const ext = name.split('.').pop()?.toLowerCase() ?? ''
-    const add = (tab: EditorTab): void => set((s) => ({ tabs: [...s.tabs, tab], activePath: relPath }))
-    const base = { relPath, name, content: '', mtimeMs: 0, dirty: false, language: '', root }
+    const add = (tab: EditorTab): void =>
+      set((s) =>
+        // A second open() for the same file can resolve while the first read is
+        // still in flight: don't add the tab twice.
+        s.tabs.some((t) => t.id === id) ? { activeId: id } : { tabs: [...s.tabs, tab], activeId: id }
+      )
+    const base = { id, relPath, name, content: '', mtimeMs: 0, dirty: false, language: '', root }
 
     if (IMAGE_EXT.includes(ext)) {
       const res = await window.dockterm.invoke('fs:readDataUrl', { relPath })
@@ -89,32 +102,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })
   },
 
-  close: (relPath) =>
-    set((s) => {
-      const tabs = s.tabs.filter((t) => t.relPath !== relPath)
-      const activePath =
-        s.activePath === relPath ? (tabs.length ? tabs[tabs.length - 1].relPath : null) : s.activePath
-      return { tabs, activePath }
-    }),
+  close: (id) => set((s) => closeEditorTab(s, id)),
 
-  closeActive: () => {
-    const path = get().activePath
-    if (path) get().close(path)
+  requestClose: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return false
+    if (tab.dirty) {
+      const discard = await useDialogStore.getState().confirm({
+        title: 'Unsaved changes',
+        message: `"${tab.name}" has unsaved changes. Close it and discard them?`,
+        confirmLabel: 'Discard changes',
+        danger: true
+      })
+      if (!discard) return false
+    }
+    get().close(id)
+    return true
   },
 
-  closeAll: () => set({ tabs: [], activePath: null }),
+  closeRel: (relPath) => get().close(tabKey(currentRoot(), relPath)),
 
-  setActive: (relPath) => set({ activePath: relPath }),
+  closeAll: () => set({ tabs: [], activeId: null }),
 
-  markDirty: (relPath, dirty) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, dirty } : t)) })),
+  setActive: (id) => set({ activeId: id }),
+
+  markDirty: (id, dirty) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, dirty } : t)) })),
 
   renamePath: (fromRelPath, toRelPath, name) =>
-    set((s) => renameEditorTab(s, fromRelPath, toRelPath, name)),
+    set((s) => renameEditorTab(s, currentRoot(), fromRelPath, toRelPath, name)),
 
-  save: async (relPath, content) => {
-    const tab = get().tabs.find((t) => t.relPath === relPath)
+  save: async (id, content) => {
+    const tab = get().tabs.find((t) => t.id === id)
     if (!tab || tab.kind !== 'text') return
+    const relPath = tab.relPath
 
     const res = await window.dockterm.invoke('fs:writeFile', {
       relPath,
@@ -130,7 +151,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const mtimeMs = res.value.mtimeMs
       set((s) => ({
         tabs: s.tabs.map((t) =>
-          t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
+          t.id === id ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
         )
       }))
       return
@@ -160,19 +181,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const mtimeMs = forced.value.mtimeMs
       set((s) => ({
         tabs: s.tabs.map((t) =>
-          t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
+          t.id === id ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
         )
       }))
     }
   },
 
-  syncFromDisk: async (relPath) => {
-    const tab = get().tabs.find((t) => t.relPath === relPath)
+  syncFromDisk: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
     if (!tab || tab.kind !== 'text') return
+    const relPath = tab.relPath
     // Never clobber unsaved edits silently — flag it instead, same rule save() follows.
     if (tab.dirty) {
       set((s) => ({
-        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: true } : t))
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, staleOnDisk: true } : t))
       }))
       return
     }
@@ -181,7 +203,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Deleted, became binary, or unreadable — surface it the same way rather
       // than pretending nothing happened.
       set((s) => ({
-        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: true } : t))
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, staleOnDisk: true } : t))
       }))
       return
     }
@@ -189,19 +211,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (content === tab.content && mtimeMs === tab.mtimeMs) return
     set((s) => ({
       tabs: s.tabs.map((t) =>
-        t.relPath === relPath
+        t.id === id
           ? { ...t, content, mtimeMs, staleOnDisk: false, diskRevision: (t.diskRevision ?? 0) + 1 }
           : t
       )
     }))
   },
 
-  dismissStale: (relPath) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: false } : t)) })),
+  dismissStale: (id) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, staleOnDisk: false } : t)) })),
 
-  reloadFromDisk: async (relPath) => {
-    const tab = get().tabs.find((t) => t.relPath === relPath)
+  reloadFromDisk: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
     if (!tab || tab.kind !== 'text') return
+    const relPath = tab.relPath
     const res = await window.dockterm.invoke('fs:readFile', { relPath, root: tab.root })
     if (!res.ok || res.value.kind !== 'text') {
       useToastStore.getState().push(res.ok ? 'That file can no longer be read as text.' : res.error.message, 'error')
@@ -210,7 +233,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { content, mtimeMs } = res.value
     set((s) => ({
       tabs: s.tabs.map((t) =>
-        t.relPath === relPath
+        t.id === id
           ? { ...t, content, mtimeMs, dirty: false, staleOnDisk: false, diskRevision: (t.diskRevision ?? 0) + 1 }
           : t
       )

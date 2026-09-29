@@ -63,7 +63,7 @@ export function FileTree() {
   expandedRef.current = expanded
 
   const openFile = useEditorStore((s) => s.open)
-  const closeTab = useEditorStore((s) => s.close)
+  const closeTab = useEditorStore((s) => s.closeRel)
   const renamePath = useEditorStore((s) => s.renamePath)
   const projectName = useAppStore((s) => s.project?.name ?? 'Files')
   const activeRoot = useAppStore((s) => s.activeRoot)
