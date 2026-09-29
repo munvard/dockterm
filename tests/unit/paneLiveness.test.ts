@@ -3,6 +3,7 @@ import { classify } from '@renderer/components/terminal/claudeStatus'
 import {
   hasClaudeInputBox,
   claudeOnScreen,
+  claudeIsForeground,
   unknownProcessLabel
 } from '@renderer/components/terminal/paneLiveness'
 
@@ -65,5 +66,25 @@ describe('unknownProcessLabel: close guard when the OS cannot name the process (
 
   it('asks when a program is producing output (last line is not a prompt)', () => {
     expect(unknownProcessLabel('PS C:\\proj> npm run build\nbuilding 41%', false)).not.toBeNull()
+  })
+})
+
+describe('claudeIsForeground: strict, fail-closed gate for typing into a pane', () => {
+  const shell = (n: string): boolean => ['zsh', 'bash'].includes(n)
+  it('is true only for a non-shell process with Claude on screen', () => {
+    expect(claudeIsForeground('claude', IDLE_CLAUDE, shell)).toBe(true)
+    expect(claudeIsForeground('node', IDLE_CLAUDE, shell)).toBe(true)
+  })
+  it('is false when the foreground is a shell, even with Claude text left in the scrollback', () => {
+    expect(claudeIsForeground('zsh', IDLE_CLAUDE, shell)).toBe(false)
+  })
+  it('is false for python, vim, ssh, sudo: a non-shell process without Claude on screen', () => {
+    for (const p of ['python3', 'vim', 'ssh', 'sudo']) expect(claudeIsForeground(p, POWERSHELL, shell)).toBe(false)
+    expect(claudeIsForeground('python3', '>>> print(1)\n1\n>>> ', shell)).toBe(false)
+  })
+  it('is false when the process is unknown (null), and follows the screen where the OS cannot tell', () => {
+    expect(claudeIsForeground(null, IDLE_CLAUDE, shell)).toBe(false)
+    expect(claudeIsForeground('', IDLE_CLAUDE, shell)).toBe(true)
+    expect(claudeIsForeground('', POWERSHELL, shell)).toBe(false)
   })
 })

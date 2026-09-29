@@ -1,8 +1,10 @@
+import type { Result } from '@shared/result'
 import {
   formatPathForClaude,
   isImagePath,
   isSafePath,
   pickImageMime,
+  type PasteImageMime,
   type ComposerPlatform
 } from '../chat/composerText'
 
@@ -13,6 +15,10 @@ import {
  */
 
 export interface ImagePasteDeps {
+  /** The three main-process calls, injected so this file needs no `window`. */
+  saveImage: (data: Uint8Array, mime: PasteImageMime) => Promise<Result<{ path: string }>>
+  readFiles: () => Promise<Result<{ paths: string[] }>>
+  saveClipboardImage: () => Promise<Result<{ path: string | null }>>
   isClaude: () => Promise<boolean>
   /** User-paste semantics (xterm paste). */
   paste: (text: string) => void
@@ -32,11 +38,9 @@ export function handleImagePasteEvent(e: ClipboardEvent, deps: ImagePasteDeps): 
   e.stopPropagation()
   void (async () => {
     if (!(await deps.isClaude())) return
-    const res = await window.dockterm.invoke('chat:saveImage', {
-      data: new Uint8Array(await file.arrayBuffer()),
-      mime
-    })
+    const res = await deps.saveImage(new Uint8Array(await file.arrayBuffer()), mime)
     if (!res.ok) return deps.warn(res.error.message)
+    if (!(await deps.isClaude())) return
     deps.paste(formatPathForClaude(res.value.path, deps.platform))
   })()
   return true
@@ -45,13 +49,14 @@ export function handleImagePasteEvent(e: ClipboardEvent, deps: ImagePasteDeps): 
 /** Windows/Linux paste key with an empty text clipboard: look for image files, then an image. */
 export async function pasteImageFromSystemClipboard(deps: ImagePasteDeps): Promise<void> {
   if (!(await deps.isClaude())) return
-  const files = await window.dockterm.invoke('clipboard:readFiles', undefined)
+  const files = await deps.readFiles()
   const images = files.ok ? files.value.paths.filter((p) => isImagePath(p) && isSafePath(p)) : []
   if (images.length > 0) {
+    if (!(await deps.isClaude())) return
     deps.paste(images.map((p) => formatPathForClaude(p, deps.platform)).join(' '))
     return
   }
-  const saved = await window.dockterm.invoke('clipboard:saveImage', undefined)
+  const saved = await deps.saveClipboardImage()
   if (!saved.ok) return deps.warn(saved.error.message)
-  if (saved.value.path) deps.paste(formatPathForClaude(saved.value.path, deps.platform))
+  if (saved.value.path && (await deps.isClaude())) deps.paste(formatPathForClaude(saved.value.path, deps.platform))
 }

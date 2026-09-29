@@ -5,7 +5,9 @@ import type { Attachment } from '../../src/renderer/src/components/chat/composer
 const img = (path: string): Attachment => ({ id: path, kind: 'image', path, name: path })
 const doc = (path: string): Attachment => ({ id: path, kind: 'file', path, name: path })
 
-function harness(opts: { bracketed?: boolean; markersAfterMs?: number | null; markers?: number } = {}) {
+function harness(
+  opts: { bracketed?: boolean; markersAfterMs?: number | null; markers?: number; claude?: () => boolean; trace?: boolean } = {}
+) {
   const log: string[] = []
   let clock = 0
   let pasted = false
@@ -23,9 +25,13 @@ function harness(opts: { bracketed?: boolean; markersAfterMs?: number | null; ma
       const n = pasted && opts.markersAfterMs !== null && clock - pasteAt >= (opts.markersAfterMs ?? 0) ? opts.markers ?? 1 : 0
       return Array.from({ length: n }, (_, i) => `[Image #${i + 1}]`).join(' ')
     },
-    sendPrompt: (_id, text) => {
+    sendPrompt: async (_id, text) => {
       log.push(`prompt:${JSON.stringify(text)}`)
       return true
+    },
+    isClaude: async () => {
+      if (opts.trace) log.push('check')
+      return opts.claude ? opts.claude() : true
     },
     sleep: async (ms) => {
       clock += ms
@@ -83,7 +89,8 @@ describe('sendComposedWith', () => {
       bracketedPaste: () => true,
       write: () => ((pasted = true), true),
       visibleText: () => (pasted ? '[Image #1] [Image #2]' : '[Image #1]'),
-      sendPrompt: (_i, t) => (log.push(t), true),
+      sendPrompt: async (_i, t) => (log.push(t), true),
+      isClaude: async () => true,
       sleep: async (ms) => void (clock += ms),
       now: () => clock,
       warn: () => log.push('WARN')
@@ -163,5 +170,34 @@ describe('sendComposedWith paste safety', () => {
   it('strips a terminating sequence from the text of a send (chips too)', async () => {
     const { wrapBracketedPaste } = await import('../../src/renderer/src/components/terminal/terminalSelection')
     expect(wrapBracketedPaste('x\x1b[201~rm -rf ~\r')).toBe('\x1b[200~x[201~rm -rf ~\n\x1b[201~')
+  })
+})
+
+describe('sendComposedWith Claude-only gate', () => {
+  it('writes nothing when Claude is not the foreground program', async () => {
+    const h = harness({ claude: () => false })
+    const ok = await sendComposedWith(h.deps, 'l', {
+      ...base,
+      text: 'rm -rf ~',
+      attachments: [img('/t/a.png')]
+    })
+    expect(ok).toBe(false)
+    expect(h.log).toEqual([])
+  })
+
+  it('checks again after the image wait, right before the prompt', async () => {
+    let alive = true
+    const h = harness({ markersAfterMs: 120, trace: true, claude: () => alive })
+    const orig = h.deps.sleep
+    h.deps.sleep = async (ms) => {
+      await orig(ms)
+      alive = false // Claude exits while we wait for the image marker
+    }
+    const ok = await sendComposedWith(h.deps, 'l', { ...base, text: 'hi', attachments: [img('/t/a.png')] })
+    expect(ok).toBe(false)
+    expect(h.log.some((l) => l.startsWith('prompt:'))).toBe(false)
+    expect(h.log[0]).toBe('check')
+    expect(h.log[1].startsWith('write:')).toBe(true)
+    expect(h.log[h.log.length - 1]).toBe('check')
   })
 })

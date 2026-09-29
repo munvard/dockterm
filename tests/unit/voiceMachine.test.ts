@@ -17,7 +17,15 @@ interface Env {
   snaps: VoiceSnapshot[]
   commands: string[]
   set: (s: string) => void
-  state: { claude: ClaudeState; mode: 'hold' | 'tap'; autoSubmit: boolean; pane: boolean }
+  state: {
+    claude: ClaudeState
+    mode: 'hold' | 'tap'
+    autoSubmit: boolean
+    pane: boolean
+    enabled: boolean
+    fresh: { enabled: boolean; mode: 'hold' | 'tap'; autoSubmit: boolean } | null
+    claudeHere: boolean
+  }
 }
 
 function make(): Env {
@@ -26,7 +34,15 @@ function make(): Env {
   const transcripts: string[] = []
   const snaps: VoiceSnapshot[] = []
   const commands: string[] = []
-  const state = { claude: 'idle' as ClaudeState, mode: 'hold' as 'hold' | 'tap', autoSubmit: false, pane: true }
+  const state: Env['state'] = {
+    claude: 'idle',
+    mode: 'hold',
+    autoSubmit: false,
+    pane: true,
+    enabled: false,
+    fresh: null,
+    claudeHere: true
+  }
   const m = new VoiceMachine({
     write: (d) => {
       if (!state.pane) return false
@@ -35,8 +51,10 @@ function make(): Env {
     },
     visibleText: () => visible,
     claudeState: () => state.claude,
-    settings: () => ({ mode: state.mode, autoSubmit: state.autoSubmit }),
-    sendCommand: (t) => {
+    settings: () => ({ enabled: state.enabled, mode: state.mode, autoSubmit: state.autoSubmit }),
+    readSettings: async () => state.fresh,
+    claudeHere: () => state.claudeHere,
+    sendCommand: async (t) => {
       commands.push(t)
       return true
     },
@@ -111,7 +129,7 @@ describe('VoiceMachine', () => {
     e.set(screen(['❯']))
     vi.advanceTimersByTime(T.NO_PROCESSING_GRACE_MS + T.POLL_MS)
     expect(e.transcripts).toEqual([])
-    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: false })
+    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: 'none' })
     expect(e.writes[e.writes.length - 1]).toBe('\x15\x15\x15')
   })
 
@@ -119,9 +137,9 @@ describe('VoiceMachine', () => {
     const e = make()
     e.m.start()
     vi.advanceTimersByTime(T.START_TIMEOUT_MS - 1)
-    expect(e.m.getSnapshot().hint).toBe(false)
+    expect(e.m.getSnapshot().hint).toBe('none')
     vi.advanceTimersByTime(T.POLL_MS)
-    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: true })
+    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: 'enable' })
     expect(e.writes[e.writes.length - 1]).toBe('\x15\x15')
     const n = e.writes.length
     vi.advanceTimersByTime(1000)
@@ -135,26 +153,64 @@ describe('VoiceMachine', () => {
     vi.advanceTimersByTime(800)
     e.m.stop()
     vi.advanceTimersByTime(T.NO_PROCESSING_GRACE_MS + T.POLL_MS)
-    expect(e.m.getSnapshot().hint).toBe(true)
+    expect(e.m.getSnapshot().hint).toBe('enable')
   })
 
-  it('hint button writes /voice through sendCommand, only when Claude is idle with an empty input', () => {
+  it('hint button runs an explicit `/voice hold` (never a bare toggle), only when Claude is idle with an empty input', async () => {
     const e = make()
+    e.state.fresh = { enabled: false, mode: 'hold', autoSubmit: false }
     e.m.start()
     vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
-    expect(e.m.getSnapshot().hint).toBe(true)
+    expect(e.m.getSnapshot().hint).toBe('enable')
 
     e.state.claude = 'working'
-    expect(e.m.enableVoice()).toBe(false)
+    expect(await e.m.enableVoice()).toBe(false)
     e.state.claude = 'idle'
     e.set(screen(['❯ half typed']))
-    expect(e.m.enableVoice()).toBe(false)
+    expect(await e.m.enableVoice()).toBe(false)
     expect(e.commands).toEqual([])
 
     e.set(screen(['❯']))
-    expect(e.m.enableVoice()).toBe(true)
-    expect(e.commands).toEqual(['/voice'])
-    expect(e.m.getSnapshot().hint).toBe(false)
+    expect(await e.m.enableVoice()).toBe(true)
+    expect(e.commands).toEqual(['/voice hold'])
+    expect(e.m.getSnapshot().hint).toBe('none')
+  })
+
+  it('hint button uses the tap mode from the fresh settings', async () => {
+    const e = make()
+    e.state.fresh = { enabled: false, mode: 'tap', autoSubmit: false }
+    e.m.start()
+    vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
+    await e.m.enableVoice()
+    expect(e.commands).toEqual(['/voice tap'])
+  })
+
+  it('I4: voice already enabled -> the plain hint, and Enable can never send a toggling /voice', async () => {
+    const e = make()
+    e.state.enabled = true
+    e.m.start()
+    vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
+    expect(e.m.getSnapshot().hint).toBe('not-started')
+
+    // The hint was stale: settings were read fresh at click time and voice is on.
+    e.state.enabled = false
+    e.m.dismissHint()
+    e.m.start()
+    vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
+    expect(e.m.getSnapshot().hint).toBe('enable')
+    e.state.fresh = { enabled: true, mode: 'hold', autoSubmit: false }
+    expect(await e.m.enableVoice()).toBe(false)
+    expect(e.commands).toEqual([])
+    expect(e.m.getSnapshot().hint).toBe('not-started')
+  })
+
+  it('I4: an unreadable settings file never leads to a /voice command', async () => {
+    const e = make()
+    e.state.fresh = null
+    e.m.start()
+    vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
+    expect(await e.m.enableVoice()).toBe(false)
+    expect(e.commands).toEqual([])
   })
 
   it('does not start while Claude is asking, and types nothing', () => {
@@ -184,11 +240,14 @@ describe('VoiceMachine', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('autoSubmit: does not read or clear Claude input, just ends the strip', () => {
+  // Screens below follow Claude Code 2.1.284 (checked against its binary): auto-submit only happens
+  // for a transcript of 3 or more words, and then the input box is empty again. Under 3 words the
+  // transcript stays in the input box.
+  it('autoSubmit, 3+ words: Claude submitted it, so DockTerm reads nothing and clears nothing', () => {
     const e = make()
     e.state.autoSubmit = true
     e.m.start()
-    e.set(screen(['❯ send it'], '  listening…'))
+    e.set(screen(['❯ please run the tests'], '  listening…'))
     vi.advanceTimersByTime(T.POLL_MS)
     e.m.stop()
     e.set(screen(['❯'], '  Voice: processing…'))
@@ -198,6 +257,38 @@ describe('VoiceMachine', () => {
     expect(e.m.getSnapshot().phase).toBe('idle')
     expect(e.transcripts).toEqual([])
     expect(e.writes.some((w) => w.includes('\x15'))).toBe(false)
+  })
+
+  it('I3: autoSubmit, 1-2 words: Claude leaves them in its box, so they are taken into the composer and cleared', () => {
+    const e = make()
+    e.state.autoSubmit = true
+    e.m.start()
+    e.set(screen(['❯ yes please'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.m.stop()
+    e.set(screen(['❯ yes please'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯ yes please']))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.m.getSnapshot().phase).toBe('idle')
+    expect(e.transcripts).toEqual(['yes please'])
+    expect(e.writes[e.writes.length - 1]).toBe('\x15\x15\x15')
+  })
+
+  it('I3: tap mode, 2 words left in the box, gets the same treatment', () => {
+    const e = make()
+    e.state.mode = 'tap'
+    e.m.start()
+    vi.advanceTimersByTime(T.TAP_GAP_MS * 5)
+    e.set(screen(['❯'], '  ● REC · tap to send'))
+    vi.advanceTimersByTime(T.POLL_MS * 3)
+    e.m.stop()
+    e.set(screen(['❯ run tests'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯ run tests']))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.transcripts).toEqual(['run tests'])
+    expect(e.writes[e.writes.length - 1]).toBe('\x15\x15\x15')
   })
 
   it('tap: a burst of 6 spaces 20 ms apart starts, another stops, Claude submits itself', () => {
@@ -240,9 +331,101 @@ describe('VoiceMachine', () => {
     e.m.stop()
     expect(spaces(e.writes)).toBe(6)
     e.set(screen(['❯'], '  ● REC · tap to send'))
-    vi.advanceTimersByTime(T.POLL_MS)
+    vi.advanceTimersByTime(T.POLL_MS * 4)
     vi.advanceTimersByTime(T.TAP_GAP_MS * 5)
     expect(spaces(e.writes)).toBe(12)
+  })
+
+  it('I2: tap, Claude ends the recording itself (15 s silence): no stop burst, so no fresh recording', () => {
+    const e = make()
+    e.state.mode = 'tap'
+    e.m.start()
+    vi.advanceTimersByTime(T.TAP_GAP_MS * 5)
+    e.set(screen(['❯'], '  ● REC · tap to send'))
+    vi.advanceTimersByTime(T.POLL_MS * 3)
+    expect(spaces(e.writes)).toBe(6)
+    e.set(screen(['❯'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯']))
+    vi.advanceTimersByTime(T.POLL_MS * 2)
+    expect(e.m.getSnapshot().phase).toBe('finishing')
+    vi.advanceTimersByTime(T.NO_PROCESSING_GRACE_MS + T.POLL_MS * 2)
+    expect(e.m.getSnapshot().phase).toBe('idle')
+    expect(spaces(e.writes)).toBe(6) // never typed a second burst
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('I2: tap, a stop right after the start waits until Claude would not swallow it as a continuation', () => {
+    const e = make()
+    e.state.mode = 'tap'
+    e.m.start()
+    vi.advanceTimersByTime(T.TAP_GAP_MS * 5)
+    e.set(screen(['❯'], '  ● REC · tap to send'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.m.stop() // 200 ms after the start, before TAP_STOP_MIN_MS (250)
+    expect(spaces(e.writes)).toBe(6)
+    vi.advanceTimersByTime(T.POLL_MS - 1)
+    expect(spaces(e.writes)).toBe(6) // still waiting
+    vi.advanceTimersByTime(1)
+    expect(spaces(e.writes)).toBeGreaterThan(6) // sent at the first poll after 250 ms
+  })
+
+  it('I2: tap, REC still showing 600 ms after the stop burst: the stop was swallowed, so Esc cancels', () => {
+    const e = make()
+    e.state.mode = 'tap'
+    e.m.start()
+    vi.advanceTimersByTime(T.TAP_GAP_MS * 5)
+    e.set(screen(['❯'], '  ● REC · tap to send'))
+    vi.advanceTimersByTime(T.POLL_MS * 4)
+    e.m.stop()
+    vi.advanceTimersByTime(T.TAP_STUCK_REC_MS - 100)
+    expect(e.writes.includes('\x1b')).toBe(false)
+    vi.advanceTimersByTime(T.POLL_MS * 3)
+    expect(e.writes.includes('\x1b')).toBe(true)
+    vi.advanceTimersByTime(T.ESC_CLEAR_GAP_MS)
+    expect(e.writes[e.writes.length - 1]).toMatch(/^\x15+$/)
+    expect(e.m.getSnapshot().phase).toBe('idle')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('M3: hold, Claude released by itself (a stalled renderer): the space stream stops at once', () => {
+    const e = make()
+    e.m.start()
+    e.set(screen(['❯ hello'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯ hello'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    const n = spaces(e.writes)
+    vi.advanceTimersByTime(1000)
+    expect(spaces(e.writes)).toBe(n)
+    expect(e.m.getSnapshot().phase).toBe('finishing')
+  })
+
+  it('M11: recorded but no text and no processing seen: a plain "no speech" hint', () => {
+    const e = make()
+    e.m.start()
+    e.set(screen(['❯'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.m.stop()
+    e.set(screen(['❯']))
+    vi.advanceTimersByTime(T.NO_PROCESSING_GRACE_MS + T.POLL_MS)
+    expect(e.transcripts).toEqual([])
+    expect(e.m.getSnapshot().hint).toBe('no-speech')
+  })
+
+  it('step 3: Claude leaves the pane (shell prompt on screen): the stream stops with no further writes', () => {
+    const e = make()
+    e.m.start()
+    e.set(screen(['❯ hel'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.state.claudeHere = false
+    e.set('~/proj $ ')
+    vi.advanceTimersByTime(T.POLL_MS * 2)
+    expect(e.m.getSnapshot().phase).toBe('idle')
+    const n = e.writes.length
+    vi.advanceTimersByTime(2000)
+    expect(e.writes.length).toBe(n)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('Esc cancel while recording: Esc alone, then Ctrl+U in a separate write, no timers left', () => {

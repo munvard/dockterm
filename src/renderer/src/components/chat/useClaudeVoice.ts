@@ -4,14 +4,18 @@ import { sendPrompt } from '../../state/sendPrompt'
 import { useMunuStore } from '../../state/useMunuStore'
 import { useToastStore } from '../../state/useToastStore'
 import { paneVisibleText } from '../terminal/terminalPool'
+import { paneClaudeForeground } from '../terminal/paneClaudeActive'
+import { claudeOnScreen } from '../terminal/paneLiveness'
+import { detectVoiceStatus } from './claudeVoice'
 import { VoiceMachine, type StartResult, type VoiceSnapshot } from './voiceMachine'
 
-const IDLE: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: false }
+const IDLE: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none' }
 
 const START_FAILURES: Partial<Record<StartResult, string>> = {
   asking: 'Answer Claude’s question first, then try voice again.',
   'input-not-empty': 'Claude’s own input box is not empty. Clear it in the terminal, then try again.',
-  'no-pane': 'Could not reach this terminal.'
+  'no-pane': 'Could not reach this terminal.',
+  'no-claude': 'Claude is not running in this pane, so voice is off.'
 }
 
 export interface ClaudeVoice {
@@ -21,7 +25,7 @@ export interface ClaudeVoice {
   stop: () => void
   cancel: () => void
   dismissHint: () => void
-  enableVoice: () => boolean
+  enableVoice: () => Promise<boolean>
   canEnableVoice: () => boolean
   /** Latest phase, readable synchronously from event handlers. */
   isActive: () => boolean
@@ -35,7 +39,12 @@ export interface ClaudeVoice {
 export function useClaudeVoice(leafId: string, onTranscript: (text: string) => void): ClaudeVoice {
   const [snapshot, setSnapshot] = useState<VoiceSnapshot>(IDLE)
   const machine = useRef<VoiceMachine | null>(null)
-  const settings = useRef<{ mode: 'hold' | 'tap'; autoSubmit: boolean }>({ mode: 'hold', autoSubmit: false })
+  const settings = useRef<{ enabled: boolean; mode: 'hold' | 'tap'; autoSubmit: boolean }>({
+    // Unknown until read: assume ON, so a failed read can never lead to a toggling /voice.
+    enabled: true,
+    mode: 'hold',
+    autoSubmit: false
+  })
   const transcriptRef = useRef(onTranscript)
   transcriptRef.current = onTranscript
   // Bumped by stop/cancel so a start still waiting on the settings read gives up.
@@ -47,7 +56,14 @@ export function useClaudeVoice(leafId: string, onTranscript: (text: string) => v
       visibleText: () => paneVisibleText(leafId),
       claudeState: () => useMunuStore.getState().panes[leafId]?.state ?? 'idle',
       settings: () => settings.current,
-      sendCommand: (t) => sendPrompt(leafId, t),
+      readSettings: async () => {
+        const r = await window.dockterm.invoke('claude:voiceSettings', undefined)
+        if (!r.ok) return null
+        settings.current = { enabled: r.value.enabled, mode: r.value.mode, autoSubmit: r.value.autoSubmit }
+        return r.value
+      },
+      claudeHere: (vis) => claudeOnScreen(vis) || detectVoiceStatus(vis) !== 'idle',
+      sendCommand: (t) => sendPrompt(leafId, t, () => paneClaudeForeground(leafId)),
       onSnapshot: setSnapshot,
       onTranscript: (t) => transcriptRef.current(t)
     })
@@ -64,9 +80,11 @@ export function useClaudeVoice(leafId: string, onTranscript: (text: string) => v
     if (!m || m.isActive()) return
     const token = ++startToken.current
     const r = await window.dockterm.invoke('claude:voiceSettings', undefined)
-    if (r.ok) settings.current = { mode: r.value.mode, autoSubmit: r.value.autoSubmit }
+    if (r.ok) settings.current = { enabled: r.value.enabled, mode: r.value.mode, autoSubmit: r.value.autoSubmit }
+    // Fail closed: only type into a pane where Claude is really the foreground program.
+    const inFront = await paneClaudeForeground(leafId)
     if (token !== startToken.current || machine.current !== m) return
-    const res = m.start()
+    const res = inFront ? m.start() : 'no-claude'
     const msg = START_FAILURES[res]
     if (msg) useToastStore.getState().push(msg, 'warning')
   }, [])
@@ -87,7 +105,7 @@ export function useClaudeVoice(leafId: string, onTranscript: (text: string) => v
     stop,
     cancel,
     dismissHint: useCallback(() => machine.current?.dismissHint(), []),
-    enableVoice: useCallback(() => machine.current?.enableVoice() ?? false, []),
+    enableVoice: useCallback(() => machine.current?.enableVoice() ?? Promise.resolve(false), []),
     canEnableVoice: useCallback(() => machine.current?.canEnableVoice() ?? false, []),
     isActive: useCallback(() => machine.current?.isActive() ?? false, [])
   }

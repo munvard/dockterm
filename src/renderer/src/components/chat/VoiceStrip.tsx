@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { k } from '../../hooks/keys'
 import type { VoiceSnapshot } from './voiceMachine'
 
 /** Live line above the composer text box while Claude's voice mode listens. */
@@ -9,13 +10,27 @@ export function VoiceStrip({
   canEnable
 }: {
   snapshot: VoiceSnapshot
-  onEnable: () => boolean
+  onEnable: () => Promise<boolean> | boolean
   onDismissHint: () => void
   canEnable: () => boolean
 }): React.ReactElement | null {
   const [blocked, setBlocked] = useState(false)
 
-  if (snapshot.hint && snapshot.phase === 'idle') {
+  if (snapshot.hint !== 'none' && snapshot.phase === 'idle' && snapshot.hint !== 'enable') {
+    const text =
+      snapshot.hint === 'no-speech'
+        ? `No speech captured. See the terminal (${k('⌘R', 'Ctrl+Shift+R')}) for Claude’s message.`
+        : `Claude voice did not start. It needs a claude.ai login and microphone permission (Linux also needs SoX). See the terminal (${k('⌘R', 'Ctrl+Shift+R')}) for Claude’s message.`
+    return (
+      <div className="composer__voice composer__voice--hint" role="status">
+        <span>{text}</span>
+        <button className="btn btn--sm" onMouseDown={(e) => e.preventDefault()} onClick={onDismissHint}>
+          Dismiss
+        </button>
+      </div>
+    )
+  }
+  if (snapshot.hint === 'enable' && snapshot.phase === 'idle') {
     return (
       <div className="composer__voice composer__voice--hint" role="status">
         <span>Claude voice is off. Enable it?</span>
@@ -24,7 +39,7 @@ export function VoiceStrip({
           title={
             blocked
               ? 'Claude must be idle with an empty input box to run /voice'
-              : 'Runs /voice in this pane'
+              : 'Runs /voice in this pane to switch voice on'
           }
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {

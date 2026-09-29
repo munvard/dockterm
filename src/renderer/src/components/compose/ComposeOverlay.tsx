@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, X, CornerDownLeft, ClipboardPaste } from 'lucide-react'
 import { useComposeStore } from '../../state/useComposeStore'
 import { paneWriters } from '../../state/paneWriters'
+import { sanitizePasteText } from '../terminal/terminalSelection'
 import { sendComposed } from '../../state/sendComposed'
 import { useToastStore } from '../../state/useToastStore'
 import { leafRoot } from '../chat/composerActions'
@@ -73,7 +74,7 @@ export function ComposeOverlay(): React.ReactElement | null {
     const chips = liveChips(text, allChips)
     if (!submit) {
       // Insert-only has no Enter to pace, so it writes direct (pasted-text chips expanded).
-      if (text.length > 0) paneWriters.paste(leafId, expandPasted(text, chips))
+      if (text.length > 0) paneWriters.paste(leafId, sanitizePasteText(expandPasted(text, chips)))
       clearDraft(leafId)
       close()
       return

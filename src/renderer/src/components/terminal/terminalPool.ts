@@ -320,8 +320,11 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // Image paste (⌘V on macOS, where the DOM paste event carries the image): only
   // when the clipboard has no text. Claude-only, decided inside the handler.
   const imageDeps = (): ImagePasteDeps => ({
+    saveImage: (data, mime) => window.dockterm.invoke('chat:saveImage', { data, mime }),
+    readFiles: () => window.dockterm.invoke('clipboard:readFiles', undefined),
+    saveClipboardImage: () => window.dockterm.invoke('clipboard:saveImage', undefined),
     // Lazy: paneClaudeActive imports this module.
-    isClaude: () => import('./paneClaudeActive').then((m) => m.paneClaudeActive(id)),
+    isClaude: () => import('./paneClaudeActive').then((m) => m.paneClaudeForeground(id)),
     paste: (text) => p.paste(text),
     platform: toComposerPlatform(platform),
     warn: (m) => useToastStore.getState().push(m, 'warning')

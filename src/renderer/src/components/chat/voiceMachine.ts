@@ -32,7 +32,18 @@ export const VOICE_TIMING = {
   /** a never-seen indicator after a stop only counts as "voice is off" for a hold this long. */
   MIN_HOLD_FOR_HINT_MS: 700,
   /** ESC and the following Ctrl+U must be separate reads, or Claude reads Alt+Ctrl+U. */
-  ESC_CLEAR_GAP_MS: 60
+  ESC_CLEAR_GAP_MS: 60,
+  /**
+   * tap mode: Claude treats a space burst that follows the start burst within its 120 ms burst
+   * reset as a continuation and swallows it (verified in Claude Code 2.1.284: the start burst
+   * ends at 100 ms, the counter resets 120 ms after the last space). A stop earlier than this
+   * after the start would leave Claude recording, so it waits.
+   */
+  TAP_STOP_MIN_MS: 250,
+  /** tap mode: REC still on screen this long after a stop burst means the stop was swallowed: cancel with Esc. */
+  TAP_STUCK_REC_MS: 600,
+  /** the pane must show no sign of Claude for this many polls in a row before we stop typing into it. */
+  GONE_POLLS: 2
 } as const
 
 const ESC = '\x1b'
@@ -40,31 +51,42 @@ const CTRL_U_X2 = '\x15\x15'
 
 export type VoicePhase = 'idle' | 'starting' | 'recording' | 'finishing'
 
+/**
+ * What the strip should say after a recording that did not work:
+ *   enable       voice is switched off in Claude's settings: offer to switch it on
+ *   not-started  voice is on but Claude showed no indicator (login, mic permission, SoX)
+ *   no-speech    Claude recorded but produced no text
+ */
+export type VoiceHint = 'none' | 'enable' | 'not-started' | 'no-speech'
+
 export interface VoiceSnapshot {
   phase: VoicePhase
   status: VoiceStatus
   /** Live text from Claude's input box while listening. */
   interim: string
-  /** Show "Claude voice is off. Enable it?" */
-  hint: boolean
+  hint: VoiceHint
 }
 
-export type StartResult = 'ok' | 'busy' | 'asking' | 'no-pane' | 'input-not-empty'
+export type StartResult = 'ok' | 'busy' | 'asking' | 'no-pane' | 'input-not-empty' | 'no-claude'
 
 export interface VoiceDeps {
   /** Raw PTY write (never xterm paste). Returns false when the pane is gone. */
   write: (data: string) => boolean
   visibleText: () => string
   claudeState: () => ClaudeState
-  settings: () => Pick<ClaudeVoiceSettings, 'mode' | 'autoSubmit'>
-  /** Send a slash command the way a prompt is sent (paste, then Enter). */
-  sendCommand: (text: string) => boolean
+  settings: () => Pick<ClaudeVoiceSettings, 'enabled' | 'mode' | 'autoSubmit'>
+  /** A fresh read of Claude's voice settings (null when it cannot be read). */
+  readSettings: () => Promise<ClaudeVoiceSettings | null>
+  /** Does this screen still show Claude (input box, working, asking, or a voice indicator)? */
+  claudeHere: (visible: string) => boolean
+  /** Send a slash command the way a prompt is sent (paste, then Enter). Resolves true once Enter is written. */
+  sendCommand: (text: string) => Promise<boolean>
   onSnapshot: (s: VoiceSnapshot) => void
   /** The final transcript, to be inserted into the composer. */
   onTranscript: (text: string) => void
 }
 
-const IDLE_SNAPSHOT: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: false }
+const IDLE_SNAPSHOT: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none' }
 
 export class VoiceMachine {
   private snap: VoiceSnapshot = IDLE_SNAPSHOT
@@ -80,7 +102,8 @@ export class VoiceMachine {
   private lastStatus: VoiceStatus = 'idle'
   private lastLines = 1
   private lastInterim = ''
-  private hint = false
+  private hint: VoiceHint = 'none'
+  private goneCount = 0
   private disposed = false
 
   private streamTimer: ReturnType<typeof setInterval> | null = null
@@ -113,7 +136,8 @@ export class VoiceMachine {
     }
     this.mode = mode
     this.autoSubmit = autoSubmit
-    this.hint = false
+    this.hint = 'none'
+    this.goneCount = 0
     this.seen = false
     this.stopRequested = false
     this.sawProcessing = false
@@ -144,12 +168,13 @@ export class VoiceMachine {
   /** Stop recording (key released, second click, second tap burst). */
   stop(): void {
     if (this.phase !== 'starting' && this.phase !== 'recording') return
-    if (this.mode === 'tap' && !this.seen) {
-      // A stop burst before Claude showed REC would start it again: wait for the indicator.
+    if (this.mode === 'tap' && (!this.seen || Date.now() - this.startedAt < VOICE_TIMING.TAP_STOP_MIN_MS)) {
+      // A stop burst before Claude showed REC would start it again, and one too soon after the
+      // start burst is swallowed as a continuation: wait (the poll sends it).
       this.stopRequested = true
       return
     }
-    this.beginFinish()
+    this.beginFinish(true)
   }
 
   /** Esc, unmount, pane close, chat-mode toggle: stop everything, clear Claude's input. */
@@ -179,8 +204,8 @@ export class VoiceMachine {
   }
 
   dismissHint(): void {
-    if (!this.hint) return
-    this.hint = false
+    if (this.hint === 'none') return
+    this.hint = 'none'
     this.emit()
   }
 
@@ -190,9 +215,22 @@ export class VoiceMachine {
     return parseInputBox(this.deps.visibleText())?.text === ''
   }
 
-  enableVoice(): boolean {
+  /**
+   * Switch Claude's voice mode on. `/voice` alone TOGGLES, so it is only ever sent after a fresh
+   * settings read says voice is off, and with an explicit mode (`/voice hold`) so it can never
+   * turn voice off. When voice is already on, nothing is sent and the hint becomes the plain one.
+   */
+  async enableVoice(): Promise<boolean> {
     if (!this.canEnableVoice()) return false
-    const ok = this.deps.sendCommand('/voice')
+    const s = await this.deps.readSettings()
+    if (this.disposed) return false
+    if (!s || s.enabled) {
+      this.hint = 'not-started'
+      this.emit()
+      return false
+    }
+    if (!this.canEnableVoice()) return false
+    const ok = await this.deps.sendCommand(`/voice ${s.mode}`)
     if (ok) this.dismissHint()
     return ok
   }
@@ -219,12 +257,17 @@ export class VoiceMachine {
     return true
   }
 
-  private beginFinish(): void {
+  /**
+   * `sendKeys` is true when the USER ended the recording (tap mode then types the stop burst). When
+   * Claude ended it by itself (its own silence or length limit) no key is sent: a burst would start
+   * a fresh recording, a hot mic that can even auto-submit.
+   */
+  private beginFinish(sendKeys: boolean): void {
     if (this.streamTimer) {
       clearInterval(this.streamTimer)
       this.streamTimer = null
     }
-    if (this.mode === 'tap') this.burst()
+    if (this.mode === 'tap' && sendKeys) this.burst()
     this.phase = 'finishing'
     this.stoppedAt = Date.now()
     this.emit()
@@ -241,14 +284,30 @@ export class VoiceMachine {
     }
     const now = Date.now()
 
+    if (status === 'idle' && !this.deps.claudeHere(vis)) {
+      // Claude quit (or another program took the pane): stop typing into it, and type nothing more.
+      if (++this.goneCount >= VOICE_TIMING.GONE_POLLS) {
+        this.abandon()
+        return
+      }
+    } else {
+      this.goneCount = 0
+    }
+
     if (this.phase === 'starting' || this.phase === 'recording') {
       if (status !== 'idle') {
         this.seen = true
         this.idlePolls = 0
         if (this.phase === 'starting') this.phase = 'recording'
-        if (this.stopRequested) {
+        if (this.mode === 'hold' && this.phase === 'recording' && status === 'processing') {
+          // Claude released on its own (a stalled renderer): keep typing spaces and they pile up
+          // in its input and start a second recording.
+          this.beginFinish(false)
+          return
+        }
+        if (this.stopRequested && now - this.startedAt >= VOICE_TIMING.TAP_STOP_MIN_MS) {
           this.stopRequested = false
-          this.beginFinish()
+          this.beginFinish(true)
           return
         }
       } else if (!this.seen) {
@@ -258,12 +317,17 @@ export class VoiceMachine {
         }
       } else if (++this.idlePolls >= VOICE_TIMING.LOST_POLLS) {
         // Claude ended the recording on its own (its own limit, or an error)
-        this.beginFinish()
+        this.beginFinish(false)
         return
       }
     } else if (this.phase === 'finishing') {
       if (status === 'processing') this.sawProcessing = true
       const waited = now - this.stoppedAt
+      if (this.mode === 'tap' && status === 'rec' && waited >= VOICE_TIMING.TAP_STUCK_REC_MS) {
+        // The stop burst never registered: Claude is still recording. Cancel it (Esc).
+        this.cancel()
+        return
+      }
       const settled =
         status === 'idle' && (this.sawProcessing || waited >= VOICE_TIMING.NO_PROCESSING_GRACE_MS)
       if (settled || waited >= VOICE_TIMING.PROCESSING_TIMEOUT_MS) {
@@ -274,13 +338,21 @@ export class VoiceMachine {
     this.emit()
   }
 
-  /** No voice indicator: stop, take the stray spaces back out, offer to enable voice. */
+  /** Claude is no longer in front in this pane: end everything without a single further write. */
+  private abandon(): void {
+    this.clearTimers()
+    this.phase = 'idle'
+    this.reset()
+    this.emit()
+  }
+
+  /** No voice indicator: stop, take the stray spaces back out, say why (voice off, or it did not start). */
   private voiceIsOff(): void {
     this.clearTimers()
     this.phase = 'idle'
     this.deps.write(CTRL_U_X2)
     this.reset()
-    this.hint = true
+    this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
     this.emit()
   }
 
@@ -289,22 +361,28 @@ export class VoiceMachine {
     const submittedByClaude = this.mode === 'tap' || this.autoSubmit
     const hold = this.stoppedAt - this.startedAt
     const neverSeen = !this.seen
+    const sawProcessing = this.sawProcessing
     let transcript = ''
-    let lines = this.lastLines
-    if (!submittedByClaude) {
+    if (neverSeen) {
+      // Nothing was ever recorded: take our stray spaces back out of Claude's input.
+      this.deps.write(submittedByClaude ? CTRL_U_X2 : clearInputKeys(this.lastLines))
+    } else {
+      // Even when Claude auto-submits, it does so only for 3 or more words: a shorter transcript
+      // stays in its input box, and would be glued onto the next prompt. Read the box either way.
       const box = parseInputBox(this.deps.visibleText())
-      transcript = box ? box.text : this.lastInterim
-      lines = Math.max(lines, box?.lineCount ?? 1)
-      this.deps.write(clearInputKeys(lines))
-    } else if (neverSeen) {
-      this.deps.write(CTRL_U_X2)
+      transcript = box ? box.text : submittedByClaude ? '' : this.lastInterim
+      if (!submittedByClaude || transcript) {
+        this.deps.write(clearInputKeys(Math.max(this.lastLines, box?.lineCount ?? 1)))
+      }
     }
     this.phase = 'idle'
     this.reset()
     if (neverSeen && hold >= VOICE_TIMING.MIN_HOLD_FOR_HINT_MS) {
-      this.hint = true
+      this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
     } else if (transcript) {
       this.deps.onTranscript(transcript)
+    } else if (!neverSeen && !submittedByClaude && !sawProcessing) {
+      this.hint = 'no-speech'
     }
     this.emit()
   }

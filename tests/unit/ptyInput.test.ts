@@ -50,11 +50,12 @@ describe('app-sent pane input reaches the PTY raw (C1)', () => {
     expect(pane.pty).toEqual(['claude\r'])
   })
 
-  it('(b) a Composer send is the wrapped text, then a separate raw \\r', () => {
+  it('(b) a Composer send is the wrapped text, then a separate raw \\r', async () => {
     const pane = makePane({ bracketed: true })
-    expect(sendPrompt('leaf', 'hello\nworld')).toBe(true)
+    const done = sendPrompt('leaf', 'hello\nworld')
     expect(pane.pty).toEqual([PS + 'hello\nworld' + PE])
     vi.advanceTimersByTime(70)
+    await expect(done).resolves.toBe(true)
     expect(pane.pty).toEqual([PS + 'hello\nworld' + PE, '\r'])
   })
 

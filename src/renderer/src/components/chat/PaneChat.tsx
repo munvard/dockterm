@@ -4,7 +4,7 @@ import { useReadingStore } from '../../state/useReadingStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { getPaneSample, paneVisibleText } from '../terminal/terminalPool'
-import { paneClaudeActive } from '../terminal/paneClaudeActive'
+import { paneClaudeActive, paneClaudeForeground } from '../terminal/paneClaudeActive'
 import { ConversationList, conversationDepKey, useStickyScroll } from '../reading/ConversationList'
 import { AskCard } from './AskCard'
 import { Composer } from './Composer'
@@ -43,6 +43,8 @@ export function PaneChat({
   const [workingSince, setWorkingSince] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [claudeHere, setClaudeHere] = useState(true)
+  // Strict: Claude is the FOREGROUND program right now. Gates everything the composer types.
+  const [claudeFg, setClaudeFg] = useState(false)
   const inFlight = useRef(false)
   const [dropOver, setDropOver] = useState(false)
 
@@ -77,6 +79,22 @@ export function PaneChat({
       clearInterval(iv)
     }
   }, [cwd, leafId, load, active])
+
+  // The composer may only type into this pane while Claude is really in front there.
+  useEffect(() => {
+    let stop = false
+    const check = (): void => {
+      void paneClaudeForeground(leafId).then((fg) => {
+        if (!stop) setClaudeFg(fg)
+      })
+    }
+    check()
+    const iv = setInterval(check, active ? POLL_MS : IDLE_POLL_MS)
+    return () => {
+      stop = true
+      clearInterval(iv)
+    }
+  }, [leafId, active])
 
   // Live raw tail of the hidden terminal while Claude works.
   useEffect(() => {
@@ -183,12 +201,13 @@ export function PaneChat({
         </button>
       )}
 
-      {/* Gate on `claudeHere`: without it a prompt is written straight to the shell,
-          where backticks / $() / ; / a leading `git` would EXECUTE in the project. */}
+      {/* Gate on `claudeFg` (fail closed): without it a prompt is written straight to a
+          shell or another program, where backticks / $() / ; / a leading `git` would
+          EXECUTE in the project. Send checks again right before every write. */}
       <Composer
         leafId={leafId}
-        disabled={state === 'asking' || !claudeHere}
-        noClaude={!claudeHere}
+        disabled={state === 'asking' || !claudeFg}
+        noClaude={!claudeFg}
         onSentPicker={onShowTerminal}
       />
     </div>

@@ -1,6 +1,6 @@
 import { paneSessionId, paneBufferType, paneVisibleText } from './terminalPool'
 import { isShellProcess } from './closeGuard'
-import { claudeOnScreen } from './paneLiveness'
+import { claudeIsForeground, claudeOnScreen } from './paneLiveness'
 
 /**
  * Is Claude (or any real program) running in this pane? Since v0.29.4 Claude
@@ -27,4 +27,23 @@ export async function paneClaudeActive(leafId: string): Promise<boolean> {
     return claudeOnScreen(paneVisibleText(leafId))
   }
   return !isShellProcess(res.value.process)
+}
+
+/**
+ * The strict question the composer and voice ask before typing into a pane:
+ * is Claude REALLY the foreground program? Uses the pty's foreground process
+ * (where the platform reports it) AND what is on screen; unknown means no.
+ * Call it again right before each write: a poll result can be seconds old.
+ */
+export async function paneClaudeForeground(leafId: string): Promise<boolean> {
+  const sid = paneSessionId(leafId)
+  if (!sid) return false
+  let proc: string | null = null
+  try {
+    const res = await window.dockterm.invoke('pty:foreground', { sessionId: sid })
+    if (res.ok) proc = res.value.process
+  } catch {
+    proc = null
+  }
+  return claudeIsForeground(proc, paneVisibleText(leafId), isShellProcess)
 }

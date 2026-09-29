@@ -22,7 +22,9 @@ export interface SendDeps {
   bracketedPaste: (leafId: string) => boolean
   write: (leafId: string, text: string) => boolean
   visibleText: (leafId: string) => string
-  sendPrompt: (leafId: string, text: string) => boolean
+  sendPrompt: (leafId: string, text: string) => Promise<boolean>
+  /** A fresh check that Claude is the foreground program of the pane (fail closed). */
+  isClaude: (leafId: string) => Promise<boolean>
   sleep: (ms: number) => Promise<void>
   now: () => number
   warn: (message: string) => void
@@ -49,6 +51,8 @@ export async function sendComposedWith(
   const skipped = input.attachments.filter((a) => a.kind === 'image').length - images.length
   if (skipped > 0) deps.warn('An image with an unusual file name was not sent.')
   const files = input.attachments.filter((a) => a.kind !== 'image')
+
+  if (!(await deps.isClaude(leafId))) return false
 
   if (images.length > 0) {
     const before = countImageMarkers(deps.visibleText(leafId))
@@ -81,5 +85,6 @@ export async function sendComposedWith(
     hadImages: images.length > 0
   })
   if (!text.trim() && images.length === 0) return false
+  if (!(await deps.isClaude(leafId))) return false
   return deps.sendPrompt(leafId, text || ' ')
 }

@@ -23,6 +23,24 @@ export function claudeOnScreen(text: string): boolean {
   return classify(text) !== 'idle' || hasClaudeInputBox(text)
 }
 
+/**
+ * Is CLAUDE (not just "some program") the foreground program of a pane? The
+ * composer and the voice machine type into the pane, so this fails closed:
+ * `process` is the pty's foreground process name (null = unknown or session
+ * gone, '' = the platform cannot tell, as on Windows). A shell, an unknown
+ * process, or a screen that does not look like Claude all answer false, so
+ * a prompt is never pasted into python, vim, ssh, sudo or a bare shell.
+ */
+export function claudeIsForeground(
+  process: string | null,
+  screen: string,
+  isShell: (name: string) => boolean
+): boolean {
+  if (process === null) return false
+  if (process !== '' && isShell(process)) return false
+  return claudeOnScreen(screen)
+}
+
 /** A last screen line that looks like a shell waiting for input ('41%' is progress, not a zsh prompt). */
 const PROMPT_END = /[$#>❯»➜λ]\s*$|(?<!\d)%\s*$/
 
