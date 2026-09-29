@@ -1,29 +1,35 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { claudeConfigDir } from '@main/services/pluginDirs'
-import { homedir } from 'node:os'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { listInstalledPlugins } from '@main/services/pluginDirs'
 
 const ENV_KEY = 'CLAUDE_CONFIG_DIR'
 const original = process.env[ENV_KEY]
+let dir: string | null = null
 
 afterEach(() => {
   if (original === undefined) delete process.env[ENV_KEY]
   else process.env[ENV_KEY] = original
+  if (dir) rmSync(dir, { recursive: true, force: true })
+  dir = null
 })
 
-describe('claudeConfigDir', () => {
-  it('defaults to ~/.claude when CLAUDE_CONFIG_DIR is unset', () => {
-    delete process.env[ENV_KEY]
-    expect(claudeConfigDir()).toBe(join(homedir(), '.claude'))
+describe('listInstalledPlugins', () => {
+  it('reads the registry from CLAUDE_CONFIG_DIR (the shared claudeConfigDir helper)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'dockterm-plugins-'))
+    mkdirSync(join(dir, 'plugins'))
+    writeFileSync(
+      join(dir, 'plugins', 'installed_plugins.json'),
+      JSON.stringify({ plugins: { 'demo@market': [{ installPath: '/p/demo' }] } })
+    )
+    process.env[ENV_KEY] = dir
+    expect(listInstalledPlugins()).toEqual([{ name: 'demo', path: '/p/demo' }])
   })
 
-  it('honors CLAUDE_CONFIG_DIR when set, matching Claude Code CLI behavior', () => {
-    process.env[ENV_KEY] = '/custom/claude-config'
-    expect(claudeConfigDir()).toBe('/custom/claude-config')
-  })
-
-  it('falls back to the default for a blank/whitespace-only override', () => {
-    process.env[ENV_KEY] = '   '
-    expect(claudeConfigDir()).toBe(join(homedir(), '.claude'))
+  it('is empty when the registry is missing', () => {
+    dir = mkdtempSync(join(tmpdir(), 'dockterm-plugins-'))
+    process.env[ENV_KEY] = dir
+    expect(listInstalledPlugins()).toEqual([])
   })
 })

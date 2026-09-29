@@ -9,7 +9,8 @@ import type {
   AgentsReadResult,
   ItemScope
 } from '@shared/types'
-import { listInstalledPlugins, claudeConfigDir } from './pluginDirs'
+import { listInstalledPlugins } from './pluginDirs'
+import { claudeConfigDir } from './claudeConfigDir'
 import { getSettings } from './settingsService'
 import { resolveInside, isRegularFile } from './pathJail'
 

@@ -1,21 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { claudeConfigDir } from './claudeConfigDir'
 
 export interface InstalledPlugin {
   /** short plugin name (before any @version) */
   name: string
   /** install path — where the plugin's skills/, commands/, agents/, .mcp.json live */
   path: string
-}
-
-/** Base Claude Code user config directory — normally `~/.claude`, but honors
- * CLAUDE_CONFIG_DIR when set (matching Claude Code's own CLI), so plugin,
- * skill, command, and agent discovery keeps working under a relocated
- * config directory instead of silently looking in the wrong place. */
-export function claudeConfigDir(): string {
-  const override = process.env.CLAUDE_CONFIG_DIR?.trim()
-  return override ? override : join(homedir(), '.claude')
 }
 
 /**

@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { safeUrl, keysOf, maskCommandLine } from './secretMask'
 import { listInstalledPlugins } from './pluginDirs'
+import { claudeConfigDir, claudeJsonPath } from './claudeConfigDir'
 import { getSettings } from './settingsService'
 import { resolveInside, isRegularFile } from './pathJail'
 import type { McpServerView, McpSource, McpReadResult, McpTransport, McpScope } from '@shared/types'
@@ -150,7 +150,7 @@ function readUserConfig(
 /** Reads MCP servers contributed by installed Claude Code plugins. Each plugin's
  * `<installPath>/.mcp.json` is a direct `{ name: def }` map. */
 function readPluginMcp(sources: McpSource[], servers: McpServerView[]): void {
-  const registry = join(homedir(), '.claude', 'plugins', 'installed_plugins.json')
+  const registry = join(claudeConfigDir(), 'plugins', 'installed_plugins.json')
   sources.push({ path: registry, scope: 'plugin', exists: existsSync(registry), ok: true })
   for (const plugin of listInstalledPlugins()) {
     const mcpFile = join(plugin.path, '.mcp.json')
@@ -174,7 +174,7 @@ export function readMcp(root: string, includeUser: boolean): McpReadResult {
   const customMcp = getSettings().claude.paths.mcpConfig
   if (customMcp) readInto(customMcp, 'user', sources, servers)
   if (includeUser) {
-    readUserConfig(join(homedir(), '.claude.json'), root, sources, servers)
+    readUserConfig(claudeJsonPath(), root, sources, servers)
     readPluginMcp(sources, servers)
   }
   return { servers, sources }
