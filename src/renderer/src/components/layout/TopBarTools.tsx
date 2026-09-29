@@ -6,6 +6,7 @@ import { UsagePill } from '../usage/UsagePill'
 import { AgentPill } from '../agents/AgentPill'
 import { NotesButton } from './NotesButton'
 import { PANELS } from './panels'
+import { countFitting } from './topBarFit'
 import { k } from '../../hooks/keys'
 
 /**
@@ -71,15 +72,17 @@ export function TopBarTools() {
       const available =
         barRect.width - leftStart - leftContent - rightPad - gap - 4 - fixedWidth - moreBtnWidth
 
-      let used = 0
-      let fitCount = items.length
-      for (let i = 0; i < items.length; i++) {
-        used += items[i].offsetWidth + gap
-        if (used > available) {
-          fitCount = i
-          break
-        }
-      }
+      const fitCount = countFitting(
+        items.map((el) => el.offsetWidth),
+        gap,
+        available
+      )
+      // Measuring un-hid everything above. Re-hide the overflow NOW: when the
+      // count didn't change, React sees an equal state and never re-applies its
+      // display:none, so the hidden icons would stay on screen.
+      items.forEach((el, i) => {
+        el.style.display = i >= fitCount ? 'none' : ''
+      })
       setVisibleCount(fitCount)
     }
 
