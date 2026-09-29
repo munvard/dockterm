@@ -17,6 +17,10 @@ export interface PromptOptions {
   initial?: string
   placeholder?: string
   confirmLabel?: string
+  /** Let the confirm button submit an empty (trimmed) value instead of treating
+   * it the same as Cancel — for genuinely optional fields (e.g. a checkpoint
+   * label). Defaults to false, preserving the original required-field behavior. */
+  allowEmpty?: boolean
 }
 
 interface DialogState {

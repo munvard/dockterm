@@ -143,7 +143,9 @@ export const THEMES: Theme[] = [
     appearance: 'light',
     bg: '#f7f3ea', panel: '#efe9db', raised: '#e7dfcd', overlay: '#ded4be',
     border: '#ddd2bc', borderStrong: '#c6b89c',
-    text: '#2c271d', textDim: '#6c6353', textFaint: '#9a907c',
+    // textFaint darkened from #9a907c (~2.9:1 on this bg, below WCAG AA text
+    // contrast) to #726a59 (~4.8:1) — RU-M7.
+    text: '#2c271d', textDim: '#6c6353', textFaint: '#726a59',
     accent: '#7c5cff', accentHover: '#6a4cf0', onAccent: '#ffffff',
     black: '#2c271d', red: '#c4453f', green: '#5a8f3c', yellow: '#a87a00',
     blue: '#3b6ad8', magenta: '#8b5cf6', cyan: '#0e8f86', white: '#6c6353',
@@ -222,7 +224,9 @@ export const THEMES: Theme[] = [
     appearance: 'light',
     bg: '#ffffff', panel: '#f6f8fa', raised: '#eaeef2', overlay: '#e1e6eb',
     border: '#d0d7de', borderStrong: '#afb8c1',
-    text: '#1f2328', textDim: '#636c76', textFaint: '#8c959f',
+    // textFaint darkened from #8c959f (~3.0:1 on white, below WCAG AA text
+    // contrast) to #6e7781 (~4.5:1, already this palette's ANSI white) — RU-M7.
+    text: '#1f2328', textDim: '#636c76', textFaint: '#6e7781',
     accent: '#0969da', accentHover: '#0a6fe0', onAccent: '#ffffff',
     black: '#24292f', red: '#cf222e', green: '#116329', yellow: '#9a6700',
     blue: '#0969da', magenta: '#8250df', cyan: '#1b7c83', white: '#6e7781',

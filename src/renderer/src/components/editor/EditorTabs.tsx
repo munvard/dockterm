@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { useEditorStore } from '../../state/useEditorStore'
+import { useDialogStore } from '../../state/useDialogStore'
 
 export function EditorTabs() {
   const tabs = useEditorStore((s) => s.tabs)
@@ -8,6 +9,19 @@ export function EditorTabs() {
   const close = useEditorStore((s) => s.close)
 
   if (tabs.length === 0) return null
+
+  const closeTab = async (relPath: string, name: string, dirty: boolean): Promise<void> => {
+    if (dirty) {
+      const discard = await useDialogStore.getState().confirm({
+        title: 'Unsaved changes',
+        message: `"${name}" has unsaved changes. Close it and discard them?`,
+        confirmLabel: 'Discard changes',
+        danger: true
+      })
+      if (!discard) return
+    }
+    close(relPath)
+  }
 
   return (
     <div className="tabs" role="tablist">
@@ -25,7 +39,7 @@ export function EditorTabs() {
             className="tab__close"
             onMouseDown={(e) => {
               e.stopPropagation()
-              close(tab.relPath)
+              void closeTab(tab.relPath, tab.name, tab.dirty)
             }}
             aria-label={`Close ${tab.name}`}
           >

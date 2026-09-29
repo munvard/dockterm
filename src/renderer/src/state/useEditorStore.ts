@@ -2,21 +2,16 @@ import { create } from 'zustand'
 import { languageForFile } from '../components/editor/language'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
+import { useAppStore } from './useAppStore'
+import { renameEditorTab, type EditorTab, type EditorTabKind } from './editorTabs'
 
-export type EditorTabKind = 'text' | 'image' | 'binary'
+// Re-exported for existing consumers that import the type from here.
+export type { EditorTab, EditorTabKind }
 
-export interface EditorTab {
-  relPath: string
-  name: string
-  kind: EditorTabKind
-  content: string
-  /** image tabs only */
-  dataUrl?: string
-  /** image/binary tabs */
-  size?: number
-  mtimeMs: number
-  dirty: boolean
-  language: string
+/** The project root a newly-opened tab should be pinned to. */
+function currentRoot(): string {
+  const s = useAppStore.getState()
+  return s.activeRoot ?? s.project?.path ?? ''
 }
 
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
@@ -34,6 +29,17 @@ interface EditorState {
   setActive: (relPath: string) => void
   markDirty: (relPath: string, dirty: boolean) => void
   save: (relPath: string, content: string) => Promise<void>
+  /** Point an already-open tab at its file's new location in place, keeping
+   * its content/dirty state — used after a FileTree rename instead of
+   * close+reopen, which used to silently discard unsaved edits. */
+  renamePath: (fromRelPath: string, toRelPath: string, name: string) => void
+  /** A file this tab has open changed on disk: silently pull in the new
+   * content when the tab has no unsaved edits, otherwise just flag it. */
+  syncFromDisk: (relPath: string) => Promise<void>
+  /** Clear a staleOnDisk flag without reloading (user chose to keep editing). */
+  dismissStale: (relPath: string) => void
+  /** Explicitly reload from disk, discarding any local edits. */
+  reloadFromDisk: (relPath: string) => Promise<void>
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -49,9 +55,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ activePath: relPath })
       return
     }
+    const root = currentRoot()
     const ext = name.split('.').pop()?.toLowerCase() ?? ''
     const add = (tab: EditorTab): void => set((s) => ({ tabs: [...s.tabs, tab], activePath: relPath }))
-    const base = { relPath, name, content: '', mtimeMs: 0, dirty: false, language: '' }
+    const base = { relPath, name, content: '', mtimeMs: 0, dirty: false, language: '', root }
 
     if (IMAGE_EXT.includes(ext)) {
       const res = await window.dockterm.invoke('fs:readDataUrl', { relPath })
@@ -63,7 +70,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return
     }
 
-    const res = await window.dockterm.invoke('fs:readFile', { relPath })
+    const res = await window.dockterm.invoke('fs:readFile', { relPath, root })
     if (!res.ok) {
       useToastStore.getState().push(res.error.message, 'error')
       return
@@ -102,6 +109,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   markDirty: (relPath, dirty) =>
     set((s) => ({ tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, dirty } : t)) })),
 
+  renamePath: (fromRelPath, toRelPath, name) =>
+    set((s) => renameEditorTab(s, fromRelPath, toRelPath, name)),
+
   save: async (relPath, content) => {
     const tab = get().tabs.find((t) => t.relPath === relPath)
     if (!tab || tab.kind !== 'text') return
@@ -109,7 +119,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const res = await window.dockterm.invoke('fs:writeFile', {
       relPath,
       content,
-      expectedMtimeMs: tab.mtimeMs
+      expectedMtimeMs: tab.mtimeMs,
+      root: tab.root
     })
     if (!res.ok) {
       useToastStore.getState().push(res.error.message, 'error')
@@ -118,7 +129,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (res.value.kind === 'ok') {
       const mtimeMs = res.value.mtimeMs
       set((s) => ({
-        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs } : t))
+        tabs: s.tabs.map((t) =>
+          t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
+        )
       }))
       return
     }
@@ -136,7 +149,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const forced = await window.dockterm.invoke('fs:writeFile', {
       relPath,
       content,
-      expectedMtimeMs: null
+      expectedMtimeMs: null,
+      root: tab.root
     })
     if (!forced.ok) {
       useToastStore.getState().push(forced.error.message, 'error')
@@ -145,8 +159,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (forced.value.kind === 'ok') {
       const mtimeMs = forced.value.mtimeMs
       set((s) => ({
-        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs } : t))
+        tabs: s.tabs.map((t) =>
+          t.relPath === relPath ? { ...t, dirty: false, content, mtimeMs, staleOnDisk: false } : t
+        )
       }))
     }
+  },
+
+  syncFromDisk: async (relPath) => {
+    const tab = get().tabs.find((t) => t.relPath === relPath)
+    if (!tab || tab.kind !== 'text') return
+    // Never clobber unsaved edits silently — flag it instead, same rule save() follows.
+    if (tab.dirty) {
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: true } : t))
+      }))
+      return
+    }
+    const res = await window.dockterm.invoke('fs:readFile', { relPath, root: tab.root })
+    if (!res.ok || res.value.kind !== 'text') {
+      // Deleted, became binary, or unreadable — surface it the same way rather
+      // than pretending nothing happened.
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: true } : t))
+      }))
+      return
+    }
+    const { content, mtimeMs } = res.value
+    if (content === tab.content && mtimeMs === tab.mtimeMs) return
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.relPath === relPath
+          ? { ...t, content, mtimeMs, staleOnDisk: false, diskRevision: (t.diskRevision ?? 0) + 1 }
+          : t
+      )
+    }))
+  },
+
+  dismissStale: (relPath) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.relPath === relPath ? { ...t, staleOnDisk: false } : t)) })),
+
+  reloadFromDisk: async (relPath) => {
+    const tab = get().tabs.find((t) => t.relPath === relPath)
+    if (!tab || tab.kind !== 'text') return
+    const res = await window.dockterm.invoke('fs:readFile', { relPath, root: tab.root })
+    if (!res.ok || res.value.kind !== 'text') {
+      useToastStore.getState().push(res.ok ? 'That file can no longer be read as text.' : res.error.message, 'error')
+      return
+    }
+    const { content, mtimeMs } = res.value
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.relPath === relPath
+          ? { ...t, content, mtimeMs, dirty: false, staleOnDisk: false, diskRevision: (t.diskRevision ?? 0) + 1 }
+          : t
+      )
+    }))
   }
 }))

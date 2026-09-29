@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 export interface Pt {
   x: number
@@ -37,6 +37,28 @@ export function useDragResize(opts: {
 } {
   const ref = useRef<HTMLDivElement | null>(null)
   const min = opts.min ?? { w: 240, h: 160 }
+  const optsRef = useRef(opts)
+  optsRef.current = opts
+
+  // A saved position can end up off-screen (or its header dragged above the
+  // visible area, where it can never be grabbed again) after the window
+  // shrinks, a display is unplugged, or the UI is zoomed. Re-clamp into view
+  // on mount and on every resize, persisting the correction through the same
+  // onMove the caller already uses so it isn't just a one-frame visual fix.
+  useEffect(() => {
+    const clampToViewport = (): void => {
+      const o = optsRef.current
+      if (!o.pos) return
+      const w = o.size?.w ?? o.defaultSize.w
+      const h = o.size?.h ?? o.defaultSize.h
+      const x = clamp(o.pos.x, 4, Math.max(4, window.innerWidth - w - 4))
+      const y = clamp(o.pos.y, 4, Math.max(4, window.innerHeight - h - 4))
+      if (x !== o.pos.x || y !== o.pos.y) o.onMove({ x, y })
+    }
+    clampToViewport()
+    window.addEventListener('resize', clampToViewport)
+    return () => window.removeEventListener('resize', clampToViewport)
+  }, [])
 
   const onHeaderMouseDown = (e: React.MouseEvent): void => {
     // Don't start a drag from a button in the header (close, toggles…).
@@ -100,10 +122,23 @@ export function useDragResize(opts: {
     window.addEventListener('mouseup', up)
   }
 
+  // Clamp on every render too (not just on resize) so a stale persisted
+  // position never paints off-screen even for a single frame.
+  const w = opts.size?.w ?? opts.defaultSize.w
+  const h = opts.size?.h ?? opts.defaultSize.h
+  const pos = opts.pos
+    ? {
+        x: clamp(opts.pos.x, 4, Math.max(4, window.innerWidth - w - 4)),
+        y: clamp(opts.pos.y, 4, Math.max(4, window.innerHeight - h - 4))
+      }
+    : null
+
   const style: React.CSSProperties = {
-    ...(opts.pos ? { left: opts.pos.x, top: opts.pos.y } : { right: 16, bottom: 16 }),
-    width: opts.size?.w ?? opts.defaultSize.w,
-    ...(opts.size ? { height: opts.size.h } : { maxHeight: opts.defaultSize.h })
+    ...(pos ? { left: pos.x, top: pos.y } : { right: 16, bottom: 16 }),
+    width: w,
+    ...(opts.size
+      ? { height: h, maxHeight: 'calc(100vh - 32px)' }
+      : { maxHeight: `min(${opts.defaultSize.h}px, calc(100vh - 32px))` })
   }
 
   return { ref, style, onHeaderMouseDown, onResizeMouseDown }

@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { nativeImage } from 'electron'
+import { nativeImage, type IpcMainInvokeEvent } from 'electron'
 import { ok, err, type Err } from '@shared/result'
 import { JailViolation, resolveInside } from '../../services/pathJail'
-import { rootFor } from '../../services/activeRoot'
+import { rootFor, rememberKnownRoot, isKnownRoot } from '../../services/activeRoot'
 import {
   readTree,
   searchTree,
@@ -22,10 +22,15 @@ import type { Registrar } from '../register'
 const relSchema = z.object({ relPath: z.string().min(1).max(4096) })
 const treeSchema = z.object({ relPath: z.string().max(4096) })
 const searchSchema = z.object({ query: z.string().max(200) })
+// readFile/writeFile accept an optional absolute `root`, for an editor tab
+// whose owning pane is no longer the window's focused one (see RU-C3): it's
+// validated against the window's known roots below, never trusted outright.
+const readSchema = z.object({ relPath: z.string().min(1).max(4096), root: z.string().max(4096).optional() })
 const writeSchema = z.object({
   relPath: z.string().min(1).max(4096),
   content: z.string().max(Math.ceil(MAX_EDIT_FILE_BYTES * 1.2)),
-  expectedMtimeMs: z.number().nullable()
+  expectedMtimeMs: z.number().nullable(),
+  root: z.string().max(4096).optional()
 })
 const renameSchema = z.object({
   fromRelPath: z.string().min(1).max(4096),
@@ -58,6 +63,18 @@ function fail(e: unknown): Err {
   return err('IO', e instanceof Error ? e.message : 'Filesystem error')
 }
 
+/** The active root, remembered as known for this window, then overridden by
+ * `explicitRoot` when the caller passed one AND it's a root this window has
+ * genuinely had active before (never an arbitrary path from the renderer). */
+function resolveRoot(event: IpcMainInvokeEvent, explicitRoot?: string): string {
+  const active = rootFor(event)
+  rememberKnownRoot(event.sender.id, active)
+  if (explicitRoot && explicitRoot !== active && isKnownRoot(event.sender.id, explicitRoot)) {
+    return explicitRoot
+  }
+  return active
+}
+
 export function registerFsHandlers(reg: Registrar): void {
   reg('fs:readTree', treeSchema, async (req, event) => {
     try {
@@ -75,9 +92,9 @@ export function registerFsHandlers(reg: Registrar): void {
     }
   })
 
-  reg('fs:readFile', relSchema, async (req, event) => {
+  reg('fs:readFile', readSchema, async (req, event) => {
     try {
-      return ok(await readFile(rootFor(event), req.relPath))
+      return ok(await readFile(resolveRoot(event, req.root), req.relPath))
     } catch (e) {
       return fail(e)
     }
@@ -85,7 +102,8 @@ export function registerFsHandlers(reg: Registrar): void {
 
   reg('fs:writeFile', writeSchema, async (req, event) => {
     try {
-      return ok(await writeFile(rootFor(event), req.relPath, req.content, req.expectedMtimeMs))
+      const root = resolveRoot(event, req.root)
+      return ok(await writeFile(root, req.relPath, req.content, req.expectedMtimeMs))
     } catch (e) {
       return fail(e)
     }

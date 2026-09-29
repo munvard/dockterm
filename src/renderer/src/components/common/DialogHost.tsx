@@ -53,7 +53,9 @@ function PromptView({
 
   const submit = () => {
     const trimmed = value.trim()
-    onResolve(trimmed ? trimmed : null)
+    // An optional field (allowEmpty) can be submitted blank — resolve to ''
+    // rather than null, which the caller reserves for an actual Cancel/Esc.
+    onResolve(state.allowEmpty ? trimmed : trimmed || null)
   }
 
   return (

@@ -144,6 +144,15 @@ export interface WriteFileReq {
   relPath: string
   content: string
   expectedMtimeMs: number | null
+  /** The absolute root this tab was opened under, if it may differ from the
+   * window's current active root (the focused pane can point elsewhere by the
+   * time a save round-trips) — validated against the window's known roots. */
+  root?: string
+}
+export interface ReadFileReq extends RelPathReq {
+  /** Same purpose as WriteFileReq.root — lets a reopen/reload target the tab's
+   * original project even if focus has since moved to another pane's root. */
+  root?: string
 }
 export interface RenameReq {
   fromRelPath: string
@@ -226,7 +235,7 @@ export interface InvokeChannels {
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:search': (req: { query: string }) => Result<TreeNode[]>
-  'fs:readFile': (req: RelPathReq) => Result<ReadFileResult>
+  'fs:readFile': (req: ReadFileReq) => Result<ReadFileResult>
   'fs:writeFile': (req: WriteFileReq) => Result<WriteFileResult>
   'fs:createFile': (req: RelPathReq) => Result<void>
   'fs:createDir': (req: RelPathReq) => Result<void>

@@ -53,6 +53,11 @@ export function Shell() {
   const hasTabs = useEditorStore((s) => s.tabs.length > 0)
   const diffTarget = useReviewStore((s) => s.diffTarget)
   const editorOpen = (hasTabs || diffTarget != null) && !zen
+  // Moved above the early return below so the width-clamp effect (also above
+  // it, hooks must run unconditionally) and the JSX further down can share
+  // these instead of recomputing/duplicating them.
+  const showHist = historyOpen && histEnabled && !histFloating && !zen
+  const showReading = readingOpen && !readingFloating && !zen
   const gitStatus = useGitStore((s) => s.status)
 
   const terminals = useWorkspaceStore((s) => s.tabs)
@@ -224,10 +229,40 @@ export function Shell() {
     }
   }, [])
 
+  // Re-clamp the side panels' saved pixel widths against the CURRENT window on
+  // mount and on every resize — each Divider only clamps while it's actively
+  // being dragged, so a window shrunk below the sum of dock+history+reading+
+  // editor (all independently resizable, all `flex: 0 … auto`) used to push
+  // the terminal itself off-screen instead of any one panel giving way.
+  useEffect(() => {
+    const onResize = (): void => {
+      const panels: { w: number; set: (n: number) => void; min: number }[] = []
+      if (openPanel && !zen) panels.push({ w: dockW, set: setDockW, min: 170 })
+      if (showHist) panels.push({ w: histW, set: setHistW, min: 200 })
+      if (showReading) panels.push({ w: readingW, set: setReadingW, min: 320 })
+      if (editorOpen) panels.push({ w: editorW, set: setEditorW, min: 280 })
+      if (panels.length === 0) return
+      const minTerm = 220 // .term-wrap's own min-width
+      const slack = 40 // dividers + padding, approximate
+      const budget = window.innerWidth - minTerm - slack
+      const total = panels.reduce((s, p) => s + p.w, 0)
+      if (total <= budget) return
+      const shrinkable = panels.reduce((s, p) => s + Math.max(0, p.w - p.min), 0)
+      if (shrinkable <= 0) return
+      const over = Math.min(total - budget, shrinkable)
+      for (const p of panels) {
+        const share = (Math.max(0, p.w - p.min) / shrinkable) * over
+        const next = Math.max(p.min, Math.round(p.w - share))
+        if (next !== p.w) p.set(next)
+      }
+    }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [dockW, histW, readingW, editorW, openPanel, zen, showHist, showReading, editorOpen])
+
   if (!project) return null
   // Docked side-panel checkpoints; the floating variant is rendered separately.
-  const showHist = historyOpen && histEnabled && !histFloating && !zen
-  const showReading = readingOpen && !readingFloating && !zen
   const histRail = (
     <div className="hist-wrap" style={{ width: histW }} key="hist">
       <HistoryRail cwd={focusedCwd} leafId={focusedLeafId ?? null} />

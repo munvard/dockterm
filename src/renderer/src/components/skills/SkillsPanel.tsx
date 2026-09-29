@@ -29,9 +29,12 @@ export function SkillsPanel() {
   const prompt = useDialogStore((s) => s.prompt)
   const [menu, setMenu] = useState(false)
 
+  // Re-read whenever the focused pane's project changes — otherwise this kept
+  // showing the first-opened project's skills after switching to another one.
+  const activeRoot = useAppStore((s) => s.activeRoot)
   useEffect(() => {
     void read()
-  }, [read])
+  }, [read, activeRoot])
 
   const readUserConfig = settings?.claude.readUserConfig ?? false
   const toggleUser = async () => {

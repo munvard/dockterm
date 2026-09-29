@@ -25,9 +25,12 @@ export function McpPanel() {
   const openFile = useEditorStore((s) => s.open)
   const toast = useToastStore((s) => s.push)
 
+  // Re-read whenever the focused pane's project changes — otherwise this kept
+  // showing the first-opened project's servers after switching to another one.
+  const activeRoot = useAppStore((s) => s.activeRoot)
   useEffect(() => {
     void read()
-  }, [read])
+  }, [read, activeRoot])
 
   const readUserConfig = settings?.claude.readUserConfig ?? false
   const projectSource = mcp?.sources.find((s) => s.scope === 'project')

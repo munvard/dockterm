@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useAppStore } from '../../state/useAppStore'
 import { useToastStore } from '../../state/useToastStore'
+import { useDialogStore } from '../../state/useDialogStore'
 import { useThemeStore } from '../../state/useThemeStore'
 import { THEMES } from '../../state/themes'
 import { DEFAULT_MONO, FONT_CHOICES } from '../terminal/terminalTheme'
@@ -8,6 +9,7 @@ import { COMFORT_PRESETS, matchPreset, type ReadingWidth } from '../terminal/com
 import type { CursorStyle, TerminalRenderer, Settings } from '@shared/types'
 import { CHARACTERS } from '../munu/mascots'
 import { Munu } from '../munu/Munu'
+import { k } from '../layout/keyLabel'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -59,6 +61,18 @@ export function SettingsPanel() {
   const setZoom = useAppStore((s) => s.setZoom)
   const themeSel = useThemeStore((st) => st.selection)
   const selectTheme = useThemeStore((st) => st.select)
+  const confirmDialog = useDialogStore((st) => st.confirm)
+
+  // Font picker: a known stack matches a preset; anything else is "custom".
+  // Computed with optional chaining and hooked up *before* the early return
+  // below, so this hook still runs on the render where `settings` is still
+  // null (first mount, before settings:get resolves) — calling useState only
+  // once settings exists would change the hook count between renders and
+  // trip React's rules of hooks.
+  const fontValue = settings?.terminal.fontFamily ?? null
+  const matchedFont = FONT_CHOICES.find((f) => f.value === (fontValue ?? ''))
+  const [customFont, setCustomFont] = useState(fontValue !== null && !matchedFont)
+
   if (!settings) return null
   const s = settings
   const zoom = s.ui.zoom ?? 1.1
@@ -81,11 +95,6 @@ export function SettingsPanel() {
     readingWidth: s.terminal.readingWidth
   })
 
-  // Font picker: a known stack matches a preset; anything else is "custom".
-  const fontValue = s.terminal.fontFamily
-  const matchedFont = FONT_CHOICES.find((f) => f.value === (fontValue ?? ''))
-  const [customFont, setCustomFont] = useState(fontValue !== null && !matchedFont)
-
   const checkUpdates = async (): Promise<void> => {
     const res = await window.dockterm.invoke('update:check', undefined)
     if (res.ok && res.value.upToDate) {
@@ -93,7 +102,15 @@ export function SettingsPanel() {
     }
   }
 
-  const resetDefaults = () => {
+  const resetDefaults = async (): Promise<void> => {
+    const ok = await confirmDialog({
+      title: 'Reset preferences',
+      message: 'Reset terminal, editor, git and Claude config preferences to their defaults?',
+      detail: 'Your project, files and git history are not affected.',
+      confirmLabel: 'Reset',
+      danger: true
+    })
+    if (!ok) return
     selectTheme('dockterm-dark')
     void update({
       terminal: {
@@ -140,7 +157,7 @@ export function SettingsPanel() {
             <div className="stepper">
               <button
                 className="stepper__btn"
-                title="Smaller (⌘−)"
+                title={`Smaller (${k('⌘−', 'Ctrl+-')})`}
                 disabled={zoom <= 0.7}
                 onClick={() => void setZoom(zoom - 0.1)}
               >
@@ -149,7 +166,7 @@ export function SettingsPanel() {
               <span className="stepper__value">{Math.round(zoom * 100)}%</span>
               <button
                 className="stepper__btn"
-                title="Bigger (⌘+)"
+                title={`Bigger (${k('⌘+', 'Ctrl+=')})`}
                 disabled={zoom >= 2}
                 onClick={() => void setZoom(zoom + 0.1)}
               >
@@ -161,7 +178,8 @@ export function SettingsPanel() {
             </div>
           </Field>
           <div className="settings-note">
-            Scales the whole app — chrome, terminals and the editor. Shortcuts: ⌘+ / ⌘− / ⌘0.
+            Scales the whole app — chrome, terminals and the editor. Shortcuts:{' '}
+            {k('⌘+ / ⌘− / ⌘0', 'Ctrl+= / Ctrl+- / Ctrl+0')}.
           </div>
         </Section>
 
@@ -340,8 +358,8 @@ export function SettingsPanel() {
             />
           </Field>
           <div className="settings-note">
-            Press <code>⌘⇧⏎</code> to write a long prompt in a roomy editor, then Insert or Send it
-            into Claude.
+            Press <code>{k('⌘⇧⏎', 'Ctrl+Shift+Enter')}</code> to write a long prompt in a roomy
+            editor, then Insert or Send it into Claude.
           </div>
           <Field label="Hover file previews">
             <Toggle
@@ -426,8 +444,8 @@ export function SettingsPanel() {
             </select>
           </Field>
           <div className="settings-note">
-            Try a preset, or fine-tune below. Zen mode (<code>⌘.</code> or the top-bar button) hides
-            the chrome for a calm reading canvas.
+            Try a preset, or fine-tune below. Zen mode (<code>{k('⌘.', 'Ctrl+.')}</code> or the
+            top-bar button) hides the chrome for a calm reading canvas.
           </div>
           <Field label="New terminals open in">
             <select
@@ -441,7 +459,8 @@ export function SettingsPanel() {
           </Field>
           <div className="settings-note">
             Chat mode renders Claude’s replies as formatted text with a real input box. The
-            terminal keeps running underneath — press <code>⌘R</code> in any pane to switch.
+            terminal keeps running underneath — press <code>{k('⌘R', 'Ctrl+R')}</code> in any pane
+            to switch.
           </div>
         </Section>
 
@@ -656,7 +675,7 @@ export function SettingsPanel() {
         </Section>
 
         <Section title="Reset">
-          <button className="btn btn--ghost btn--sm" onClick={resetDefaults}>
+          <button className="btn btn--ghost btn--sm" onClick={() => void resetDefaults()}>
             Reset preferences to defaults
           </button>
         </Section>
