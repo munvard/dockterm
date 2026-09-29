@@ -1,9 +1,9 @@
 import { BrowserWindow, Notification, powerSaveBlocker } from 'electron'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { parseAgentLine, reduceActivity, type AgentEvent } from './agentParse'
+import { claudeConfigDir } from './claudeConfigDir'
 import type { AgentActivity } from '@shared/types'
 
 /**
@@ -18,7 +18,7 @@ import type { AgentActivity } from '@shared/types'
  * just finished — so reading the recent tail of active sessions is enough.
  */
 
-const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+const PROJECTS_DIR = join(claudeConfigDir(), 'projects')
 const RETAIN_MS = 30_000 // keep a finished agent in the snapshot this long (celebrate)
 const RESULT_MAX = 280
 const EVENT_TTL_MS = 60 * 60_000 // forget raw events older than an hour (memory bound)

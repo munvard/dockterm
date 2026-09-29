@@ -1,12 +1,19 @@
-import { useEffect, useState } from 'react'
-import { ShieldQuestion, CornerDownLeft } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ShieldQuestion, CornerDownLeft, TriangleAlert } from 'lucide-react'
 import { pickKeys, submitKeys, textKeys, isFreeText, askSig, ESC } from '../terminal/askKeys'
 import type { AskInfo } from '@shared/types'
 
 /** Send answer keys through the paced writer main already uses for munu, so the
- * timing Claude's TUI expects is identical no matter which surface answered. */
-function sendKeys(leafId: string, keys: string[]): void {
-  if (keys.length) void window.dockterm.invoke('munu:answer', { leafId, keys })
+ * timing Claude's TUI expects is identical no matter which surface answered.
+ * `munu:answer` is zod-validated (each key chunk capped at 2000 chars) — a very
+ * long free-text answer can fail that check, and since this was previously fired
+ * with `void`, the card just sat there with the draft silently gone. Report
+ * whether it actually landed so the caller can keep the draft and show an error
+ * instead of pretending the answer was sent. */
+async function sendKeys(leafId: string, keys: string[]): Promise<boolean> {
+  if (!keys.length) return true
+  const r = await window.dockterm.invoke('munu:answer', { leafId, keys })
+  return r.ok
 }
 
 /**
@@ -18,11 +25,17 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [typing, setTyping] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
+  const [sendError, setSendError] = useState<string | null>(null)
+  // IME composition (typing Japanese/Chinese/Korean) fires its own Enter to
+  // confirm a candidate — the input's onKeyDown still sees that Enter, so guard
+  // with the native event's isComposing or it submits a half-typed word.
+  const composingRef = useRef(false)
 
   // A fresh prompt (or a new wizard step) resets local toggles + any text field.
   useEffect(() => {
     setTyping(null)
     setDraft('')
+    setSendError(null)
     const init = new Set<number>()
     ask.checked.forEach((c, i) => {
       if (c && ask.checkable[i]) init.add(i)
@@ -30,9 +43,34 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
     setSelected(init)
   }, [leafId, askSig(ask)])
 
+  // Fire-and-forget from a click handler, but surface a failure instead of
+  // swallowing it — see sendKeys above.
+  const fire = (keys: string[]): void => {
+    setSendError(null)
+    void sendKeys(leafId, keys).then((sent) => {
+      if (!sent) setSendError('Could not send that answer — try again')
+    })
+  }
+
+  const sendText = (): void => {
+    if (typing === null) return
+    setSendError(null)
+    void sendKeys(leafId, textKeys(ask, typing, draft)).then((sent) => {
+      if (sent) {
+        setTyping(null)
+        setDraft('')
+      } else {
+        // Keep the draft and the field open — clearing it here is exactly how a
+        // failed send used to look identical to a successful one.
+        setSendError('Could not send that answer — try again')
+      }
+    })
+  }
+
   const choose = (i: number): void => {
     if (isFreeText(ask.options[i] ?? '')) {
       setDraft('')
+      setSendError(null)
       setTyping(i)
       return
     }
@@ -45,7 +83,7 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
       })
       return
     }
-    sendKeys(leafId, pickKeys(ask, i))
+    fire(pickKeys(ask, i))
   }
 
   if (typing !== null) {
@@ -62,26 +100,32 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
             placeholder="type your answer…"
             aria-label={ask.options[typing] ?? 'Your answer'}
             onChange={(e) => setDraft(e.target.value)}
+            onCompositionStart={() => {
+              composingRef.current = true
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !composingRef.current && !e.nativeEvent.isComposing) {
                 e.preventDefault()
-                sendKeys(leafId, textKeys(ask, typing, draft))
-                setTyping(null)
-                setDraft('')
+                sendText()
               } else if (e.key === 'Escape') {
                 setTyping(null)
                 setDraft('')
+                setSendError(null)
               }
             }}
           />
-          <button type="button" className="btn btn--primary btn--sm" onClick={() => {
-            sendKeys(leafId, textKeys(ask, typing, draft))
-            setTyping(null)
-            setDraft('')
-          }}>
+          <button type="button" className="btn btn--primary btn--sm" onClick={sendText}>
             <CornerDownLeft size={13} /> Send
           </button>
         </div>
+        {sendError && (
+          <div className="askcard__error">
+            <TriangleAlert size={12} /> {sendError}
+          </div>
+        )}
       </div>
     )
   }
@@ -111,7 +155,7 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
               key={i}
               type="button"
               className={`askcard__opt${checkbox && on ? ' is-on' : ''}${submit ? ' is-submit' : ''}`}
-              onClick={() => (submit ? sendKeys(leafId, submitKeys(ask, selected)) : choose(i))}
+              onClick={() => (submit ? fire(submitKeys(ask, selected)) : choose(i))}
               {...(checkbox && { role: 'checkbox', 'aria-checked': on })}
             >
               {checkbox && <span className="askcard__box">{on ? '✓' : ''}</span>}
@@ -123,7 +167,12 @@ export function AskCard({ ask, leafId }: { ask: AskInfo; leafId: string }): Reac
           )
         })}
       </div>
-      <button type="button" className="askcard__cancel" onClick={() => sendKeys(leafId, [ESC])}>
+      {sendError && (
+        <div className="askcard__error">
+          <TriangleAlert size={12} /> {sendError}
+        </div>
+      )}
+      <button type="button" className="askcard__cancel" onClick={() => fire([ESC])}>
         cancel (esc)
       </button>
     </div>

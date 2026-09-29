@@ -170,6 +170,13 @@ export interface ReadingConversation {
   sessionId: string
   cwd: string
   messages: ReadingMessage[]
+  /** Bumps only when the bound transcript actually had something new parsed.
+   * A caller can send it back as `sinceRevision`; a match means `unchanged`. */
+  revision: number
+  /** When true, `messages` is empty and the caller should keep what it already
+   * has — sent instead of resending a conversation that can run to thousands
+   * of messages on every poll when nothing changed. */
+  unchanged?: boolean
 }
 
 export interface EditorSettings {

@@ -73,9 +73,11 @@ export function registerAppHandlers(reg: Registrar): void {
       cwd: z.string().max(4096),
       sample: z.array(z.string().max(400)).max(80),
       leafId: z.string().max(128),
-      claudeActive: z.boolean()
+      claudeActive: z.boolean(),
+      sinceRevision: z.number().int().min(0).finite().optional()
     }),
-    async (req) => ok(await getConversation(req.cwd, req.sample, req.leafId, req.claudeActive))
+    async (req) =>
+      ok(await getConversation(req.cwd, req.sample, req.leafId, req.claudeActive, req.sinceRevision))
   )
 
   reg('update:check', z.void(), async () => {

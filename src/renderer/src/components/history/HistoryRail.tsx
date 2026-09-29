@@ -123,11 +123,21 @@ export function HistoryRail({
   }
   const rewind = (p: SessionPrompt): void => {
     setMenuFor(null)
-    if (!leafId || !paneWriters.write(leafId, '/rewind\r')) {
+    if (!leafId) {
       toast('Open a Claude session in this pane first', 'error')
       return
     }
-    toast(`Opened Claude’s rewind — pick “${p.preview.slice(0, 24)}…” and the mode there`, 'info')
+    void paneClaudeActive(leafId).then((active) => {
+      // Writing "/rewind\r" blind would run in a plain shell as a literal
+      // command, or land in the middle of whatever the user is mid-typing in
+      // Claude's own input. Require Claude to actually be running, and clear
+      // the line first (Ctrl+U) so this can't get appended to existing text.
+      if (!active || !paneWriters.write(leafId, '\x15/rewind\r')) {
+        toast('Open a Claude session in this pane first', 'error')
+        return
+      }
+      toast(`Opened Claude’s rewind — pick “${p.preview.slice(0, 24)}…” and the mode there`, 'info')
+    })
   }
   const copyPrompt = (p: SessionPrompt): void => {
     void navigator.clipboard.writeText(p.text)

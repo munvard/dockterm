@@ -4139,6 +4139,10 @@
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--text);
+  /* A long unbroken token (a URL, a hash, a path with no spaces) must wrap
+     instead of forcing the message column wide or getting clipped by the
+     scroll container's overflow-x:hidden. */
+  overflow-wrap: anywhere;
 }
 .reading__md > :first-child { margin-top: 0; }
 .reading__md h1, .reading__md h2, .reading__md h3 { font-size: 15px; margin: 12px 0 6px; }
@@ -4149,6 +4153,7 @@
   background: var(--raised);
   padding: 0 4px;
   border-radius: 3px;
+  overflow-wrap: anywhere;
 }
 .reading__md pre {
   background: var(--raised);
@@ -4156,8 +4161,24 @@
   border-radius: 6px;
   overflow-x: auto;
 }
-.reading__md pre code { background: none; padding: 0; }
+.reading__md pre code { background: none; padding: 0; overflow-wrap: normal; }
 .reading__md a { color: var(--accent); }
+/* GFM tables have no intrinsic wrap point — let the table itself scroll
+   horizontally instead of blowing out the reading column or getting clipped. */
+.reading__md table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12.5px;
+  max-width: 100%;
+}
+.reading__md th, .reading__md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+.reading__md th { background: var(--raised); font-weight: 600; }
 .reading__tool {
   display: flex;
   align-items: center;
@@ -4302,6 +4323,14 @@
   outline: none;
 }
 .askcard__input:focus { border-color: var(--accent); }
+.askcard__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--danger);
+}
 
 /* --------------------------- Chat mode: composer -------------------------- */
 .composer {

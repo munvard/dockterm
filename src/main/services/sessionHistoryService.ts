@@ -1,7 +1,7 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
+import { claudeConfigDir } from './claudeConfigDir'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
 import {
   appendConversation,
@@ -22,12 +22,27 @@ import type { SessionHistory, ReadingConversation, ReadingMessage } from '@share
  * nothing → empty rail. Read-only throughout.
  */
 
-const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+const PROJECTS_DIR = join(claudeConfigDir(), 'projects')
 const TAIL_BYTES = 512 * 1024 // how much of each transcript's tail to fingerprint
 const MAX_PROMPTS = 5000
-const MAX_READ_BYTES = 64 * 1024 * 1024
+// First sight of a transcript reads + JSON-parses this many trailing bytes
+// synchronously. This used to be 64MB — enough that a long-lived project's cold
+// parse could visibly stall the main process (which also routes every window's
+// IPC and pty output) for multiple seconds. Both surfaces only need recent
+// context anyway (getConversation trims to MAX_CONV_MESSAGES regardless).
+const MAX_READ_BYTES = 16 * 1024 * 1024
 const MIN_HITS = 2 // sample lines that must appear for a confident session match
 const MAX_CONV_MESSAGES = 2000 // bound a cached conversation (trimmed from the front)
+
+// Bound how many distinct transcripts / panes stay cached. Without this, byFile,
+// convByFile, and leafBind only ever grow — one entry per transcript ever opened,
+// one per pane leafId ever created — for the lifetime of the app. There's no
+// explicit "pane closed" signal reaching this service, so eviction is by
+// recency: FILE_CACHE / LEAF_CACHE are plain Maps used as LRU caches (touch()
+// moves a key to the most-recently-used end; a closed pane or a transcript no
+// surface polls anymore simply stops being touched and ages out).
+const FILE_CACHE_MAX = 150
+const LEAF_CACHE_MAX = 300
 
 interface Sess {
   sessionId: string
@@ -39,14 +54,58 @@ interface Sess {
 
 const byFile = new Map<string, Sess>() // transcript path → loaded session (cached)
 const leafBind = new Map<string, string>() // pane leafId → its currently bound transcript
+const fileLru = new Map<string, true>() // path → presence, in LRU order (byFile/convByFile/tailCache)
+const leafLru = new Map<string, true>() // leafId → presence, in LRU order (leafBind)
+
+/** Move `key` to the most-recently-used end of a Map used as an LRU cache (a
+ * plain Map iterates in insertion order; re-setting an EXISTING key keeps its
+ * original position, so this deletes first to actually move it). */
+function touch<K>(order: Map<K, true>, key: K): void {
+  order.delete(key)
+  order.set(key, true)
+}
+
+/** Drop the least-recently-used keys (the front of insertion order) once an LRU
+ * order map grows past `max`, running `onDrop` for each evicted key. */
+function evict<K>(order: Map<K, true>, max: number, onDrop: (key: K) => void): void {
+  while (order.size > max) {
+    const oldest = order.keys().next().value
+    if (oldest === undefined) break
+    order.delete(oldest)
+    onDrop(oldest)
+  }
+}
+
+function touchLeaf(leafId: string): void {
+  touch(leafLru, leafId)
+  evict(leafLru, LEAF_CACHE_MAX, (id) => leafBind.delete(id))
+}
+
+function setLeafBind(leafId: string, path: string): void {
+  leafBind.set(leafId, path)
+  touchLeaf(leafId)
+}
+
+function touchFilePath(path: string): void {
+  touch(fileLru, path)
+  evict(fileLru, FILE_CACHE_MAX, (p) => {
+    byFile.delete(p)
+    convByFile.delete(p)
+    tailCache.delete(p)
+  })
+}
 
 /** Parsed conversations per transcript, grown by reading only appended bytes —
  * chat mode polls at 700ms, so re-reading the whole tail each time is too costly.
- * `state` carries the parse across chunk boundaries (tool pairing, dedup, ids). */
+ * `state` carries the parse across chunk boundaries (tool pairing, dedup, ids).
+ * `revision` increments only when something was actually parsed, so a poll that
+ * found nothing new can tell the caller "unchanged" instead of resending the
+ * whole (possibly 2000-message) list. */
 interface ConvCache {
   messages: ReadingMessage[]
   offset: number
   state: ConversationParseState
+  revision: number
 }
 const convByFile = new Map<string, ConvCache>()
 
@@ -65,6 +124,24 @@ const norm = (p: string): string => p.replace(/[\\/]+$/, '')
 const enabled = (): boolean => getSettings().sessionHistory.enabled
 const slugFor = (cwd: string): string => cwd.replace(/[^a-zA-Z0-9]/g, '-')
 
+// Two surfaces (the docked Reading panel and a pane's Chat mode) can be bound to
+// the SAME transcript and poll independently, and getSessionHistory/
+// getConversation both read+mutate the SAME per-path cache — two concurrent
+// calls for one path used to both read the pre-mutation offset, both parse the
+// same appended bytes (duplicate messages), and both advance the offset (past
+// where either read actually reached). Serialize all path-keyed work for a
+// given transcript through one promise chain.
+const pathChains = new Map<string, Promise<unknown>>()
+function serialize<T>(path: string, fn: () => Promise<T>): Promise<T> {
+  const prev = pathChains.get(path) ?? Promise.resolve()
+  const run = prev.catch(() => {}).then(fn)
+  pathChains.set(path, run)
+  void run.finally(() => {
+    if (pathChains.get(path) === run) pathChains.delete(path)
+  })
+  return run
+}
+
 async function readSlice(path: string, start: number, end: number): Promise<string> {
   const len = end - start
   if (len <= 0) return ''
@@ -78,14 +155,28 @@ async function readSlice(path: string, start: number, end: number): Promise<stri
   }
 }
 
+interface TailEntry {
+  size: number
+  text: string
+}
+const tailCache = new Map<string, TailEntry>()
+
 /** The parsed conversation TEXT (assistant/user message text) of a transcript's
- * tail, lowercased — for fingerprint matching against terminal lines. */
+ * tail, lowercased — for fingerprint matching against terminal lines. Memoized
+ * by file SIZE: bestMatch calls this for the bound pane's hint on every single
+ * poll (every 700ms in chat mode) even when nothing changed, and without this
+ * it re-reads + re-parses up to 512KB every time. */
 async function textTail(path: string): Promise<string> {
   let size: number
   try {
     size = (await stat(path)).size
   } catch {
     return ''
+  }
+  const hit = tailCache.get(path)
+  if (hit && hit.size === size) {
+    touchFilePath(path)
+    return hit.text
   }
   let text: string
   try {
@@ -114,7 +205,10 @@ async function textTail(path: string): Promise<string> {
       }
     }
   }
-  return out.join('\n').toLowerCase()
+  const joined = out.join('\n').toLowerCase()
+  tailCache.set(path, { size, text: joined })
+  touchFilePath(path)
+  return joined
 }
 
 function needlesFrom(sample: string[]): string[] {
@@ -253,19 +347,28 @@ export async function getSessionHistory(
 ): Promise<SessionHistory> {
   if (!enabled()) return emptyHistory(cwd)
   const nc = norm(cwd)
+  touchLeaf(leafId)
   const hint = leafBind.get(leafId) ?? null
   const positive = await bestMatch(nc, sample, hint)
-  if (positive) leafBind.set(leafId, positive)
+  if (positive) setLeafBind(leafId, positive)
   else if (!claudeActive) leafBind.delete(leafId)
   const path = leafBind.get(leafId)
   if (!path) return emptyHistory(nc)
-  let sess = byFile.get(path)
-  if (!sess) sess = (await fullLoad(path)) ?? undefined
-  else await tailSession(path, sess)
-  return sess ? buildHistory(sess.sessionId, nc, sess.recs) : emptyHistory(nc)
+  touchFilePath(path)
+  return serialize(path, async () => {
+    let sess = byFile.get(path)
+    if (!sess) sess = (await fullLoad(path)) ?? undefined
+    else await tailSession(path, sess)
+    return sess ? buildHistory(sess.sessionId, nc, sess.recs) : emptyHistory(nc)
+  })
 }
 
-const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: '', cwd, messages: [] })
+const emptyConversation = (cwd: string): ReadingConversation => ({
+  sessionId: '',
+  cwd,
+  messages: [],
+  revision: 0
+})
 
 /**
  * The rendered conversation for the session running in pane `leafId`. Same sticky
@@ -273,6 +376,11 @@ const emptyConversation = (cwd: string): ReadingConversation => ({ sessionId: ''
  * dropped when Claude is gone and nothing matches), but parses FULL content into
  * ReadingMessage[] rather than just user prompts. Reads incrementally — a full
  * parse on first sight, then only appended bytes.
+ *
+ * `sinceRevision`, when it matches the transcript's current revision, short-
+ * circuits to `{ unchanged: true, messages: [] }` instead of resending a
+ * conversation that can be thousands of messages long on every poll (chat mode
+ * polls every 700ms) — the caller keeps its existing `messages` in that case.
  *
  * NOTE: deliberately NOT gated on `enabled()`. That setting is "show the
  * checkpoints rail"; the Reading panel and chat mode are separate surfaces and
@@ -282,62 +390,73 @@ export async function getConversation(
   cwd: string,
   sample: string[],
   leafId: string,
-  claudeActive: boolean
+  claudeActive: boolean,
+  sinceRevision?: number
 ): Promise<ReadingConversation> {
   const nc = norm(cwd)
+  touchLeaf(leafId)
   const hint = leafBind.get(leafId) ?? null
   const positive = await bestMatch(nc, sample, hint)
-  if (positive) leafBind.set(leafId, positive)
+  if (positive) setLeafBind(leafId, positive)
   else if (!claudeActive) leafBind.delete(leafId)
   const path = leafBind.get(leafId)
   if (!path) return emptyConversation(nc)
-  // A transient stat/read failure must NOT blank a live conversation (it would
-  // flash chat mode's "isn't running Claude" empty state) — fall back to cache.
-  const cached = (): ReadingConversation | null => {
-    const c = convByFile.get(path)
-    return c ? { sessionId: byFile.get(path)?.sessionId ?? '', cwd: nc, messages: c.messages } : null
-  }
-  let size: number
-  try {
-    size = (await stat(path)).size
-  } catch {
-    return cached() ?? emptyConversation(nc)
-  }
+  touchFilePath(path)
 
-  let cache = convByFile.get(path)
-  // Truncated / rotated (or first sight) → full parse of the capped tail.
-  if (!cache || size < cache.offset) {
-    const start = size > MAX_READ_BYTES ? size - MAX_READ_BYTES : 0
-    let text: string
-    try {
-      text = await readSlice(path, start, size)
-    } catch {
-      return cached() ?? emptyConversation(nc)
+  return serialize(path, async () => {
+    const respond = (messages: ReadingMessage[], revision: number): ReadingConversation => {
+      const sessionId = byFile.get(path)?.sessionId ?? ''
+      if (sinceRevision !== undefined && sinceRevision === revision) {
+        return { sessionId, cwd: nc, messages: [], revision, unchanged: true }
+      }
+      return { sessionId, cwd: nc, messages, revision }
     }
-    const { lines, end } = parseTailSlice(text, start)
-    cache = { messages: [], offset: end, state: newConversationParseState() }
-    appendConversation(cache.messages, lines, cache.state)
-    trimConversation(cache)
-    convByFile.set(path, cache)
-  } else if (size > cache.offset) {
-    // Grown → parse only what was appended, carrying the parse state forward so a
-    // tool_result here still resolves the tool_use from an earlier chunk.
-    let text: string
+
+    let size: number
     try {
-      text = await readSlice(path, cache.offset, size)
+      size = (await stat(path)).size
     } catch {
-      return { sessionId: byFile.get(path)?.sessionId ?? '', cwd: nc, messages: cache.messages }
+      // A transient stat failure must NOT blank a live conversation (it would
+      // flash chat mode's "isn't running Claude" empty state) — fall back to cache.
+      const c = convByFile.get(path)
+      return c ? respond(c.messages, c.revision) : respond([], 0)
     }
-    const { lines, consumed } = sliceCompleteLines(text)
-    if (consumed > 0) {
+
+    let cache = convByFile.get(path)
+    // Truncated / rotated (or first sight) → full parse of the capped tail.
+    if (!cache || size < cache.offset) {
+      const start = size > MAX_READ_BYTES ? size - MAX_READ_BYTES : 0
+      let text: string
+      try {
+        text = await readSlice(path, start, size)
+      } catch {
+        return cache ? respond(cache.messages, cache.revision) : respond([], 0)
+      }
+      const { lines, end } = parseTailSlice(text, start)
+      cache = { messages: [], offset: end, state: newConversationParseState(), revision: 1 }
       appendConversation(cache.messages, lines, cache.state)
       trimConversation(cache)
-      cache.offset += consumed
+      convByFile.set(path, cache)
+    } else if (size > cache.offset) {
+      // Grown → parse only what was appended, carrying the parse state forward so a
+      // tool_result here still resolves the tool_use from an earlier chunk.
+      let text: string
+      try {
+        text = await readSlice(path, cache.offset, size)
+      } catch {
+        return respond(cache.messages, cache.revision)
+      }
+      const { lines, consumed } = sliceCompleteLines(text)
+      if (consumed > 0) {
+        appendConversation(cache.messages, lines, cache.state)
+        trimConversation(cache)
+        cache.offset += consumed
+        cache.revision++
+      }
     }
-  }
 
-  const sess = byFile.get(path)
-  return { sessionId: sess?.sessionId ?? '', cwd: nc, messages: cache.messages }
+    return respond(cache.messages, cache.revision)
+  })
 }
 
 // The rail polls getSessionHistory directly, so no background watcher is needed.

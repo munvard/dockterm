@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, X, CornerDownLeft, ClipboardPaste } from 'lucide-react'
 import { useComposeStore } from '../../state/useComposeStore'
 import { paneWriters } from '../../state/paneWriters'
+import { sendPrompt } from '../../state/sendPrompt'
 import { wrapBracketedPaste } from '../terminal/terminalSelection'
 
 /**
@@ -52,8 +53,11 @@ export function ComposeOverlay(): React.ReactElement | null {
   const hand = (submit: boolean): void => {
     const text = draft
     if (text.length > 0) {
-      paneWriters.write(leafId, wrapBracketedPaste(text))
-      if (submit) paneWriters.write(leafId, '\r')
+      // Submitting sends the paste and Enter ~70ms apart (sendPrompt) — Claude's
+      // TUI can coalesce them into one read and leave the prompt typed but
+      // unsent otherwise. Insert-only has no Enter to pace, so it writes direct.
+      if (submit) sendPrompt(leafId, text)
+      else paneWriters.write(leafId, wrapBracketedPaste(text))
     }
     clearDraft(leafId)
     close()
