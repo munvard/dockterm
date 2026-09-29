@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CornerDownLeft, Maximize2, Mic, Paperclip, Square } from 'lucide-react'
+import { CornerDownLeft, FolderPlus, Maximize2, Mic, Paperclip, Square } from 'lucide-react'
 import type { TreeNode } from '@shared/ipc'
 import type { SkillsReadResult } from '@shared/types'
 import { paneWriters } from '../../state/paneWriters'
 import { useComposeStore } from '../../state/useComposeStore'
 import { useReadingStore } from '../../state/useReadingStore'
 import { useToastStore } from '../../state/useToastStore'
-import { sendComposed } from '../../state/sendComposed'
+import { useAppStore } from '../../state/useAppStore'
+import { composerPlatform, sendComposed } from '../../state/sendComposed'
 import { k, PASTE_PLAIN_EVENT } from '../../hooks/keys'
 import { opensPicker, ESC } from '../terminal/askKeys'
 import { AttachmentTray } from './AttachmentTray'
@@ -19,10 +20,19 @@ import {
   pickAndAttach
 } from './composerActions'
 import { isLargePaste, pasteText } from './composerPaste'
-import { expandPasted, liveChips, pastedToken, type Attachment, type PastedChip } from './composerText'
+import {
+  absolutize,
+  expandPasted,
+  fileRef,
+  liveChips,
+  pastedToken,
+  type Attachment,
+  type PastedChip
+} from './composerText'
 import {
   applyCompletion,
   detectTrigger,
+  escapeIntent,
   isComposingKey,
   mergeCommands,
   rankFuzzy
@@ -127,7 +137,14 @@ export function Composer({
   useLayoutEffect(grow, [text, grow])
   useEffect(() => {
     window.addEventListener('resize', grow)
-    return () => window.removeEventListener('resize', grow)
+    // Dragging a split divider resizes the pane without a window resize.
+    const pane = taRef.current?.closest('.panechat')
+    const ro = pane && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => grow()) : null
+    if (pane && ro) ro.observe(pane)
+    return () => {
+      window.removeEventListener('resize', grow)
+      ro?.disconnect()
+    }
   }, [grow])
 
   // Caret requested by a programmatic edit (menu pick, history recall).
@@ -180,8 +197,13 @@ export function Composer({
         })
       }
     } else if (activeKind === 'at') {
+      // fs:search is relative to the window's active root; Claude resolves `@` against ITS cwd
+      // (this pane's), so the reference is built from the absolute path, like file chips.
+      const platform = composerPlatform()
+      const searchRoot = useAppStore.getState().activeRoot
+      const paneRoot = leafRoot(leafId)
       for (const n of fileHits) {
-        const ref = /\s/.test(n.relPath) ? `@"${n.relPath}"` : `@${n.relPath}`
+        const ref = fileRef(absolutize(searchRoot, n.relPath, platform), paneRoot, platform)
         items.push({
           key: n.relPath,
           label: n.relPath,
@@ -191,7 +213,7 @@ export function Composer({
       }
     }
     return items
-  }, [activeKind, activeQuery, extras, fileHits])
+  }, [activeKind, activeQuery, extras, fileHits, leafId])
 
   const menuOpen = menu.length > 0
   const pick = (i: number): void => {
@@ -272,7 +294,7 @@ export function Composer({
     // read from the OS (Chromium hands over the file ICON as an image).
     e.preventDefault()
     void (async () => {
-      if ((await attachClipboardFiles(leafId)) > 0) return
+      if ((await attachClipboardFiles(leafId, files)) > 0) return
       if (raw) return insertPasted(pasteText(payload))
       for (const f of files) {
         if (await attachImageFile(leafId, f)) continue
@@ -284,6 +306,8 @@ export function Composer({
 
   const send = async (): Promise<void> => {
     if (sendingRef.current || disabled) return
+    // Sending while Claude's own recording runs would paste into its input mid-dictation.
+    if (voice.isActive()) return
     if (!text.trim() && attachments.length === 0) return
     const live = liveChips(text, allChips)
     sendingRef.current = true
@@ -296,12 +320,18 @@ export function Composer({
       }
       const store = useComposeStore.getState()
       store.recordHistory(leafId, expandPasted(text, live).trim())
-      store.clearComposer(leafId)
+      // Only what was sent: text typed or files attached while the send waited stay.
+      store.commitSent(leafId, {
+        text,
+        attachmentIds: attachments.map((a) => a.id),
+        chipIds: live.map((c) => c.id)
+      })
       navRef.current = IDLE_NAV
       if (opensPicker(text)) onSentPicker()
     } finally {
       sendingRef.current = false
       setSending(false)
+      taRef.current?.focus()
     }
   }
 
@@ -314,13 +344,23 @@ export function Composer({
     // An IME owns Enter / Esc / arrows while it composes.
     if (isComposingKey({ isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode })) return
 
-    // Esc while recording cancels it (Claude's recording too) instead of interrupting Claude.
-    if (e.key === 'Escape' && voice.isActive()) {
-      e.preventDefault()
-      e.stopPropagation()
-      spaceHeld.current = false
-      voice.cancel()
-      return
+    // Esc: cancel a recording (Claude's too), else dismiss a `/` or `@` popup even when it only
+    // shows a note, and only otherwise interrupt Claude. Never let a popup's Esc reach the pane.
+    if (e.key === 'Escape') {
+      const intent = escapeIntent({ voiceActive: voice.isActive(), triggerActive: active !== null })
+      if (intent === 'cancel-voice') {
+        e.preventDefault()
+        e.stopPropagation()
+        spaceHeld.current = false
+        voice.cancel()
+        return
+      }
+      if (intent === 'dismiss-popup') {
+        e.preventDefault()
+        e.stopPropagation()
+        setDismissed(triggerKey)
+        return
+      }
     }
     // Holding Space in an EMPTY composer is push-to-talk. The first press still types
     // a space (a single tap stays a space); the auto-repeat is what starts recording.
@@ -349,12 +389,6 @@ export function Composer({
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !exact)) {
         e.preventDefault()
         pick(menuIndex)
-        return
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        setDismissed(triggerKey)
         return
       }
     }
@@ -387,7 +421,7 @@ export function Composer({
     }
   }
 
-  const canSend = !disabled && !sending && (text.trim().length > 0 || attachments.length > 0)
+  const canSend = !disabled && !sending && !voiceOn && (text.trim().length > 0 || attachments.length > 0)
 
   return (
     <div className="composer">
@@ -420,7 +454,7 @@ export function Composer({
                 ? `Claude isn’t running in this terminal. Press ${k('⌘R', 'Ctrl+Shift+R')} to use the terminal`
                 : disabled
                   ? 'Answer Claude above to continue…'
-                  : 'Message Claude…  ⏎ send · ⇧⏎ newline · / commands · @ files'
+                  : `Message Claude…  ${k('⏎ send · ⇧⏎ newline', 'Enter send · Shift+Enter newline')} · / commands · @ files`
             }
             onChange={(e) => {
               navRef.current = IDLE_NAV
@@ -450,10 +484,21 @@ export function Composer({
             className="iconbtn iconbtn--sm"
             title="Attach files or images"
             disabled={disabled}
-            onClick={() => void pickAndAttach(leafId)}
+            onClick={() => void pickAndAttach(leafId).then(() => taRef.current?.focus())}
           >
             <Paperclip size={13} />
           </button>
+          {composerPlatform() !== 'darwin' && (
+            // Windows and Linux dialogs cannot pick files and folders together.
+            <button
+              className="iconbtn iconbtn--sm"
+              title="Attach a folder"
+              disabled={disabled}
+              onClick={() => void pickAndAttach(leafId, true).then(() => taRef.current?.focus())}
+            >
+              <FolderPlus size={13} />
+            </button>
+          )}
           <span className="composer__slot composer__slot--voice" data-composer-slot="voice">
             <button
               className={`iconbtn iconbtn--sm composer__mic${voiceOn ? ' iconbtn--active composer__mic--on' : ''}`}

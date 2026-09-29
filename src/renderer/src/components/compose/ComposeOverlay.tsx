@@ -28,7 +28,6 @@ export function ComposeOverlay(): React.ReactElement | null {
   const draft = useComposeStore((s) => (s.leafId ? s.drafts[s.leafId] ?? '' : ''))
   const setDraft = useComposeStore((s) => s.setDraft)
   const close = useComposeStore((s) => s.close)
-  const clearDraft = useComposeStore((s) => s.clearDraft)
   const attachments = useComposeStore((s) => (s.leafId ? s.attachments[s.leafId] : undefined)) ?? NO_ATTACHMENTS
   const allChips = useComposeStore((s) => (s.leafId ? s.chips[s.leafId] : undefined)) ?? NO_CHIPS
   const [full, setFull] = useState(false)
@@ -74,8 +73,14 @@ export function ComposeOverlay(): React.ReactElement | null {
     const chips = liveChips(text, allChips)
     if (!submit) {
       // Insert-only has no Enter to pace, so it writes direct (pasted-text chips expanded).
+      // Attachments are not inserted (they need Send), so they stay in the tray.
       if (text.length > 0) paneWriters.paste(leafId, sanitizePasteText(expandPasted(text, chips)))
-      clearDraft(leafId)
+      useComposeStore.getState().clearTextOnly(leafId)
+      close()
+      return
+    }
+    // Nothing to send (Cmd+Enter on an empty draft): just close, as before.
+    if (!text.trim() && attachments.length === 0) {
       close()
       return
     }
@@ -90,7 +95,12 @@ export function ComposeOverlay(): React.ReactElement | null {
         }
         const store = useComposeStore.getState()
         store.recordHistory(leafId, expandPasted(text, chips).trim())
-        store.clearComposer(leafId)
+        // Only what was sent: anything added while the send waited stays.
+        store.commitSent(leafId, {
+          text,
+          attachmentIds: attachments.map((a) => a.id),
+          chipIds: chips.map((c) => c.id)
+        })
         close()
       })
       .finally(() => setBusy(false))
