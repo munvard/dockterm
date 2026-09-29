@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CornerDownLeft, Maximize2, Paperclip, Square } from 'lucide-react'
+import { CornerDownLeft, Maximize2, Mic, Paperclip, Square } from 'lucide-react'
 import type { TreeNode } from '@shared/ipc'
 import type { SkillsReadResult } from '@shared/types'
 import { paneWriters } from '../../state/paneWriters'
@@ -27,6 +27,10 @@ import {
   mergeCommands,
   rankFuzzy
 } from './composerTriggers'
+import { voiceInsertion } from './claudeVoice'
+import { createMicGesture } from './micGesture'
+import { useClaudeVoice } from './useClaudeVoice'
+import { VoiceStrip } from './VoiceStrip'
 import { IDLE_NAV, mergeHistory, shouldRecall, stepHistory, type HistoryNav } from './promptHistory'
 
 const EMPTY_ATTACHMENTS: Attachment[] = []
@@ -81,6 +85,8 @@ export function Composer({
   const [menuIndex, setMenuIndex] = useState(0)
   const [extras, setExtras] = useState<Extras>([])
   const [fileHits, setFileHits] = useState<TreeNode[]>([])
+  const spaceHeld = useRef(false)
+  const gesture = useRef(createMicGesture()).current
 
   const setText = useCallback(
     (t: string) => useComposeStore.getState().setDraftFor(leafId, t),
@@ -225,6 +231,17 @@ export function Composer({
     [leafId, insertAtSelection]
   )
 
+  // Speech to text through Claude's own voice mode: the transcript lands at the caret.
+  const voice = useClaudeVoice(leafId, (t) => {
+    const ta = taRef.current
+    const s = ta
+      ? voiceInsertion(ta.value, ta.selectionStart, ta.selectionEnd, t)
+      : voiceInsertion('', 0, 0, t)
+    if (s) insertAtSelection(s)
+  })
+  const voiceOn = voice.snapshot.phase !== 'idle'
+  const micDisabled = disabled || noClaude
+
   // "Paste as plain text" (⌘⇧V / Ctrl+Shift+V) arrives from the shortcut registry.
   useEffect(() => {
     const ta = taRef.current
@@ -297,6 +314,30 @@ export function Composer({
     // An IME owns Enter / Esc / arrows while it composes.
     if (isComposingKey({ isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode })) return
 
+    // Esc while recording cancels it (Claude's recording too) instead of interrupting Claude.
+    if (e.key === 'Escape' && voice.isActive()) {
+      e.preventDefault()
+      e.stopPropagation()
+      spaceHeld.current = false
+      voice.cancel()
+      return
+    }
+    // Holding Space in an EMPTY composer is push-to-talk. The first press still types
+    // a space (a single tap stays a space); the auto-repeat is what starts recording.
+    if (e.key === ' ' && e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (spaceHeld.current) {
+        e.preventDefault()
+        return
+      }
+      if (!micDisabled && !voice.isActive() && text.trim() === '' && attachments.length === 0) {
+        e.preventDefault()
+        spaceHeld.current = true
+        if (text !== '') setText('')
+        void voice.start()
+        return
+      }
+    }
+
     if (menuOpen && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
@@ -350,6 +391,12 @@ export function Composer({
 
   return (
     <div className="composer">
+      <VoiceStrip
+        snapshot={voice.snapshot}
+        onEnable={voice.enableVoice}
+        onDismissHint={voice.dismissHint}
+        canEnable={voice.canEnableVoice}
+      />
       <AttachmentTray leafId={leafId} attachments={attachments} chips={chips} />
       <div className="composer__row">
         <div className="composer__field">
@@ -384,6 +431,18 @@ export function Composer({
             onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
             onPaste={onPaste}
             onKeyDown={onKeyDown}
+            onKeyUp={(e) => {
+              if (e.key === ' ' && spaceHeld.current) {
+                spaceHeld.current = false
+                voice.stop()
+              }
+            }}
+            onBlur={() => {
+              if (spaceHeld.current) {
+                spaceHeld.current = false
+                voice.stop()
+              }
+            }}
           />
         </div>
         <div className="composer__actions">
@@ -395,8 +454,38 @@ export function Composer({
           >
             <Paperclip size={13} />
           </button>
-          {/* VOICE_SLOT: the microphone button (Claude voice mode) is added here by a later change. */}
-          <span className="composer__slot composer__slot--voice" data-composer-slot="voice" />
+          <span className="composer__slot composer__slot--voice" data-composer-slot="voice">
+            <button
+              className={`iconbtn iconbtn--sm composer__mic${voiceOn ? ' iconbtn--active composer__mic--on' : ''}`}
+              title="Voice: hold to talk, or click to start and click again to stop (holding Space in an empty box works too). Uses Claude Code's own voice mode, so it needs a claude.ai login (Linux also needs SoX). DockTerm records nothing."
+              aria-label="Voice input"
+              aria-pressed={voiceOn}
+              disabled={micDisabled}
+              // Keep the caret in the text box so the transcript lands there.
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.currentTarget.setPointerCapture(e.pointerId)
+                const a = gesture.down(voice.isActive())
+                if (a === 'start') void voice.start()
+                else if (a === 'stop') voice.stop()
+              }}
+              onPointerUp={() => {
+                if (gesture.up() === 'stop') voice.stop()
+              }}
+              onPointerCancel={() => {
+                if (gesture.up() === 'stop') voice.stop()
+              }}
+              onClick={(e) => {
+                // keyboard activation (Enter / Space on the focused button) toggles
+                if (e.detail !== 0) return
+                if (voice.isActive()) voice.stop()
+                else void voice.start()
+              }}
+            >
+              <Mic size={13} />
+            </button>
+          </span>
           <button
             className="iconbtn iconbtn--sm"
             title="Interrupt Claude (Esc)"

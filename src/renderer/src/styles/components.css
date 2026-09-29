@@ -4426,6 +4426,46 @@
 .composer__actions { display: flex; align-items: center; gap: 4px; padding-bottom: 2px; }
 .composer__slot { display: contents; }
 
+/* Voice: live strip above the text box + the mic button. */
+.composer__voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--accent-soft, rgba(124, 107, 255, 0.12));
+  color: var(--text);
+  font-size: 12px;
+}
+.composer__voice--hint { justify-content: flex-start; flex-wrap: wrap; }
+.composer__voice-label { flex: 0 0 auto; font-weight: 600; color: var(--accent); }
+.composer__voice-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim, var(--text));
+}
+.composer__voice-note { color: var(--text-faint); }
+.composer__voice-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: composer-voice-pulse 1.2s ease-in-out infinite;
+}
+.composer__mic--on { color: var(--danger); }
+@keyframes composer-voice-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer__voice-dot { animation: none; }
+}
+
 /* Attachments tray: image / file / pasted-text chips above the input. */
 .composer__attach { display: flex; flex-direction: column; gap: 6px; }
 .composer__tray { display: flex; flex-wrap: wrap; gap: 6px; }
