@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Settings, ProjectInfo, RecentProject, PanelId } from '@shared/types'
 import type { SettingsPatch } from '@shared/ipc'
 import { useToastStore } from './useToastStore'
+import { askProjectSwitch, isSameProjectPath } from './projectSwitch'
 
 interface AppState {
   ready: boolean
@@ -61,6 +62,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   error: null,
 
   init: async () => {
+    // Main asked this window to open a specific project (a second app launch
+    // pointed at a folder, or a Finder/Explorer "open with", or "Open in new
+    // window"). Registered before any await so a request that lands right after
+    // the page loads is never missed.
+    window.dockterm.on('project:openRequested', ({ path }) => {
+      void get().openProject(path)
+    })
     const [settingsRes, recentRes, primaryRes] = await Promise.all([
       window.dockterm.invoke('settings:get', undefined),
       window.dockterm.invoke('project:getRecent', undefined),
@@ -80,12 +88,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     // project) can hand off at runtime — e.g. the primary window closes and this
     // one becomes primary. Read once at boot above; react to it live here.
     window.dockterm.on('window:primaryChanged', (nowPrimary) => set({ isPrimary: nowPrimary }))
-    // Main asked this window to open a specific project (a second app launch
-    // pointed at a folder, or a Finder/Explorer "open with").
-    window.dockterm.on('project:openRequested', ({ path }) => {
-      void get().openProject(path)
-    })
-
     // Only the primary window restores the last project; secondary (⌘N) windows
     // open project-less and show the welcome screen (Cursor-style).
     const last = settings?.lastProjectPath
@@ -115,6 +117,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   openProject: async (path) => {
+    const current = get().project
+    if (current) {
+      // Re-opening the open project is a no-op; opening a different one closes
+      // this window's terminals, so ask BEFORE anything is torn down.
+      if (isSameProjectPath(current.path, path)) return
+      const decision = await askProjectSwitch(path)
+      if (decision === 'cancel') return
+      if (decision === 'new-window') {
+        await window.dockterm.invoke('window:new', { path })
+        return
+      }
+    }
     set({ busy: true, error: null })
     const res = await window.dockterm.invoke('project:open', { path })
     if (res.ok) {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Modal } from './Modal'
 import {
   useDialogStore,
+  type ChoiceOptions,
   type ConfirmOptions,
   type PromptOptions
 } from '../../state/useDialogStore'
@@ -30,6 +31,37 @@ function ConfirmView({
           >
             {state.confirmLabel ?? 'Confirm'}
           </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function ChoiceView({
+  state,
+  onResolve
+}: {
+  state: ChoiceOptions
+  onResolve: (value: string) => void
+}) {
+  return (
+    <Modal onClose={() => onResolve(state.dismissValue)}>
+      <div className="dialog">
+        <div className="dialog__title">{state.title}</div>
+        <div className="dialog__message">{state.message}</div>
+        {state.detail && <div className="dialog__detail">{state.detail}</div>}
+        <div className="dialog__actions">
+          {state.choices.map((c) => (
+            <button
+              key={c.value}
+              className={`btn btn--sm ${
+                c.kind === 'danger' ? 'btn--danger' : c.kind === 'ghost' ? 'btn--ghost' : 'btn--primary'
+              }`}
+              onClick={() => onResolve(c.value)}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
       </div>
     </Modal>
@@ -95,10 +127,13 @@ export function DialogHost() {
   const promptState = useDialogStore((s) => s.promptState)
   const resolveConfirm = useDialogStore((s) => s.resolveConfirm)
   const resolvePrompt = useDialogStore((s) => s.resolvePrompt)
+  const choiceState = useDialogStore((s) => s.choiceState)
+  const resolveChoice = useDialogStore((s) => s.resolveChoice)
 
   return (
     <>
       {confirmState && <ConfirmView state={confirmState} onResolve={resolveConfirm} />}
+      {choiceState && <ChoiceView state={choiceState} onResolve={resolveChoice} />}
       {promptState && <PromptView state={promptState} onResolve={resolvePrompt} />}
     </>
   )

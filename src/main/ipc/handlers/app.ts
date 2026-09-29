@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, clipboard } from 'electron'
 import os from 'node:os'
+import { existsSync, statSync } from 'node:fs'
 import { z } from 'zod'
 import { ok } from '@shared/result'
 import { APP_NAME } from '@shared/constants'
@@ -100,8 +101,16 @@ export function registerAppHandlers(reg: Registrar): void {
     return ok(undefined)
   })
 
-  reg('window:new', z.void(), () => {
-    createWindow()
+  reg('window:new', z.object({ path: z.string().min(1).max(4096) }).optional(), (req) => {
+    const win = createWindow()
+    // "Open in new window": the fresh window starts on that project. It has no
+    // terminals yet, so the renderer's project-switch guard stays silent.
+    if (req?.path && existsSync(req.path) && statSync(req.path).isDirectory()) {
+      const path = req.path
+      win.webContents.once('did-finish-load', () => {
+        if (!win.isDestroyed()) win.webContents.send('project:openRequested', { path })
+      })
+    }
     return ok(undefined)
   })
 

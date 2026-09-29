@@ -33,4 +33,40 @@ describe('useDialogStore queue', () => {
     useDialogStore.getState().resolvePrompt('answer')
     expect(await p).toBe('answer')
   })
+
+  it('choose() resolves to the clicked one of three buttons', async () => {
+    const choices = [
+      { value: 'new-window', label: 'Open in new window' },
+      { value: 'replace', label: 'Replace' },
+      { value: 'cancel', label: 'Cancel', kind: 'ghost' as const }
+    ]
+    const picked = useDialogStore
+      .getState()
+      .choose({ title: 't', message: 'm', choices, dismissValue: 'cancel' })
+    expect(useDialogStore.getState().choiceState?.choices).toHaveLength(3)
+    useDialogStore.getState().resolveChoice('replace')
+    expect(await picked).toBe('replace')
+    expect(useDialogStore.getState().choiceState).toBeNull()
+  })
+
+  it('a choose() queues behind an open confirm() and shows after it, and vice versa', async () => {
+    const choices = [{ value: 'a', label: 'A' }]
+    const c = useDialogStore.getState().confirm({ title: 'c', message: 'm' })
+    const ch = useDialogStore
+      .getState()
+      .choose({ title: 'ch', message: 'm', choices, dismissValue: 'a' })
+    const c2 = useDialogStore.getState().confirm({ title: 'c2', message: 'm' })
+    expect(useDialogStore.getState().choiceState).toBeNull()
+
+    useDialogStore.getState().resolveConfirm(true)
+    expect(await c).toBe(true)
+    expect(useDialogStore.getState().choiceState?.title).toBe('ch')
+    expect(useDialogStore.getState().confirmState).toBeNull()
+
+    useDialogStore.getState().resolveChoice('a')
+    expect(await ch).toBe('a')
+    expect(useDialogStore.getState().confirmState?.title).toBe('c2')
+    useDialogStore.getState().resolveConfirm(false)
+    expect(await c2).toBe(false)
+  })
 })
