@@ -12,6 +12,7 @@ import { resolveTermKey } from './terminalKeys'
 import { classify, parseAsk } from './claudeStatus'
 import { findPathLinks, columnForStringIndex, type CellSpan } from './pathLinks'
 import { useThemeStore } from '../../state/useThemeStore'
+import { useComposeStore } from '../../state/useComposeStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
@@ -723,6 +724,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (host.parentElement) host.parentElement.removeChild(host)
     // Drop this pane's Claude-state + writer registrations (true close only).
     useMunuStore.getState().removePane(id)
+    useComposeStore.getState().removePane(id)
     paneWriters.unregister(id)
   }
 

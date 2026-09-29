@@ -40,6 +40,21 @@ interface ComposeState {
   recordHistory: (leafId: string, text: string) => void
   /** After a send: draft, attachments and chips are gone (history stays). */
   clearComposer: (leafId: string) => void
+  /**
+   * After a send finished: remove only what was SENT. Text typed, files attached or text pasted
+   * while the send was waiting (the image confirmation takes up to 4 s) is kept.
+   */
+  commitSent: (leafId: string, sent: SentSnapshot) => void
+  /** Insert-only (Compose overlay): the draft and its pasted-text chips go, attachments stay. */
+  clearTextOnly: (leafId: string) => void
+  /** A pane closed: forget its draft, attachments (blob URLs revoked), chips and history. */
+  removePane: (leafId: string) => void
+}
+
+export interface SentSnapshot {
+  text: string
+  attachmentIds: string[]
+  chipIds: number[]
 }
 
 let chipCounter = 0
@@ -111,6 +126,52 @@ export const useComposeStore = create<ComposeState>((set, get) => ({
         drafts,
         attachments: { ...s.attachments, [leafId]: [] },
         chips: { ...s.chips, [leafId]: [] }
+      }
+    }),
+  commitSent: (leafId, sent) =>
+    set((s) => {
+      const cur = s.drafts[leafId] ?? ''
+      const drafts = { ...s.drafts }
+      // Unchanged: gone. Typed after the sent text: keep the new part. Replaced: leave it alone.
+      const rest = cur === sent.text ? '' : cur.startsWith(sent.text) ? cur.slice(sent.text.length) : cur
+      if (rest.trim() === '') delete drafts[leafId]
+      else drafts[leafId] = rest
+      const have = s.attachments[leafId] ?? []
+      have.filter((a) => sent.attachmentIds.includes(a.id)).forEach(revoke)
+      const left = drafts[leafId] ?? ''
+      return {
+        drafts,
+        attachments: { ...s.attachments, [leafId]: have.filter((a) => !sent.attachmentIds.includes(a.id)) },
+        // The sent chips go, and so does any chip whose token is no longer in the draft.
+        chips: {
+          ...s.chips,
+          [leafId]: (s.chips[leafId] ?? []).filter(
+            (c) => !sent.chipIds.includes(c.id) && left.includes(pastedToken(c.id))
+          )
+        }
+      }
+    }),
+  clearTextOnly: (leafId) =>
+    set((s) => {
+      const drafts = { ...s.drafts }
+      delete drafts[leafId]
+      return { drafts, chips: { ...s.chips, [leafId]: [] } }
+    }),
+  removePane: (leafId) =>
+    set((s) => {
+      ;(s.attachments[leafId] ?? []).forEach(revoke)
+      const omit = <T,>(m: Record<string, T>): Record<string, T> => {
+        if (!(leafId in m)) return m
+        const next = { ...m }
+        delete next[leafId]
+        return next
+      }
+      return {
+        drafts: omit(s.drafts),
+        attachments: omit(s.attachments),
+        chips: omit(s.chips),
+        history: omit(s.history),
+        ...(s.open && s.leafId === leafId ? { open: false, leafId: null } : {})
       }
     })
 }))
