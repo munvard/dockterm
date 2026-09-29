@@ -31,7 +31,7 @@ export function git(root: string): SimpleGit {
   return simpleGit({
     baseDir: root,
     config: ['core.hooksPath=', 'core.fsmonitor=false'],
-    unsafe: { allowUnsafeHooksPath: true },
+    unsafe: { allowUnsafeHooksPath: true, allowUnsafeFsMonitor: true },
     trimmed: true,
     timeout: { block: 120_000 }
   }).env({ ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' })

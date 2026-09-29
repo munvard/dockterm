@@ -259,6 +259,8 @@ export interface InvokeChannels {
   'git:createBranch': (req: BranchReq) => Result<void>
   'git:switchBranch': (req: BranchReq) => Result<void>
   'git:deleteBranch': (req: BranchReq) => Result<void>
+  /** Mark the window's active repo trusted for this app session (in memory only). */
+  'git:trustRepo': (req: { root: string }) => Result<void>
 
   'review:list': (req: { base: ReviewBase }) => Result<DiffSinceFile[]>
   'review:diffFile': (req: { base: ReviewBase; relPath: string }) => Result<DiffContent>
@@ -315,7 +317,8 @@ export interface InvokeChannels {
   'update:snooze': (req: { hours: number }) => Result<void>
   'update:skip': (req: { version: string }) => Result<void>
 
-  'window:new': (req: void) => Result<void>
+  /** `path`: open a new window straight onto that project. */
+  'window:new': (req: { path?: string } | void) => Result<void>
   'window:isPrimary': (req: void) => Result<boolean>
   'app:recover': (req: { hard: boolean }) => Result<void>
   'ui:setZoom': (req: { factor: number }) => Result<{ zoom: number }>
@@ -431,6 +434,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'git:createBranch',
   'git:switchBranch',
   'git:deleteBranch',
+  'git:trustRepo',
   'review:list',
   'review:diffFile',
   'checkpoint:create',

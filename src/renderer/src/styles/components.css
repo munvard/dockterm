@@ -1323,6 +1323,7 @@
   border-radius: 5px;
   padding: 6px 9px;
   color: var(--text-dim);
+  white-space: pre-wrap;
   word-break: break-all;
 }
 .dialog__label {

@@ -23,6 +23,7 @@ export type ErrorCode =
   | 'DETACHED'
   | 'NETWORK'
   | 'GIT'
+  | 'UNTRUSTED_GIT_CONFIG'
 
 export interface Ok<T> {
   ok: true
@@ -31,7 +32,7 @@ export interface Ok<T> {
 
 export interface Err {
   ok: false
-  error: { code: ErrorCode; message: string }
+  error: { code: ErrorCode; message: string; details?: unknown }
 }
 
 export type Result<T> = Ok<T> | Err
@@ -40,6 +41,6 @@ export function ok<T>(value: T): Ok<T> {
   return { ok: true, value }
 }
 
-export function err(code: ErrorCode, message: string): Err {
-  return { ok: false, error: { code, message } }
+export function err(code: ErrorCode, message: string, details?: unknown): Err {
+  return { ok: false, error: details === undefined ? { code, message } : { code, message, details } }
 }

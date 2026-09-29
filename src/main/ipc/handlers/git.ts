@@ -1,7 +1,9 @@
 import { z } from 'zod'
-import { ok, err, type Err } from '@shared/result'
+import type { IpcMainInvokeEvent } from 'electron'
+import { ok, err, type Err, type Result } from '@shared/result'
 import * as gitService from '../../services/gitService'
 import { rootFor } from '../../services/activeRoot'
+import { pendingExecConfig, trustRepo, canonicalRoot } from '../../services/gitTrust'
 import type { Registrar } from '../register'
 
 const pathsSchema = z.object({ paths: z.array(z.string().max(4096)).max(5000) })
@@ -11,6 +13,7 @@ const pushSchema = z.object({
   forceWithLease: z.boolean().optional()
 })
 const branchSchema = z.object({ name: z.string().min(1).max(255) })
+const trustSchema = z.object({ root: z.string().min(1).max(4096) })
 
 function mapGitError(e: unknown): Err {
   const msg = e instanceof Error ? e.message : String(e)
@@ -49,6 +52,30 @@ function mapGitError(e: unknown): Err {
   return err('GIT', msg.split('\n')[0])
 }
 
+/** Runs a user-initiated git write / network operation, but only after the
+ * repo's own .git/config has been checked for settings that make git execute a
+ * command (filter drivers, sshCommand, credential helpers, …). A hostile repo
+ * could otherwise run code the moment the user clicks Stage or Push. */
+export async function gatedGit<T>(
+  event: IpcMainInvokeEvent,
+  op: (root: string) => Promise<Result<T>>
+): Promise<Result<T>> {
+  try {
+    const root = rootFor(event)
+    const entries = await pendingExecConfig(root)
+    if (entries.length > 0) {
+      return err(
+        'UNTRUSTED_GIT_CONFIG',
+        "This repo's git config runs commands: " + entries.map((e) => e.key).join(', '),
+        { root, entries }
+      )
+    }
+    return await op(root)
+  } catch (e) {
+    return mapGitError(e)
+  }
+}
+
 export function registerGitHandlers(reg: Registrar): void {
   reg('git:status', z.void(), async (_req, event) => {
     try {
@@ -58,65 +85,61 @@ export function registerGitHandlers(reg: Registrar): void {
     }
   })
 
-  reg('git:stage', pathsSchema, async (req, event) => {
+  reg('git:trustRepo', trustSchema, (req, event) => {
+    // Only the window's own active repo can be trusted — never an arbitrary
+    // path the renderer names.
+    let active: string
     try {
-      await gitService.stage(rootFor(event), req.paths)
+      active = rootFor(event)
+    } catch (e) {
+      return mapGitError(e)
+    }
+    if (canonicalRoot(req.root) !== canonicalRoot(active)) {
+      return err('VALIDATION', 'Not this window\'s active repository')
+    }
+    trustRepo(active)
+    return ok(undefined)
+  })
+
+  reg('git:stage', pathsSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.stage(root, req.paths)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:stageAll', z.void(), async (_req, event) => {
-    try {
-      await gitService.stageAll(rootFor(event))
+  reg('git:stageAll', z.void(), (_req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.stageAll(root)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:unstage', pathsSchema, async (req, event) => {
-    try {
-      await gitService.unstage(rootFor(event), req.paths)
+  reg('git:unstage', pathsSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.unstage(root, req.paths)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:discard', pathsSchema, async (req, event) => {
-    try {
-      await gitService.discard(rootFor(event), req.paths)
+  reg('git:discard', pathsSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.discard(root, req.paths)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:commit', commitSchema, async (req, event) => {
-    try {
-      return ok(await gitService.commit(rootFor(event), req.message))
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+  reg('git:commit', commitSchema, (req, event) =>
+    gatedGit(event, async (root) => ok(await gitService.commit(root, req.message)))
+  )
 
-  reg('git:push', pushSchema, async (req, event) => {
-    try {
-      return ok({ output: await gitService.push(rootFor(event), req) })
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+  reg('git:push', pushSchema, (req, event) =>
+    gatedGit(event, async (root) => ok({ output: await gitService.push(root, req) }))
+  )
 
-  reg('git:pull', z.void(), async (_req, event) => {
-    try {
-      return ok({ output: await gitService.pull(rootFor(event)) })
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+  reg('git:pull', z.void(), (_req, event) =>
+    gatedGit(event, async (root) => ok({ output: await gitService.pull(root) }))
+  )
 
   reg('git:branches', z.void(), async (_req, event) => {
     try {
@@ -126,30 +149,24 @@ export function registerGitHandlers(reg: Registrar): void {
     }
   })
 
-  reg('git:createBranch', branchSchema, async (req, event) => {
-    try {
-      await gitService.createBranch(rootFor(event), req.name)
+  reg('git:createBranch', branchSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.createBranch(root, req.name)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:switchBranch', branchSchema, async (req, event) => {
-    try {
-      await gitService.switchBranch(rootFor(event), req.name)
+  reg('git:switchBranch', branchSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.switchBranch(root, req.name)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 
-  reg('git:deleteBranch', branchSchema, async (req, event) => {
-    try {
-      await gitService.deleteBranch(rootFor(event), req.name)
+  reg('git:deleteBranch', branchSchema, (req, event) =>
+    gatedGit(event, async (root) => {
+      await gitService.deleteBranch(root, req.name)
       return ok(undefined)
-    } catch (e) {
-      return mapGitError(e)
-    }
-  })
+    })
+  )
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { GitStatusView, GitBranches } from '@shared/types'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
+import { invokeGitGated } from './gitGate'
 
 interface GitState {
   status: GitStatusView | null
@@ -42,6 +43,12 @@ interface GitState {
 const toast = (msg: string, kind: 'success' | 'error' | 'info' | 'warning') =>
   useToastStore.getState().push(msg, kind)
 
+/** A failed git action becomes an error toast — except a Cancel the user chose
+ * in the "repo config runs commands" dialog, which is not an error. */
+const reportFailure = (error: { code: string; message: string }): void => {
+  if (error.code !== 'CANCELED') toast(error.message, 'error')
+}
+
 // Bumped on every refresh() call. A response only ever applies if it's still the
 // most recent request — an older, slower request (e.g. still in flight from the
 // project root this window just navigated away from) can never clobber a newer
@@ -79,20 +86,20 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   stage: async (paths) => {
-    const res = await window.dockterm.invoke('git:stage', { paths })
-    if (!res.ok) toast(res.error.message, 'error')
+    const res = await invokeGitGated('git:stage', { paths })
+    if (!res.ok) reportFailure(res.error)
     await get().refresh()
   },
 
   stageAll: async () => {
-    const res = await window.dockterm.invoke('git:stageAll', undefined)
-    if (!res.ok) toast(res.error.message, 'error')
+    const res = await invokeGitGated('git:stageAll', undefined)
+    if (!res.ok) reportFailure(res.error)
     await get().refresh()
   },
 
   unstage: async (paths) => {
-    const res = await window.dockterm.invoke('git:unstage', { paths })
-    if (!res.ok) toast(res.error.message, 'error')
+    const res = await invokeGitGated('git:unstage', { paths })
+    if (!res.ok) reportFailure(res.error)
     await get().refresh()
   },
 
@@ -106,17 +113,17 @@ export const useGitStore = create<GitState>((set, get) => ({
       command: `git restore -- ${paths.join(' ')}`
     })
     if (!confirmed) return
-    const res = await window.dockterm.invoke('git:discard', { paths })
-    if (!res.ok) toast(res.error.message, 'error')
+    const res = await invokeGitGated('git:discard', { paths })
+    if (!res.ok) reportFailure(res.error)
     await get().refresh()
   },
 
   commit: async (message) => {
     set({ busy: true })
-    const res = await window.dockterm.invoke('git:commit', { message })
+    const res = await invokeGitGated('git:commit', { message })
     set({ busy: false })
     if (!res.ok) {
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return false
     }
     toast(`Committed ${res.value.hash.slice(0, 7)} — ${res.value.summary}`, 'success')
@@ -127,7 +134,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   push: async (options) => {
     set({ busy: true })
-    const res = await window.dockterm.invoke('git:push', options ?? {})
+    const res = await invokeGitGated('git:push', options ?? {})
     set({ busy: false })
     if (!res.ok) {
       if (res.error.code === 'NO_UPSTREAM') {
@@ -141,7 +148,7 @@ export const useGitStore = create<GitState>((set, get) => ({
         if (publish) await get().push({ setUpstream: true })
         return
       }
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return
     }
     set((s) => ({ log: [...s.log, res.value.output].slice(-50) }))
@@ -151,10 +158,10 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   pull: async () => {
     set({ busy: true })
-    const res = await window.dockterm.invoke('git:pull', undefined)
+    const res = await invokeGitGated('git:pull', undefined)
     set({ busy: false })
     if (!res.ok) {
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return
     }
     set((s) => ({ log: [...s.log, res.value.output].slice(-50) }))
@@ -163,18 +170,18 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   createBranch: async (name) => {
-    const res = await window.dockterm.invoke('git:createBranch', { name })
+    const res = await invokeGitGated('git:createBranch', { name })
     if (!res.ok) {
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return
     }
     await Promise.all([get().refresh(), get().refreshBranches()])
   },
 
   switchBranch: async (name) => {
-    const res = await window.dockterm.invoke('git:switchBranch', { name })
+    const res = await invokeGitGated('git:switchBranch', { name })
     if (!res.ok) {
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return
     }
     await Promise.all([get().refresh(), get().refreshBranches()])
@@ -190,9 +197,9 @@ export const useGitStore = create<GitState>((set, get) => ({
       command: `git branch -d ${name}`
     })
     if (!confirmed) return
-    const res = await window.dockterm.invoke('git:deleteBranch', { name })
+    const res = await invokeGitGated('git:deleteBranch', { name })
     if (!res.ok) {
-      toast(res.error.message, 'error')
+      reportFailure(res.error)
       return
     }
     await get().refreshBranches()
