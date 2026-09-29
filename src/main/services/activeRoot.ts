@@ -51,3 +51,11 @@ export function rememberKnownRoot(webContentsId: number, root: string): void {
 export function isKnownRoot(webContentsId: number, root: string): boolean {
   return knownRoots.get(webContentsId)?.has(root) ?? false
 }
+
+/** Roots this window has had active (for path checks that must stay inside a project). */
+export function knownRootsOf(webContentsId: number): string[] {
+  const out = new Set(knownRoots.get(webContentsId) ?? [])
+  const active = roots.get(webContentsId)
+  if (active) out.add(active)
+  return [...out]
+}

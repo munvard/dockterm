@@ -301,8 +301,8 @@ export interface InvokeChannels {
     data: string | Uint8Array
     mime: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
   }) => Result<{ path: string }>
-  /** Multi-select open dialog for the composer's attach button. */
-  'chat:pickFiles': (req: void) => Result<{ paths: string[] }>
+  /** Multi-select open dialog for the composer's attach button; `directories` picks folders (Windows/Linux dialogs cannot mix). */
+  'chat:pickFiles': (req: { directories?: boolean } | undefined) => Result<{ paths: string[] }>
   /** Which of these absolute paths exist, whether each is a folder, and (png/jpeg) a small thumbnail. */
   'chat:statPaths': (req: { paths: string[]; thumbs: boolean }) => Result<{
     items: { path: string; isDir: boolean; thumb?: string }[]

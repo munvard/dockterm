@@ -188,3 +188,27 @@ export function pickImageMime(
   return hit ? (hit.type as PasteImageMime) : null
 }
 
+
+/**
+ * Paths for a paste that carries files. Some platforms hand the OS clipboard only ONE path for a
+ * multi-file copy (Windows `FileNameW`), so when it yields fewer paths than the paste has files,
+ * the files' own paths are added too (duplicates are dropped).
+ */
+export function mergeClipboardPaths(osPaths: string[], filePaths: string[], fileCount: number): string[] {
+  const all = osPaths.length >= fileCount ? osPaths : [...osPaths, ...filePaths]
+  return [...new Set(all.filter(Boolean))]
+}
+
+/** Largest image the composer sends (the main process enforces the same limit). */
+export const MAX_PASTE_IMAGE_BYTES = 20 * 1024 * 1024
+
+/** Most paths one `chat:statPaths` request may carry. */
+export const STAT_BATCH = 100
+/** Most attachments added by one action; the rest are dropped with a warning. */
+export const MAX_ATTACH_AT_ONCE = 500
+
+export function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}

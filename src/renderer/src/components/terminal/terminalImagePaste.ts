@@ -3,6 +3,7 @@ import {
   formatPathForClaude,
   isImagePath,
   isSafePath,
+  MAX_PASTE_IMAGE_BYTES,
   pickImageMime,
   type PasteImageMime,
   type ComposerPlatform
@@ -34,6 +35,12 @@ export function handleImagePasteEvent(e: ClipboardEvent, deps: ImagePasteDeps): 
   if (!mime) return false
   const file = Array.from(dt.files).find((f) => f.type === mime)
   if (!file) return false
+  if (file.size > MAX_PASTE_IMAGE_BYTES) {
+    e.preventDefault()
+    e.stopPropagation()
+    deps.warn('Image is larger than 20 MB')
+    return true
+  }
   e.preventDefault()
   e.stopPropagation()
   void (async () => {

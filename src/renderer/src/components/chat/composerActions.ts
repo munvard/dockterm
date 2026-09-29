@@ -2,7 +2,19 @@ import { useComposeStore } from '../../state/useComposeStore'
 import { useToastStore } from '../../state/useToastStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { composerPlatform } from '../../state/sendComposed'
-import { absolutize, baseName, isImagePath, isSafePath, pickImageMime, type Attachment } from './composerText'
+import {
+  absolutize,
+  baseName,
+  chunk,
+  isImagePath,
+  isSafePath,
+  MAX_ATTACH_AT_ONCE,
+  MAX_PASTE_IMAGE_BYTES,
+  mergeClipboardPaths,
+  pickImageMime,
+  STAT_BATCH,
+  type Attachment
+} from './composerText'
 import { findLeaf, type LeafNode } from '../../state/layout'
 
 /** The composer's side effects that talk to main: turning paths, pasted bytes and
@@ -31,23 +43,33 @@ export function leafRoot(leafId: string): string | null {
 /** Existing paths become chips (image files as images, the rest as files or folders). */
 export async function attachPaths(leafId: string, paths: string[]): Promise<number> {
   const clean = paths.filter(Boolean)
-  const unique = [...new Set(clean.filter(isSafePath))]
+  let unique = [...new Set(clean.filter(isSafePath))]
   if (unique.length < new Set(clean).size) warn('Files with control characters in their name were skipped.')
-  if (unique.length === 0) return 0
-  const res = await window.dockterm.invoke('chat:statPaths', { paths: unique, thumbs: true })
-  if (!res.ok) {
-    warn(res.error.message)
-    return 0
+  if (unique.length > MAX_ATTACH_AT_ONCE) {
+    warn(`Only the first ${MAX_ATTACH_AT_ONCE} of ${unique.length} items were attached.`)
+    unique = unique.slice(0, MAX_ATTACH_AT_ONCE)
   }
-  const items: Attachment[] = res.value.items.map((it) => ({
-    id: newId(),
-    kind: it.isDir ? 'dir' : isImagePath(it.path) ? 'image' : 'file',
-    path: it.path,
-    name: baseName(it.path),
-    thumb: it.thumb
-  }))
+  if (unique.length === 0) return 0
+  const items: Attachment[] = []
+  // The request is capped at STAT_BATCH paths, so a large drop goes in batches.
+  for (const batch of chunk(unique, STAT_BATCH)) {
+    const res = await window.dockterm.invoke('chat:statPaths', { paths: batch, thumbs: true })
+    if (!res.ok) {
+      warn(res.error.message)
+      break
+    }
+    for (const it of res.value.items) {
+      items.push({
+        id: newId(),
+        kind: it.isDir ? 'dir' : isImagePath(it.path) ? 'image' : 'file',
+        path: it.path,
+        name: baseName(it.path),
+        thumb: it.thumb
+      })
+    }
+  }
   if (items.length < unique.length) warn('Some files could not be found.')
-  useComposeStore.getState().addAttachments(leafId, items)
+  if (items.length > 0) useComposeStore.getState().addAttachments(leafId, items)
   return items.length
 }
 
@@ -62,6 +84,10 @@ const EXT_FOR_MIME: Record<string, string> = {
 export async function attachImageFile(leafId: string, file: File): Promise<boolean> {
   const mime = pickImageMime('', [file])
   if (!mime) return false
+  if (file.size > MAX_PASTE_IMAGE_BYTES) {
+    warn('Image is larger than 20 MB')
+    return false
+  }
   const res = await window.dockterm.invoke('chat:saveImage', {
     data: new Uint8Array(await file.arrayBuffer()),
     mime
@@ -82,18 +108,22 @@ export async function attachImageFile(leafId: string, file: File): Promise<boole
   return true
 }
 
-/** Paperclip: multi-select open dialog. */
-export async function pickAndAttach(leafId: string): Promise<void> {
-  const res = await window.dockterm.invoke('chat:pickFiles', undefined)
+/** Paperclip: multi-select open dialog. `directories` (Windows/Linux) picks folders instead. */
+export async function pickAndAttach(leafId: string, directories = false): Promise<void> {
+  const res = await window.dockterm.invoke('chat:pickFiles', directories ? { directories: true } : undefined)
   if (!res.ok) return warn(res.error.message)
   await attachPaths(leafId, res.value.paths)
 }
 
 /** Files copied in Finder / Explorer. Returns how many were attached (0 = none on the clipboard). */
-export async function attachClipboardFiles(leafId: string): Promise<number> {
+export async function attachClipboardFiles(leafId: string, pasted: File[] = []): Promise<number> {
   const res = await window.dockterm.invoke('clipboard:readFiles', undefined)
-  if (!res.ok || res.value.paths.length === 0) return 0
-  return attachPaths(leafId, res.value.paths)
+  const os = res.ok ? res.value.paths : []
+  // Windows yields a single path for a multi-file copy: fall back to the pasted files' own paths.
+  const own = pasted.length > os.length ? pasted.map((f) => window.dockterm.pathForFile(f)) : []
+  const paths = mergeClipboardPaths(os, own, pasted.length)
+  if (paths.length === 0) return 0
+  return attachPaths(leafId, paths)
 }
 
 /** Everything a drop can carry: DockTerm's own payload, or real files from the OS / the file tree. */

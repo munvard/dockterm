@@ -4,6 +4,9 @@ import {
   buildPromptText,
   countImageMarkers,
   imageMarkerNumbers,
+  mergeClipboardPaths,
+  chunk,
+  STAT_BATCH,
   maxImageMarker,
   newImageMarkers,
   expandPasted,
@@ -198,5 +201,24 @@ describe('paths with quotes keep their name (sol-A 9)', () => {
   })
   it('@ references use the same rule', () => {
     expect(fileRef('/p/my "x" file.ts', '/p', 'darwin')).toBe(`@'my "x" file.ts'`)
+  })
+})
+
+describe('clipboard files and large sets (Opus M9, sol-A 11)', () => {
+  it('Windows gave one path for a 3-file copy: the files own paths are added', () => {
+    expect(mergeClipboardPaths(['C:\\a.png'], ['C:\\a.png', 'C:\\b.png', 'C:\\c.png'], 3)).toEqual([
+      'C:\\a.png',
+      'C:\\b.png',
+      'C:\\c.png'
+    ])
+  })
+  it('a full OS answer is used as is, empty file paths are ignored', () => {
+    expect(mergeClipboardPaths(['/a', '/b'], ['', ''], 2)).toEqual(['/a', '/b'])
+    expect(mergeClipboardPaths([], [], 0)).toEqual([])
+  })
+  it('splits more than 100 paths into batches instead of failing the whole request', () => {
+    const many = Array.from({ length: 250 }, (_, i) => `/p/${i}`)
+    const parts = chunk(many, STAT_BATCH)
+    expect(parts.map((p) => p.length)).toEqual([100, 100, 50])
   })
 })

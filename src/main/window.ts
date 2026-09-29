@@ -5,6 +5,7 @@ import { APP_URL } from './protocol'
 import { killPtysForWindow } from './services/ptyService'
 import { stopWatchingById } from './services/watcherService'
 import { clearActiveRoot } from './services/activeRoot'
+import { clearGrants } from './services/pathGrants'
 import { getSettings, setLastProjectPath } from './services/settingsService'
 import { getWindowProject } from './services/windowNamespace'
 import { dropWindowMunu } from './services/munuService'
@@ -25,6 +26,7 @@ function cleanupWindowResources(id: number): void {
   killPtysForWindow(id)
   stopWatchingById(id)
   clearActiveRoot(id)
+  clearGrants(id)
   dropWindowMunu(id)
 }
 

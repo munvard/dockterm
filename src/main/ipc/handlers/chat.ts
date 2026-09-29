@@ -1,8 +1,11 @@
-import { BrowserWindow, clipboard, dialog } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
 import { z } from 'zod'
 import { ok, err } from '@shared/result'
 import { saveImageSchema, validateImage } from '../../services/chatImageCore'
-import { describePaths, readClipboardFilePaths, saveChatImage } from '../../services/chatFiles'
+import { alwaysAllowedDirs, describePaths, readClipboardFilePaths, saveChatImage } from '../../services/chatFiles'
+import { grantPaths, isPathAllowed } from '../../services/pathGrants'
+import { isTrustedSender } from '../../security'
+import { roleOf } from '../windowRoles'
 import type { Registrar } from '../register'
 
 export function registerChatHandlers(reg: Registrar): void {
@@ -29,24 +32,44 @@ export function registerChatHandlers(reg: Registrar): void {
     }
   })
 
-  reg('clipboard:readFiles', z.void(), () => ok({ paths: readClipboardFilePaths() }))
+  reg('clipboard:readFiles', z.void(), (_req, event) => {
+    const paths = readClipboardFilePaths()
+    grantPaths(event.sender.id, paths)
+    return ok({ paths })
+  })
+
+  // A real drop: the preload script reports the path of a genuine File object (webUtils),
+  // which a compromised renderer cannot forge, so the path becomes attachable.
+  ipcMain.on('chat:grantPath', (event, p: unknown) => {
+    if (!isTrustedSender(event.senderFrame?.url) || roleOf(event.sender.id) !== 'main') return
+    if (typeof p === 'string') grantPaths(event.sender.id, [p])
+  })
 
   reg(
     'chat:statPaths',
     z.object({ paths: z.array(z.string().max(4096)).max(100), thumbs: z.boolean() }),
-    (req) => ok({ items: describePaths(req.paths, req.thumbs) })
+    (req, event) => {
+      // Only what the user handed over this session, or lives inside a project root / the image dir.
+      const dirs = alwaysAllowedDirs(event.sender.id)
+      const allowed = req.paths.filter((p) => isPathAllowed(event.sender.id, p, dirs))
+      return ok({ items: describePaths(allowed, req.thumbs) })
+    }
   )
 
-  reg('chat:pickFiles', z.void(), async (_req, event) => {
+  reg('chat:pickFiles', z.object({ directories: z.boolean().optional() }).optional(), async (req, event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    // Windows/Linux dialogs cannot mix files and folders; macOS can.
+    // Windows/Linux dialogs cannot mix files and folders; macOS can. There, folders have their own button.
     const properties: Electron.OpenDialogOptions['properties'] =
       process.platform === 'darwin'
         ? ['openFile', 'openDirectory', 'multiSelections']
-        : ['openFile', 'multiSelections']
+        : req?.directories
+          ? ['openDirectory', 'multiSelections']
+          : ['openFile', 'multiSelections']
     const res = win
       ? await dialog.showOpenDialog(win, { properties })
       : await dialog.showOpenDialog({ properties })
-    return ok({ paths: res.canceled ? [] : res.filePaths })
+    const paths = res.canceled ? [] : res.filePaths
+    grantPaths(event.sender.id, paths)
+    return ok({ paths })
   })
 }

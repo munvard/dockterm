@@ -21,7 +21,10 @@ const EXT: Record<ImageMime, string> = {
 
 export const saveImageSchema = z.object({
   // base64 text (4/3 of the bytes) or raw bytes; the exact size is re-checked after decoding.
-  data: z.union([z.string().max(Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 8), z.instanceof(Uint8Array)]),
+  data: z.union([
+    z.string().max(Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 8),
+    z.instanceof(Uint8Array).refine((b) => b.byteLength <= MAX_IMAGE_BYTES, 'Image is larger than 20 MB')
+  ]),
   mime: z.enum(IMAGE_MIMES)
 })
 export type SaveImageReq = z.infer<typeof saveImageSchema>
@@ -39,7 +42,9 @@ export function validateImage(mime: string, byteLength: number): string | null {
 }
 
 export function decodeImageData(data: string | Uint8Array): Buffer {
-  return typeof data === 'string' ? Buffer.from(data, 'base64') : Buffer.from(data)
+  return typeof data === 'string'
+    ? Buffer.from(data, 'base64')
+    : Buffer.from(data.buffer, data.byteOffset, data.byteLength) // a view, not a second copy
 }
 
 /** A random file name (never derived from clipboard content). */

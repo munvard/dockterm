@@ -1,6 +1,7 @@
 import { app, clipboard, nativeImage } from 'electron'
-import { statSync } from 'node:fs'
+import { realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { knownRootsOf } from './activeRoot'
 import {
   classifyPaths,
   keepExistingAbsolute,
@@ -47,7 +48,8 @@ const THUMB_WIDTH = 360
 /** A small JPEG data URL for the attachment chip, or undefined (unsupported type, too big, unreadable). */
 function thumbnailFor(path: string): string | undefined {
   try {
-    if (statSync(path).size > MAX_IMAGE_BYTES) return undefined
+    const st = statSync(realpathSync(path))
+    if (!st.isFile() || st.size > MAX_IMAGE_BYTES) return undefined
     const img = nativeImage.createFromPath(path)
     if (img.isEmpty()) return undefined
     const { width } = img.getSize()
@@ -67,4 +69,9 @@ export function describePaths(
     ...p,
     thumb: thumbs && !p.isDir && /\.(png|jpe?g)$/i.test(p.path) ? thumbnailFor(p.path) : undefined
   }))
+}
+
+/** Directories whose contents may always be described: the window's project roots and the temp image dir. */
+export function alwaysAllowedDirs(webContentsId: number): string[] {
+  return [...knownRootsOf(webContentsId), imageDir()]
 }

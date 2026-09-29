@@ -26,7 +26,10 @@ const api: DockTermApi = {
   },
   pathForFile(file) {
     try {
-      return webUtils.getPathForFile(file)
+      const path = webUtils.getPathForFile(file)
+      // The main process only describes paths the user really handed over (see pathGrants).
+      if (path) ipcRenderer.send('chat:grantPath', path)
+      return path
     } catch {
       return ''
     }

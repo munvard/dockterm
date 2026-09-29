@@ -49,7 +49,7 @@ function deps(
   }
 }
 
-function pasteEvent(files: { type: string }[], text = ''): ClipboardEvent {
+function pasteEvent(files: { type: string; size?: number }[], text = ''): ClipboardEvent {
   const list = files.map((f) => ({ ...f, arrayBuffer: async () => new ArrayBuffer(4) }))
   return {
     clipboardData: { getData: () => text, files: list },
@@ -83,6 +83,15 @@ describe('terminal image paste (Claude-only gate, order of sources)', () => {
     handleImagePasteEvent(pasteEvent([{ type: 'image/png' }]), d)
     await flush()
     expect(d.pasted).toEqual([])
+  })
+
+  it('an image over 20 MB is refused before it is read or sent anywhere', async () => {
+    const invoke = vi.fn(async () => ({ ok: true, value: { path: '/tmp/x/a.png' } }))
+    const d = deps(invoke)
+    expect(handleImagePasteEvent(pasteEvent([{ type: 'image/png', size: 21 * 1024 * 1024 }]), d)).toBe(true)
+    await flush()
+    expect(invoke).not.toHaveBeenCalled()
+    expect(d.warned).toEqual(['Image is larger than 20 MB'])
   })
 
   it('ignores a paste that carries text', () => {
