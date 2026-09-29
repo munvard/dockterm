@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { isModalOpen, modalRegistry } from '@renderer/state/modalState'
 import { useDialogStore } from '@renderer/state/useDialogStore'
-import { useComposeStore } from '@renderer/state/useComposeStore'
 
 describe('isModalOpen (I1, minor 11: shortcuts must not act under an overlay)', () => {
   beforeEach(() => {
     useDialogStore.setState({ confirmState: null, promptState: null, choiceState: null })
-    useComposeStore.setState({ open: false })
   })
 
   it('is false with nothing open', () => {
@@ -21,15 +19,10 @@ describe('isModalOpen (I1, minor 11: shortcuts must not act under an overlay)', 
     expect(isModalOpen()).toBe(true)
   })
 
-  it('is true while any <Modal> is mounted (UpdatePopup) and after it leaves is false again', () => {
+  it('is true while any <Modal> is mounted (UpdatePopup, Compose) and after it leaves is false again', () => {
     modalRegistry.enter()
     expect(isModalOpen()).toBe(true)
     modalRegistry.leave()
     expect(isModalOpen()).toBe(false)
-  })
-
-  it('is true while the Compose overlay is open', () => {
-    useComposeStore.setState({ open: true })
-    expect(isModalOpen()).toBe(true)
   })
 })

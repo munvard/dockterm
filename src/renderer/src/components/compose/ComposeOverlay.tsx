@@ -1,3 +1,4 @@
+import { modalRegistry } from '../../state/modalState'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, X, CornerDownLeft, ClipboardPaste } from 'lucide-react'
@@ -32,6 +33,13 @@ export function ComposeOverlay(): React.ReactElement | null {
     ta.focus()
     const len = ta.value.length
     ta.setSelectionRange(len, len)
+  }, [open])
+
+  // While open, this overlay owns the keyboard: global shortcuts stand down.
+  useEffect(() => {
+    if (!open) return
+    modalRegistry.enter()
+    return () => modalRegistry.leave()
   }, [open])
 
   // A global Esc closes even if focus has drifted off the textarea.

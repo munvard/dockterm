@@ -3,7 +3,7 @@ import { languageForFile } from '../components/editor/language'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
 import { useAppStore } from './useAppStore'
-import { renameEditorTab, closeEditorTab, tabKey, type EditorTab, type EditorTabKind } from './editorTabs'
+import { renameEditorTab, closeEditorTab, mayCloseTab, tabKey, type EditorTab, type EditorTabKind } from './editorTabs'
 
 // Re-exported for existing consumers that import the type from here.
 export type { EditorTab, EditorTabKind }
@@ -106,16 +106,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   requestClose: async (id) => {
     const tab = get().tabs.find((t) => t.id === id)
-    if (!tab) return false
-    if (tab.dirty) {
-      const discard = await useDialogStore.getState().confirm({
+    const ok = await mayCloseTab(tab, (name) =>
+      useDialogStore.getState().confirm({
         title: 'Unsaved changes',
-        message: `"${tab.name}" has unsaved changes. Close it and discard them?`,
+        message: `"${name}" has unsaved changes. Close it and discard them?`,
         confirmLabel: 'Discard changes',
         danger: true
       })
-      if (!discard) return false
-    }
+    )
+    if (!ok) return false
     get().close(id)
     return true
   },

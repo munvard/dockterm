@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   renameEditorTab,
   closeEditorTab,
+  mayCloseTab,
   tabKey,
   type EditorTab,
   type EditorTabsState
@@ -128,5 +129,24 @@ describe('tab identity across roots (I4)', () => {
     const next = closeEditorTab({ tabs: [a, b], activeId: a.id, goto: null }, a.id)
     expect(next.tabs).toEqual([b])
     expect(next.activeId).toBe(b.id)
+  })
+})
+
+describe('mayCloseTab (I5: the keyboard and the button share one dirty guard)', () => {
+  it('asks before closing a dirty tab and refuses when the user cancels', async () => {
+    const confirm = vi.fn().mockResolvedValue(false)
+    expect(await mayCloseTab(makeTab({ dirty: true }), confirm)).toBe(false)
+    expect(confirm).toHaveBeenCalledWith('a.ts')
+  })
+
+  it('closes a dirty tab once the user agrees to discard', async () => {
+    expect(await mayCloseTab(makeTab({ dirty: true }), vi.fn().mockResolvedValue(true))).toBe(true)
+  })
+
+  it('closes a clean tab without asking, and does nothing for a missing tab', async () => {
+    const confirm = vi.fn()
+    expect(await mayCloseTab(makeTab(), confirm)).toBe(true)
+    expect(await mayCloseTab(undefined, confirm)).toBe(false)
+    expect(confirm).not.toHaveBeenCalled()
   })
 })

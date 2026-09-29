@@ -47,6 +47,17 @@ export interface EditorTabsState {
   goto: { id: string; line: number } | null
 }
 
+/** Whether closing `tab` may go ahead: a clean tab always, a dirty one only when
+ * the user agrees to discard its edits. One rule for the tab's close button and
+ * the close shortcut. */
+export async function mayCloseTab(
+  tab: EditorTab | undefined,
+  confirmDiscard: (name: string) => Promise<boolean>
+): Promise<boolean> {
+  if (!tab) return false
+  return tab.dirty ? confirmDiscard(tab.name) : true
+}
+
 /** Remove a tab; if it was active, the last remaining tab becomes active. */
 export function closeEditorTab(s: EditorTabsState, id: string): EditorTabsState {
   const tabs = s.tabs.filter((t) => t.id !== id)
