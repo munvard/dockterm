@@ -109,6 +109,14 @@ interface ConvCache {
 }
 const convByFile = new Map<string, ConvCache>()
 
+/** Revisions are unique across ALL transcripts, not per file. A caller that
+ * switches from session A to session B in the same pane (`/resume`, a fresh
+ * `claude`) sends A's last revision as `sinceRevision`; with per-file counters
+ * B's first parse could also be 1 and be answered `unchanged`, leaving A's chat
+ * on screen. */
+let revisionCounter = 0
+const nextRevision = (): number => ++revisionCounter
+
 /** Bound a long-running conversation: drop the OLDEST messages, then forget any
  * pending tool whose row is no longer retained (its result can never render). */
 function trimConversation(cache: ConvCache): void {
@@ -454,7 +462,7 @@ export async function getConversation(
         return cache ? respond(cache.messages, cache.revision) : respond([], 0)
       }
       const { lines, end } = parseTailSlice(text, start)
-      cache = { messages: [], offset: end, state: newConversationParseState(), revision: 1 }
+      cache = { messages: [], offset: end, state: newConversationParseState(), revision: nextRevision() }
       appendConversation(cache.messages, lines, cache.state)
       trimConversation(cache)
       convByFile.set(path, cache)
@@ -472,7 +480,7 @@ export async function getConversation(
         appendConversation(cache.messages, lines, cache.state)
         trimConversation(cache)
         cache.offset += consumed
-        cache.revision++
+        cache.revision = nextRevision()
       }
     }
 

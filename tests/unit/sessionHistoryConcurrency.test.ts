@@ -96,6 +96,35 @@ describe('getConversation revision / unchanged', () => {
   })
 })
 
+describe('revisions never collide across transcripts (I7)', () => {
+  it('switching a pane to another session at an equal per-file revision is not "unchanged"', async () => {
+    const cwd = '/Users/test/switch'
+    const a = transcriptPath(cwd, 'sess-a.jsonl')
+    const b = transcriptPath(cwd, 'sess-b.jsonl')
+    writeFileSync(
+      a,
+      userLine('ua1', 'alpha question about the parser module') +
+        assistantLine('aa1', 'alpha answer about the parser module')
+    )
+    writeFileSync(
+      b,
+      userLine('ub1', 'bravo question about the renderer code') +
+        assistantLine('ab1', 'bravo answer about the renderer code')
+    )
+    const sampleA = ['alpha question about the parser module', 'alpha answer about the parser module']
+    const sampleB = ['bravo question about the renderer code', 'bravo answer about the renderer code']
+
+    const first = await getConversation(cwd, sampleA, 'leaf-switch', true)
+    expect(first.messages.map((m) => m.id)).toEqual(['ua1', 'aa1'])
+
+    // Same pane now shows B; the chat still holds A's revision.
+    const second = await getConversation(cwd, sampleB, 'leaf-switch', true, first.revision)
+    expect(second.unchanged).toBeFalsy()
+    expect(second.messages.map((m) => m.id)).toEqual(['ub1', 'ab1'])
+    expect(second.revision).not.toBe(first.revision)
+  })
+})
+
 describe('pane keys keep windows apart', () => {
   it('a pane key from another window cannot inherit a sticky binding', async () => {
     const cwd = '/Users/test/isolated'
