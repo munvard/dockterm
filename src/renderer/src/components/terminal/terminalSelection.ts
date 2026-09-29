@@ -10,7 +10,23 @@ export interface Size {
 /** Wrap text in bracketed-paste markers so Claude/zsh/bash treat a multi-line
  * selection as pasted input (lands in the prompt, not submitted line-by-line). */
 export function wrapBracketedPaste(text: string): string {
-  return `\x1b[200~${text}\x1b[201~`
+  return `\x1b[200~${sanitizePasteText(text)}\x1b[201~`
+}
+
+// eslint-disable-next-line no-control-regex
+const PASTE_CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g
+
+/** Text that is safe to type into a pty as a paste: line breaks become \n, tabs stay, and every
+ * other control character (ESC included, so no text can close the bracketed paste with ESC[201~
+ * or start any escape sequence) is dropped. */
+export function sanitizePasteText(text: string): string {
+  return text.replace(/\r\n?/g, '\n').replace(PASTE_CONTROLS, '')
+}
+
+/** True when a path holds a control character (newline, ESC, ...): never safe to paste. */
+export function hasControlChars(p: string): boolean {
+  // eslint-disable-next-line no-control-regex
+  return /[\x00-\x1f\x7f-\x9f]/.test(p)
 }
 
 const NEEDS_QUOTE = /[\s"'`$\\!*?[\](){}<>|&;~#]/

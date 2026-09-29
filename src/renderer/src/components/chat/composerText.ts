@@ -5,6 +5,8 @@
  * See .claude/work/briefs/2026-09-29-composer-spec.md (Send algorithm).
  */
 
+import { hasControlChars } from '../terminal/terminalSelection'
+
 export type ComposerPlatform = 'darwin' | 'win32' | 'linux'
 
 export interface Attachment {
@@ -20,6 +22,11 @@ export interface Attachment {
 export interface PastedChip {
   id: number
   text: string
+}
+
+/** A path that can go into Claude's input as a reference: no control characters at all. */
+export function isSafePath(p: string): boolean {
+  return p.length > 0 && !hasControlChars(p)
 }
 
 export const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp)$/i
@@ -115,7 +122,10 @@ export interface BuildInput {
  */
 export function buildPromptText(input: BuildInput): string {
   const typed = expandPasted(input.text, input.chips).trim()
-  const refs = input.files.map((f) => fileRef(f.path, input.root, input.platform)).join(' ')
+  const refs = input.files
+    .filter((f) => isSafePath(f.path))
+    .map((f) => fileRef(f.path, input.root, input.platform))
+    .join(' ')
   const body = typed && refs ? `${typed}\n${refs}` : typed || refs
   return input.hadImages ? ` ${body}` : body
 }

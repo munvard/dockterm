@@ -1,5 +1,5 @@
 import { paneWriters } from './paneWriters'
-import { wrapBracketedPaste } from '../components/terminal/terminalSelection'
+import { sanitizePasteText, wrapBracketedPaste } from '../components/terminal/terminalSelection'
 
 // Claude's TUI (ink) reads the pty a chunk at a time: a bracketed-paste block
 // immediately followed by \r can land in the SAME read as one chunk, and ink
@@ -16,10 +16,10 @@ const ENTER_DELAY_MS = 70
  * pane has no registered writer (e.g. it already closed).
  */
 export function sendPrompt(leafId: string, text: string): boolean {
-  if (!text) return false
+  if (!sanitizePasteText(text)) return false
   // Raw writes (never xterm's paste path, which would wrap the text and the
   // Enter again). Wrap here, and only when the app has bracketed-paste on.
-  const body = paneWriters.bracketedPaste(leafId) ? wrapBracketedPaste(text) : text
+  const body = paneWriters.bracketedPaste(leafId) ? wrapBracketedPaste(text) : sanitizePasteText(text)
   const wrote = paneWriters.write(leafId, body)
   if (!wrote) return false
   setTimeout(() => {

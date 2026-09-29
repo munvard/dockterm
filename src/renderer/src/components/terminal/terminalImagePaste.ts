@@ -1,6 +1,7 @@
 import {
   formatPathForClaude,
   isImagePath,
+  isSafePath,
   pickImageMime,
   type ComposerPlatform
 } from '../chat/composerText'
@@ -45,7 +46,7 @@ export function handleImagePasteEvent(e: ClipboardEvent, deps: ImagePasteDeps): 
 export async function pasteImageFromSystemClipboard(deps: ImagePasteDeps): Promise<void> {
   if (!(await deps.isClaude())) return
   const files = await window.dockterm.invoke('clipboard:readFiles', undefined)
-  const images = files.ok ? files.value.paths.filter(isImagePath) : []
+  const images = files.ok ? files.value.paths.filter((p) => isImagePath(p) && isSafePath(p)) : []
   if (images.length > 0) {
     deps.paste(images.map((p) => formatPathForClaude(p, deps.platform)).join(' '))
     return

@@ -139,3 +139,29 @@ describe('sendComposedWith', () => {
     expect(h.log).toEqual([])
   })
 })
+
+describe('sendComposedWith paste safety', () => {
+  it('rejects an image path with control characters and never lets it end the paste', async () => {
+    const h = harness()
+    const evil = '/t/a.png\x1b[201~rm -rf ~\r'
+    const ok = await sendComposedWith(h.deps, 'l', { ...base, text: 'hi', attachments: [img(evil)] })
+    expect(ok).toBe(true)
+    expect(h.log).toEqual(['prompt:"hi"'])
+    expect(h.warnings).toHaveLength(1)
+  })
+
+  it('skips a file chip whose path has control characters', async () => {
+    const h = harness()
+    await sendComposedWith(h.deps, 'l', {
+      ...base,
+      text: 'see',
+      attachments: [doc('/p/x\n.txt'), doc('/p/ok.txt')]
+    })
+    expect(h.log).toEqual(['prompt:"see\\n@ok.txt"'])
+  })
+
+  it('strips a terminating sequence from the text of a send (chips too)', async () => {
+    const { wrapBracketedPaste } = await import('../../src/renderer/src/components/terminal/terminalSelection')
+    expect(wrapBracketedPaste('x\x1b[201~rm -rf ~\r')).toBe('\x1b[200~x[201~rm -rf ~\n\x1b[201~')
+  })
+})

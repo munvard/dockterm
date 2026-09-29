@@ -1,7 +1,8 @@
-import { wrapBracketedPaste } from '../components/terminal/terminalSelection'
+import { sanitizePasteText, wrapBracketedPaste } from '../components/terminal/terminalSelection'
 import {
   buildImagePaste,
   buildPromptText,
+  isSafePath,
   countImageMarkers,
   type Attachment,
   type ComposerPlatform,
@@ -44,7 +45,9 @@ export async function sendComposedWith(
   leafId: string,
   input: ComposedInput
 ): Promise<boolean> {
-  const images = input.attachments.filter((a) => a.kind === 'image')
+  const images = input.attachments.filter((a) => a.kind === 'image' && isSafePath(a.path))
+  const skipped = input.attachments.filter((a) => a.kind === 'image').length - images.length
+  if (skipped > 0) deps.warn('An image with an unusual file name was not sent.')
   const files = input.attachments.filter((a) => a.kind !== 'image')
 
   if (images.length > 0) {
@@ -55,7 +58,7 @@ export async function sendComposedWith(
       input.platform,
       bracketed
     )
-    if (!deps.write(leafId, bracketed ? wrapBracketedPaste(payload) : payload)) return false
+    if (!deps.write(leafId, bracketed ? wrapBracketedPaste(payload) : sanitizePasteText(payload))) return false
 
     const started = deps.now()
     let seen = false

@@ -2,7 +2,7 @@ import { useComposeStore } from '../../state/useComposeStore'
 import { useToastStore } from '../../state/useToastStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { composerPlatform } from '../../state/sendComposed'
-import { absolutize, baseName, isImagePath, pickImageMime, type Attachment } from './composerText'
+import { absolutize, baseName, isImagePath, isSafePath, pickImageMime, type Attachment } from './composerText'
 import { findLeaf, type LeafNode } from '../../state/layout'
 
 /** The composer's side effects that talk to main: turning paths, pasted bytes and
@@ -30,7 +30,9 @@ export function leafRoot(leafId: string): string | null {
 
 /** Existing paths become chips (image files as images, the rest as files or folders). */
 export async function attachPaths(leafId: string, paths: string[]): Promise<number> {
-  const unique = [...new Set(paths.filter(Boolean))]
+  const clean = paths.filter(Boolean)
+  const unique = [...new Set(clean.filter(isSafePath))]
+  if (unique.length < new Set(clean).size) warn('Files with control characters in their name were skipped.')
   if (unique.length === 0) return 0
   const res = await window.dockterm.invoke('chat:statPaths', { paths: unique, thumbs: true })
   if (!res.ok) {
