@@ -28,4 +28,12 @@ describe('parseOsc7', () => {
     expect(parseOsc7('')).toBeNull()
     expect(parseOsc7('garbage')).toBeNull()
   })
+
+  it('converts a doubled leading slash to a UNC path on Windows only', () => {
+    expect(parseOsc7('file://PC//server/share/dir', 'win32')).toBe('\\\\server\\share\\dir')
+    // POSIX: "//usr/bin" (a valid path) is left alone.
+    expect(parseOsc7('file://host//usr/bin', 'darwin')).toBe('//usr/bin')
+    expect(parseOsc7('file://host//usr/bin', 'linux')).toBe('//usr/bin')
+    expect(parseOsc7('file://host//usr/bin')).toBe('//usr/bin')
+  })
 })

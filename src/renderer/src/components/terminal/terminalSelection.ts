@@ -22,13 +22,15 @@ const NEEDS_QUOTE = /[\s"'`$\\!*?[\](){}<>|&;~#]/
  * double quotes, so a folder literally named `notes ($(rm -rf ~))` would run
  * when the pasted line is submitted. Single-quoting is the only POSIX style
  * that treats everything inside it literally: close the quote, splice in an
- * escaped literal quote, reopen. Windows shells (cmd.exe, pwsh) don't have
- * that literal-quote convention, so they get double-quoting with embedded
- * double quotes escaped instead.
+ * escaped literal quote, reopen. On Windows the shell DockTerm spawns is
+ * PowerShell (pwsh, then Windows PowerShell; cmd.exe only when neither exists),
+ * where double quotes still expand `$var` and backtick escapes, so a file named
+ * `a$b.txt` would be changed. Single quotes are literal there too; an embedded
+ * quote (straight or curly, PowerShell treats both as quotes) is doubled.
  */
 export function quotePath(p: string, platform: string): string {
   if (!NEEDS_QUOTE.test(p)) return p
-  if (platform === 'win32') return `"${p.replace(/"/g, '""')}"`
+  if (platform === 'win32') return `'${p.replace(/['\u2018\u2019\u201A\u201B]/g, (q) => q + q)}'`
   return `'${p.replace(/'/g, `'\\''`)}'`
 }
 

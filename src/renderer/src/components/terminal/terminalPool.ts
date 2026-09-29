@@ -332,7 +332,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // Track the shell's working directory via OSC 7 (shell integration) so the dock
   // can follow `cd`. Returns true = handled.
   const osc7 = term.parser.registerOscHandler(7, (data) => {
-    const cwd = parseOsc7(data)
+    const cwd = parseOsc7(data, document.documentElement.dataset.platform ?? '')
     if (cwd) p.opts.onCwd?.(cwd)
     return true
   })

@@ -2,9 +2,10 @@
  * Parse the payload of an `OSC 7` sequence (`ESC ] 7 ; <payload> BEL`) into a
  * local filesystem path. Shells emit `file://<host><path>` on each prompt so the
  * terminal can track the working directory. Returns null for anything we can't
- * confidently turn into a path.
+ * confidently turn into a path. `platform` is the document's data-platform
+ * ('win32' converts a doubled leading slash to a UNC path).
  */
-export function parseOsc7(payload: string): string | null {
+export function parseOsc7(payload: string, platform = ''): string | null {
   if (!payload.startsWith('file://')) return null
   const rest = payload.slice('file://'.length)
   const slash = rest.indexOf('/')
@@ -21,7 +22,8 @@ export function parseOsc7(payload: string): string | null {
   // integration keeps the doubled leading slash to mark it, since the host
   // segment here is our own machine name, not the remote server. Convert every
   // separator to a backslash for the real Windows UNC form.
-  if (/^\/\/[^/]+\/[^/]+/.test(path)) {
+  // Only on Windows: on macOS/Linux "//usr/bin" is a valid POSIX path.
+  if (platform === 'win32' && /^\/\/[^/]+\/[^/]+/.test(path)) {
     return path.replace(/\//g, '\\')
   }
 

@@ -67,9 +67,15 @@ describe('quotePath', () => {
     expect(quotePath("O'Brien's notes", 'darwin')).toBe(`'O'\\''Brien'\\''s notes'`)
   })
 
-  it('Windows: double-quotes a path with a space and escapes embedded quotes', () => {
-    expect(quotePath('my folder\\file.ts', 'win32')).toBe('"my folder\\file.ts"')
-    expect(quotePath('say "hi"/file.ts', 'win32')).toBe('"say ""hi""/file.ts"')
+  it('Windows (PowerShell): single-quotes a path with a space and doubles embedded quotes', () => {
+    expect(quotePath('my folder\\file.ts', 'win32')).toBe("'my folder\\file.ts'")
+    expect(quotePath("O'Brien\\a b.ts", 'win32')).toBe("'O''Brien\\a b.ts'")
+    expect(quotePath('it\u2019s a.ts', 'win32')).toBe("'it\u2019\u2019s a.ts'")
+  })
+
+  it('Windows: $var and backticks stay literal (double quotes would expand them)', () => {
+    expect(quotePath('C:\\a$b.txt', 'win32')).toBe("'C:\\a$b.txt'")
+    expect(quotePath('C:\\a`n.txt', 'win32')).toBe("'C:\\a`n.txt'")
   })
 
   it('quotes a path containing shell metacharacters even without whitespace', () => {
