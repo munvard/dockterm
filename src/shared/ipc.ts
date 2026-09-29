@@ -238,6 +238,8 @@ export interface InvokeChannels {
   'project:getRecent': (req: void) => Result<RecentProject[]>
   'project:gitInit': (req: PathReq) => Result<ProjectInfo>
   'project:setActiveRoot': (req: PathReq) => Result<{ root: string }>
+  /** The folder the OS asked to open before this window existed, once (or null). */
+  'project:takePendingOpen': (req: void) => Result<{ path: string | null }>
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:search': (req: { query: string }) => Result<TreeNode[]>
@@ -418,6 +420,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'project:getRecent',
   'project:gitInit',
   'project:setActiveRoot',
+  'project:takePendingOpen',
   'fs:readTree',
   'fs:search',
   'fs:readFile',

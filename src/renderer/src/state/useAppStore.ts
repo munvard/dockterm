@@ -1,3 +1,4 @@
+import { pickStartupProject } from './startupProject'
 import { create } from 'zustand'
 import type { Settings, ProjectInfo, RecentProject, PanelId } from '@shared/types'
 import type { SettingsPatch } from '@shared/ipc'
@@ -66,7 +67,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     // pointed at a folder, or a Finder/Explorer "open with", or "Open in new
     // window"). Registered before any await so a request that lands right after
     // the page loads is never missed.
+    let openRequested = false
     window.dockterm.on('project:openRequested', ({ path }) => {
+      openRequested = true
       void get().openProject(path)
     })
     const [settingsRes, recentRes, primaryRes] = await Promise.all([
@@ -90,10 +93,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     window.dockterm.on('window:primaryChanged', (nowPrimary) => set({ isPrimary: nowPrimary }))
     // Only the primary window restores the last project; secondary (⌘N) windows
     // open project-less and show the welcome screen (Cursor-style).
-    const last = settings?.lastProjectPath
-    if (last && isPrimary) {
-      const res = await window.dockterm.invoke('project:open', { path: last })
-      if (res.ok) set({ project: res.value })
+    // A folder the OS asked us to open on a cold start (Finder "Open With")
+    // beats the remembered project, and an open request that arrived meanwhile
+    // beats both: never let the restore overwrite what the user asked for.
+    const pendingRes = isPrimary ? await window.dockterm.invoke('project:takePendingOpen', undefined) : null
+    const pending = pendingRes?.ok ? pendingRes.value.path : null
+    const start = pickStartupProject(pending, settings?.lastProjectPath, isPrimary)
+    if (start && !openRequested) {
+      const res = await window.dockterm.invoke('project:open', { path: start })
+      if (res.ok && !openRequested) set({ project: res.value })
     }
     set({ ready: true })
   },

@@ -13,6 +13,7 @@ import { startUpdateChecker } from './services/updateChecker'
 import { startUsageWatcher } from './services/usageService'
 import { startAgentWatcher } from './services/agentActivityService'
 import { startSessionHistoryWatcher } from './services/sessionHistoryService'
+import { setPendingOpen } from './services/pendingOpen'
 import { destroyOverlay, getOverlay } from './overlayWindow'
 
 // node-pty's Windows conpty backend can re-launch the packaged .exe itself as a
@@ -75,16 +76,19 @@ if (process.argv.includes('conpty_console_list_agent')) {
     // A path passed to `open -a DockTerm <path>` / a Finder "Open With" arrives
     // via 'open-file' (macOS), not argv — captured even if it fires before the
     // app (or a window) is ready, and flushed once one exists.
-    let pendingOpenPath: string | null = null
     app.on('open-file', (event, filePath) => {
       event.preventDefault()
       if (!app.isReady()) {
-        pendingOpenPath = filePath
+        setPendingOpen(filePath)
         return
       }
       const win = pickTargetWindow()
       if (!win) {
-        pendingOpenPath = filePath
+        // No window to hand it to (macOS, app alive): open one; its renderer
+        // takes the pending folder while it starts up.
+        setPendingOpen(filePath)
+        createMainWindow()
+        syncOverlay()
         return
       }
       focusWindow(win)
@@ -103,7 +107,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
       applyGlobalSecurity()
       serveAppProtocol()
       registerIpc()
-      const win = createMainWindow()
+      createMainWindow()
       setupAppMenu()
       setupMenubar()
       syncOverlay()
@@ -112,11 +116,8 @@ if (process.argv.includes('conpty_console_list_agent')) {
       startAgentWatcher()
       startSessionHistoryWatcher()
 
-      if (pendingOpenPath) {
-        const path = pendingOpenPath
-        pendingOpenPath = null
-        openPathInWindow(win, path)
-      }
+      // A folder queued before the window existed stays pending: the renderer
+      // pulls it (project:takePendingOpen) before it restores the last project.
 
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

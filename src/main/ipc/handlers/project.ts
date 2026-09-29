@@ -13,6 +13,7 @@ import { setActiveRoot } from '../../services/activeRoot'
 import { setWindowProject } from '../../services/windowNamespace'
 import { resolveProjectRoot } from '../../services/projectResolve'
 import { isPrimaryWindow } from '../../window'
+import { takePendingOpen } from '../../services/pendingOpen'
 import type { Registrar } from '../register'
 
 const pathSchema = z.object({ path: z.string().min(1).max(4096) })
@@ -50,6 +51,11 @@ export function registerProjectHandlers(reg: Registrar): void {
       return err('NOT_FOUND', e instanceof Error ? e.message : 'Cannot open project')
     }
   })
+
+  reg('project:takePendingOpen', z.void(), (_req, event) =>
+    // Only the primary window restores/opens the startup project.
+    ok({ path: isPrimaryWindow(event.sender.id) ? takePendingOpen() : null })
+  )
 
   reg('project:setActiveRoot', pathSchema, (req, event) => {
     // `req.path` may be any terminal cwd (including one reported by an OSC 7
