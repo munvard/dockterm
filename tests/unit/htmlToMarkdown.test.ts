@@ -102,3 +102,37 @@ describe('shouldConvertHtml', () => {
     expect(shouldConvertHtml(html, types)).toBe(true)
   })
 })
+
+describe('code shown as a table stays plain text (Opus I5)', () => {
+  const github =
+    '<table class="highlight tab-size js-file-line-container"><tbody>' +
+    '<tr><td class="blob-num js-line-number" data-line-number="1"></td><td class="blob-code blob-code-inner js-file-line">  if (a || b) {</td></tr>' +
+    '<tr><td class="blob-num js-line-number" data-line-number="2"></td><td class="blob-code blob-code-inner js-file-line">    run(x)</td></tr>' +
+    '</tbody></table>'
+  const pygments =
+    '<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1\n2</pre></div></td>' +
+    '<td class="code"><div class="highlight"><pre>def f(a):\n    return a | 1</pre></div></td></tr></table>'
+
+  it('GitHub classic blob/diff table is not converted', () => {
+    expect(shouldConvertHtml(github, ['text/html', 'text/plain'])).toBe(false)
+  })
+  it('Pygments / Sphinx table is not converted', () => {
+    expect(shouldConvertHtml(pygments, ['text/html', 'text/plain'])).toBe(false)
+  })
+  it('a code element inside any table keeps the paste plain', () => {
+    expect(shouldConvertHtml('<table><tr><td><code>x</code></td><td>y</td></tr></table>', [])).toBe(false)
+  })
+  it('an ordinary data table (Sheets shape) is still converted', () => {
+    const sheets = '<table><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table>'
+    expect(shouldConvertHtml(sheets, [])).toBe(true)
+    expect(htmlToMarkdown(sheets)).toContain('| a | b |')
+  })
+  it('pasteText hands the plain text through for those fixtures', async () => {
+    const { pasteText } = await import('../../src/renderer/src/components/chat/composerPaste')
+    const plain = '  if (a || b) {\n    run(x)'
+    expect(pasteText({ text: plain, html: github, types: [] })).toBe(plain)
+    expect(pasteText({ text: 'def f(a):\n    return a | 1', html: pygments, types: [] })).toBe(
+      'def f(a):\n    return a | 1'
+    )
+  })
+})

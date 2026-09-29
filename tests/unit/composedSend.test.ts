@@ -201,3 +201,25 @@ describe('sendComposedWith Claude-only gate', () => {
     expect(h.log[h.log.length - 1]).toBe('check')
   })
 })
+
+describe('sendComposedWith image confirmation with a scrolled marker (sol-A 6)', () => {
+  it('confirms a new marker although an older one left the screen (count unchanged)', async () => {
+    let clock = 0
+    let pasted = false
+    const warnings: string[] = []
+    const deps: SendDeps = {
+      bracketedPaste: () => true,
+      write: () => ((pasted = true), true),
+      // before: #1 #2 on screen; after: #1 scrolled off, #2 #3 on screen (still 2 markers)
+      visibleText: () => (pasted ? '[Image #2] [Image #3]' : '[Image #1] [Image #2]'),
+      sendPrompt: async () => true,
+      isClaude: async () => true,
+      sleep: async (ms) => void (clock += ms),
+      now: () => clock,
+      warn: (m) => warnings.push(m)
+    }
+    await sendComposedWith(deps, 'l', { ...base, text: 'x', attachments: [img('/a.png')] })
+    expect(warnings).toEqual([])
+    expect(clock).toBeLessThan(IMAGE_TIMEOUT_MS)
+  })
+})

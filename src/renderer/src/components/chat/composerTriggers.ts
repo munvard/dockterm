@@ -9,13 +9,13 @@ export interface Trigger {
   end: number
 }
 
-/** `/word` at the start of the caret's line, or `@word` after whitespace / line start. */
+/** `/word` at the very start of the input (Claude only reads a slash command there), or `@word` after whitespace / line start. */
 export function detectTrigger(value: string, caret: number): Trigger | null {
   const before = value.slice(0, caret)
   const lineStart = before.lastIndexOf('\n') + 1
   const line = before.slice(lineStart)
   const slash = /^\/([\w:.-]*)$/.exec(line)
-  if (slash) return { kind: 'slash', query: slash[1], start: lineStart, end: caret }
+  if (slash && lineStart === 0) return { kind: 'slash', query: slash[1], start: lineStart, end: caret }
   const at = /(^|\s)@([^\s@]*)$/.exec(line)
   if (at) {
     const start = lineStart + line.length - at[2].length - 1
@@ -117,4 +117,17 @@ export function mergeCommands(
 /** True while an IME is composing: Enter / Esc / arrows then belong to the IME, not the composer. */
 export function isComposingKey(e: { isComposing?: boolean; keyCode?: number }): boolean {
   return e.isComposing === true || e.keyCode === 229
+}
+
+export type EscapeIntent = 'cancel-voice' | 'dismiss-popup' | 'interrupt'
+
+/**
+ * What Esc does in the composer. A live `/` or `@` trigger owns Esc even while its
+ * popup shows only a note ("Type to search", "No matching files") or nothing yet
+ * (the search debounce): otherwise Esc would reach the pane and interrupt a running turn.
+ */
+export function escapeIntent(s: { voiceActive: boolean; triggerActive: boolean }): EscapeIntent {
+  if (s.voiceActive) return 'cancel-voice'
+  if (s.triggerActive) return 'dismiss-popup'
+  return 'interrupt'
 }

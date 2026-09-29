@@ -3,6 +3,7 @@ import {
   applyCompletion,
   BUILTIN_COMMANDS,
   detectTrigger,
+  escapeIntent,
   fuzzyScore,
   isComposingKey,
   mergeCommands,
@@ -17,9 +18,9 @@ import {
 } from '../../src/renderer/src/components/chat/promptHistory'
 
 describe('detectTrigger', () => {
-  it('finds a slash command at line start', () => {
+  it('finds a slash command at the start of the input', () => {
     expect(detectTrigger('/com', 4)).toEqual({ kind: 'slash', query: 'com', start: 0, end: 4 })
-    expect(detectTrigger('hi\n/mo', 6)).toEqual({ kind: 'slash', query: 'mo', start: 3, end: 6 })
+    expect(detectTrigger('hi\n/mo', 6)).toBeNull() // M6: a slash command only counts at the start of the input
   })
   it('ignores a slash in the middle of a line or after a space', () => {
     expect(detectTrigger('a /com', 6)).toBeNull()
@@ -134,5 +135,17 @@ describe('isComposingKey', () => {
     expect(isComposingKey({ isComposing: false, keyCode: 229 })).toBe(true)
     expect(isComposingKey({ isComposing: false, keyCode: 13 })).toBe(false)
     expect(isComposingKey({})).toBe(false)
+  })
+})
+
+describe('escapeIntent (Opus I1)', () => {
+  it('Esc with a live @ trigger dismisses the popup instead of interrupting Claude', () => {
+    const t = detectTrigger('look at @', 9)
+    expect(t).not.toBeNull()
+    expect(escapeIntent({ voiceActive: false, triggerActive: t !== null })).toBe('dismiss-popup')
+  })
+  it('recording wins, and with nothing to dismiss Esc interrupts', () => {
+    expect(escapeIntent({ voiceActive: true, triggerActive: true })).toBe('cancel-voice')
+    expect(escapeIntent({ voiceActive: false, triggerActive: false })).toBe('interrupt')
   })
 })

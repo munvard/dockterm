@@ -3,7 +3,8 @@ import {
   buildImagePaste,
   buildPromptText,
   isSafePath,
-  countImageMarkers,
+  maxImageMarker,
+  newImageMarkers,
   type Attachment,
   type ComposerPlatform,
   type PastedChip
@@ -55,7 +56,7 @@ export async function sendComposedWith(
   if (!(await deps.isClaude(leafId))) return false
 
   if (images.length > 0) {
-    const before = countImageMarkers(deps.visibleText(leafId))
+    const baseMax = maxImageMarker(deps.visibleText(leafId))
     const bracketed = deps.bracketedPaste(leafId)
     const payload = buildImagePaste(
       images.map((i) => i.path),
@@ -68,7 +69,7 @@ export async function sendComposedWith(
     let seen = false
     while (deps.now() - started < IMAGE_TIMEOUT_MS) {
       await deps.sleep(IMAGE_POLL_MS)
-      if (countImageMarkers(deps.visibleText(leafId)) >= before + images.length) {
+      if (newImageMarkers(deps.visibleText(leafId), baseMax) >= images.length) {
         seen = true
         break
       }

@@ -3,6 +3,9 @@ import {
   buildImagePaste,
   buildPromptText,
   countImageMarkers,
+  imageMarkerNumbers,
+  maxImageMarker,
+  newImageMarkers,
   expandPasted,
   fileRef,
   formatPathForClaude,
@@ -165,5 +168,35 @@ describe('absolutize', () => {
     expect(absolutize(null, 'a.ts', 'darwin')).toBe('a.ts')
     expect(absolutize('C:\\p', 'src\\a.ts', 'win32')).toBe('C:\\p\\src\\a.ts')
     expect(absolutize('C:\\p', 'D:\\x\\a.ts', 'win32')).toBe('D:\\x\\a.ts')
+  })
+})
+
+describe('image confirmation by marker number (sol-A 6)', () => {
+  it('reads the numbers and the highest one', () => {
+    expect(imageMarkerNumbers('[Image #2] x [Image #10] [Image #2]').sort((a, b) => a - b)).toEqual([2, 10])
+    expect(maxImageMarker('nothing')).toBe(0)
+    expect(maxImageMarker('[Image #3] [Image #12]')).toBe(12)
+  })
+  it('a new marker counts even when an old one scrolled off, so the visible count did not rise', () => {
+    // before: #1 #2 visible. after: #1 scrolled away, #2 #3 visible: same count (2), but #3 is new.
+    expect(newImageMarkers('[Image #2] [Image #3]', 2)).toBe(1)
+    expect(countImageMarkers('[Image #2] [Image #3]')).toBe(2)
+  })
+  it('markers already on screen do not confirm anything', () => {
+    expect(newImageMarkers('[Image #1] [Image #2]', 2)).toBe(0)
+  })
+})
+
+describe('paths with quotes keep their name (sol-A 9)', () => {
+  it('never deletes a double quote from a path with spaces', () => {
+    expect(formatPathForClaude('/tmp/a "b".png', 'darwin')).toBe("'/tmp/a \"b\".png'")
+    expect(formatPathForClaude('/tmp/a b.png', 'darwin')).toBe('"/tmp/a b.png"')
+  })
+  it('a name holding both kinds of quote is passed through unaltered', () => {
+    const p = `/tmp/it's "a" b.png`
+    expect(formatPathForClaude(p, 'darwin')).toContain(p)
+  })
+  it('@ references use the same rule', () => {
+    expect(fileRef('/p/my "x" file.ts', '/p', 'darwin')).toBe(`@'my "x" file.ts'`)
   })
 })

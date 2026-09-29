@@ -281,6 +281,20 @@ export function htmlToMarkdown(html: string): string {
   return normalize(render(parseHtml(html), { pre: false, inCell: false }))
 }
 
+const TABLE_RE = /<table[\s>][\s\S]*?<\/table>/gi
+// GitHub's classic blob/diff view (`td.blob-code`, `data-line-number`), Pygments/Sphinx
+// (`table.highlighttable`, `td.linenos`), or any `<pre>` / `<code>` inside a table.
+const CODE_TABLE_RE =
+  /<(pre|code)[\s>/]|data-line-number|class\s*=\s*["'][^"']*(blob-code|blob-num|highlight|linenos|codehilite|\bcode\b)/i
+
+/**
+ * Code shown as a table (one row per line, a line-number column) would become a
+ * broken GFM table: indentation and newlines are lost. Such a paste stays plain text.
+ */
+function hasCodeTable(html: string): boolean {
+  return (html.match(TABLE_RE) ?? []).some((t) => CODE_TABLE_RE.test(t))
+}
+
 const STRUCTURAL_RE = /<(table|ul|ol|h[1-6]|pre|blockquote)[\s>/]|<a\s[^>]*href\s*=/i
 const CODE_EDITOR_MIMES = ['vscode-editor-data']
 
@@ -292,6 +306,7 @@ const CODE_EDITOR_MIMES = ['vscode-editor-data']
 export function shouldConvertHtml(html: string, types: readonly string[]): boolean {
   if (types.some((t) => CODE_EDITOR_MIMES.includes(t))) return false
   if (!STRUCTURAL_RE.test(html)) return false
+  if (hasCodeTable(html)) return false
   const monoOnly =
     /font-family:[^;"']*(monospace|menlo|consolas|courier|monaco)/i.test(html) &&
     /white-space:\s*pre/i.test(html) &&

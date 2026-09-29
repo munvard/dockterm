@@ -45,8 +45,15 @@ function toClaudePath(p: string, platform: ComposerPlatform): string {
   return platform === 'win32' ? p.replace(/\\/g, '/') : p
 }
 
+/**
+ * Paths with whitespace are wrapped in quotes, which Claude strips from around
+ * the whole path. The quote character is chosen so it does not occur inside the
+ * path (a `"` in a name is never deleted: that would point at a different file).
+ */
 function quoteIfSpaces(p: string): string {
-  return /\s/.test(p) ? `"${p.replace(/"/g, '')}"` : p
+  if (!/\s/.test(p)) return p
+  const q = p.includes('"') && !p.includes("'") ? "'" : '"'
+  return `${q}${p}${q}`
 }
 
 /** One absolute path as Claude's paste handler wants it. */
@@ -85,7 +92,7 @@ export function relativeInside(root: string | null, abs: string, platform: Compo
 /** `@relative/path` inside the pane root, else the absolute path (quoted if it has spaces). */
 export function fileRef(absPath: string, root: string | null, platform: ComposerPlatform): string {
   const rel = relativeInside(root, absPath, platform)
-  if (rel !== null) return /\s/.test(rel) ? `@"${rel.replace(/"/g, '')}"` : `@${rel}`
+  if (rel !== null) return /\s/.test(rel) ? `@${quoteIfSpaces(rel)}` : `@${rel}`
   return formatPathForClaude(absPath, platform)
 }
 
@@ -133,6 +140,27 @@ export function buildPromptText(input: BuildInput): string {
 /** How many `[Image #` markers the pane's visible text shows. */
 export function countImageMarkers(visible: string): number {
   return (visible.match(/\[Image #/g) ?? []).length
+}
+
+/** The distinct `[Image #N]` numbers on screen. */
+export function imageMarkerNumbers(visible: string): number[] {
+  const out = new Set<number>()
+  for (const m of visible.matchAll(/\[Image #(\d+)\]/g)) out.add(Number(m[1]))
+  return [...out]
+}
+
+/** The highest `[Image #N]` number on screen (0 when none). */
+export function maxImageMarker(visible: string): number {
+  return Math.max(0, ...imageMarkerNumbers(visible))
+}
+
+/**
+ * How many NEW images Claude has confirmed since `baseMax` was read: markers
+ * numbered above it. Claude numbers images upward, so a marker scrolling off
+ * the screen (which keeps a plain count from rising) cannot hide a new one.
+ */
+export function newImageMarkers(visible: string, baseMax: number): number {
+  return imageMarkerNumbers(visible).filter((n) => n > baseMax).length
 }
 
 /** A dropped or attached path made absolute against `root` when it is relative. */
