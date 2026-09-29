@@ -86,7 +86,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       miniTermOpen: settings?.ui.miniTermOpen ?? false,
       isPrimary
     })
-    window.dockterm.on('settings:changed', (next) => set({ settings: next }))
+    // The broadcast carries `workspace: null` (it is per-window state and never
+    // rides along), so keep the copy read at boot: Shell restores the layout from
+    // it once, and a settings change landing first must not erase it.
+    window.dockterm.on('settings:changed', (next) =>
+      set((s) => ({ settings: { ...next, workspace: s.settings?.workspace ?? null } }))
+    )
     // The window that owns "primary" (workspace persistence, restoring the last
     // project) can hand off at runtime — e.g. the primary window closes and this
     // one becomes primary. Read once at boot above; react to it live here.

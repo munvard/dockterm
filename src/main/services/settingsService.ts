@@ -326,6 +326,12 @@ export function addRecentProject(entry: RecentProject, setAsLastProject: boolean
   })
 }
 
+/** Makes `path` the project a relaunch reopens (a window inherited the primary
+ * role, so its project and saved layout are now the ones that must match). */
+export function setLastProjectPath(path: string): void {
+  getStore().update({ lastProjectPath: path })
+}
+
 /** Clears the remembered project if it matches `path` — used when reopening it
  * fails so a stale/unwanted last project self-heals instead of reopening forever. */
 export function clearLastProjectIfMatches(path: string): void {

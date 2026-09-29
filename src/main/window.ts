@@ -5,7 +5,8 @@ import { APP_URL } from './protocol'
 import { killPtysForWindow } from './services/ptyService'
 import { stopWatchingById } from './services/watcherService'
 import { clearActiveRoot } from './services/activeRoot'
-import { getSettings } from './services/settingsService'
+import { getSettings, setLastProjectPath } from './services/settingsService'
+import { getWindowProject } from './services/windowNamespace'
 import { dropWindowMunu } from './services/munuService'
 import { destroyOverlay, getOverlay } from './overlayWindow'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
@@ -91,6 +92,11 @@ export function createWindow(): BrowserWindow {
       if (primaryId !== null) {
         const newPrimary = BrowserWindow.getAllWindows().find((w) => w.webContents.id === primaryId)
         if (newPrimary && !newPrimary.isDestroyed()) {
+          // The new primary persists ITS workspace (projectPath = its project), so
+          // the remembered project must follow, or a relaunch opens the old one
+          // and refuses to restore a layout saved for another folder.
+          const project = getWindowProject(primaryId)
+          if (project) setLastProjectPath(project)
           newPrimary.webContents.send('window:primaryChanged', true)
         }
       }

@@ -19,8 +19,18 @@ export function paneKey(senderId: number, leafId: string): string {
  * inside one window, while the opened project is what a restart reopens. */
 const openedProject = new Map<number, string>()
 
+/** The same project as the user's path, casing intact (`openedProject` holds the
+ * canonical form, which is lower-cased on Windows). */
+const openedProjectPath = new Map<number, string>()
+
 export function setWindowProject(senderId: number, projectPath: string): void {
   openedProject.set(senderId, canonical(projectPath))
+  openedProjectPath.set(senderId, projectPath)
+}
+
+/** The project a window opened, as passed to `project:open`, or null. */
+export function getWindowProject(senderId: number): string | null {
+  return openedProjectPath.get(senderId) ?? null
 }
 
 function canonical(root: string): string {

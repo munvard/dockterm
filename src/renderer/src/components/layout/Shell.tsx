@@ -126,7 +126,11 @@ export function Shell() {
     useGitStore.getState().reset()
     useChangesStore.getState().reset()
     void window.dockterm.invoke('project:setActiveRoot', { path: focusedCwd }).then((res) => {
-      if (!res.ok) return
+      if (!res.ok) {
+        // Don't leave the panel on "Loading" forever with nothing to retry.
+        useGitStore.setState({ error: res.error.message })
+        return
+      }
       useAppStore.getState().setActiveRoot(res.value.root)
       void useGitStore.getState().refresh()
       // Keep the per-pane Changes overlay scoped to the focused terminal's repo.

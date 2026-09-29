@@ -207,6 +207,10 @@ export const useGitStore = create<GitState>((set, get) => ({
     await get().refreshBranches()
   },
 
-  reset: () =>
+  reset: () => {
+    // Invalidate any refresh still in flight for the old root: its response must
+    // not repaint the old project's status after this reset.
+    refreshSeq++
     set({ status: null, branches: null, log: [], loading: false, error: null, draftMessage: '' })
+  }
 }))

@@ -45,13 +45,13 @@ function makeTab(cwd: string): WsTab {
 // Debounced so a drag-resize or a burst of focus changes coalesces into one write.
 const PERSIST_DEBOUNCE_MS = 300
 let persistTimer: ReturnType<typeof setTimeout> | null = null
+let pendingWrite: (() => void) | null = null
 
 function persist(tabs: WsTab[], activeId: string): void {
   if (!isPrimaryWindow) return
   if (persistTimer) clearTimeout(persistTimer)
   const projectPath = currentProjectPath
-  persistTimer = setTimeout(() => {
-    persistTimer = null
+  pendingWrite = () => {
     void window.dockterm.invoke('settings:set', {
       workspace: {
         tabs: tabs.map((t) => ({
@@ -64,8 +64,21 @@ function persist(tabs: WsTab[], activeId: string): void {
         projectPath
       }
     })
-  }, PERSIST_DEBOUNCE_MS)
+  }
+  persistTimer = setTimeout(flushPersist, PERSIST_DEBOUNCE_MS)
 }
+
+/** Write a debounced workspace save now. Also runs on `beforeunload`, so a
+ * split or close followed by a quit inside the debounce window isn't lost. */
+export function flushPersist(): void {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = null
+  const write = pendingWrite
+  pendingWrite = null
+  write?.()
+}
+
+if (typeof window !== 'undefined') window.addEventListener('beforeunload', flushPersist)
 
 interface WorkspaceStore {
   tabs: WsTab[]

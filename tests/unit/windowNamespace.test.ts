@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { bufferNamespace, paneKey, setWindowProject } from '@main/services/windowNamespace'
+import { bufferNamespace, getWindowProject, paneKey, setWindowProject } from '@main/services/windowNamespace'
 import { setActiveRoot, clearActiveRoot } from '@main/services/activeRoot'
 
 describe('paneKey', () => {
@@ -75,6 +75,13 @@ describe('bufferNamespace', () => {
     setWindowProject(9108, a)
     setWindowProject(9108, b)
     expect(bufferNamespace(9108)).toBe(canonicalOf(b))
+  })
+
+  it('remembers the project as the user passed it, for the primary handoff (minor 4)', () => {
+    const p = proj()
+    setWindowProject(9109, p)
+    expect(getWindowProject(9109)).toBe(p)
+    expect(getWindowProject(9198)).toBeNull()
   })
 
   it('throws for a window that never opened a project', () => {
