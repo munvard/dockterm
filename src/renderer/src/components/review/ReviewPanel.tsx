@@ -23,6 +23,10 @@ const BADGE: Record<GitFileStatus, { letter: string; cls: string }> = {
   conflicted: { letter: '!', cls: 'con' }
 }
 
+// The root the open diff belongs to. Module-level so it survives the panel
+// unmounting: reopening the panel on the same project must keep the open diff.
+let diffRoot: string | null | undefined
+
 export function ReviewPanel() {
   const review = useReviewStore()
   const stage = useGitStore((s) => s.stage)
@@ -34,7 +38,8 @@ export function ReviewPanel() {
   // showing the first-opened project's diff, and an open diff pane could point
   // at a file from a project that's no longer focused.
   useEffect(() => {
-    useReviewStore.getState().closeDiff()
+    if (diffRoot !== undefined && diffRoot !== activeRoot) useReviewStore.getState().closeDiff()
+    diffRoot = activeRoot
     void review.refresh()
     void review.refreshCheckpoint()
     let timer: ReturnType<typeof setTimeout> | undefined

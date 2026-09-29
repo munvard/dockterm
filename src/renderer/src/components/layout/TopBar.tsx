@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { GitBranch, FolderOpen, AppWindow, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAppStore } from '../../state/useAppStore'
 import { useGitStore } from '../../state/useGitStore'
@@ -17,10 +16,6 @@ export function TopBar() {
   const name = (activeRoot ? basenameOf(activeRoot) : '') || project?.name || ''
   const displayPath = activeRoot ?? project?.path
   const branch = status?.branch ?? (activeRoot ? null : project?.branch ?? null)
-
-  useEffect(() => {
-    document.title = name ? `${name} · DockTerm` : 'DockTerm'
-  }, [name])
 
   const dirty = status
     ? status.staged.length + status.unstaged.length + status.untracked.length + status.conflicted.length

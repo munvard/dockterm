@@ -6,6 +6,7 @@ import { useGitStore } from '../../state/useGitStore'
 import { useReviewStore } from '../../state/useReviewStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { allLeaves, findLeaf } from '../../state/layout'
+import { basenameOf } from '../../state/workspace'
 import { TopBar } from './TopBar'
 import { Dock } from './Dock'
 import { Divider } from './Divider'
@@ -86,6 +87,14 @@ export function Shell() {
   useEffect(() => {
     useWorkspaceStore.getState().setPrimary(isPrimary)
   }, [isPrimary])
+
+  // The window title follows the focused pane's project. Set here, not in the
+  // TopBar: zen mode unmounts the TopBar, and the title (Mission Control, the
+  // taskbar) would go stale as panes switch projects.
+  const titleName = (activeRoot ? basenameOf(activeRoot) : '') || project?.name || ''
+  useEffect(() => {
+    document.title = titleName ? `${titleName} · DockTerm` : 'DockTerm'
+  }, [titleName])
 
   const activeTab = terminals.find((t) => t.id === activeId)
   const focusedLeafId = activeTab?.focusedLeafId

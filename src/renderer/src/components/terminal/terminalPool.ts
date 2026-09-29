@@ -15,6 +15,7 @@ import { useThemeStore } from '../../state/useThemeStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
+import { bundledConptyBuild } from './conptyBuild'
 import type { TerminalOptions } from './useTerminal'
 import '@xterm/xterm/css/xterm.css'
 
@@ -36,8 +37,10 @@ let winBuildNumber: number | undefined
 let winBuildKicked = false
 function kickWinBuildNumber(): void {
   if (winBuildKicked) return
-  winBuildKicked = true
+  // Latch only once we know we're on Windows: before <html data-platform> is
+  // stamped the platform reads '' and a latched flag would skip the fetch forever.
   if (currentPlatform() !== 'win32') return
+  winBuildKicked = true
   void window.dockterm.invoke('app:getInfo', undefined).then((r) => {
     if (r.ok) winBuildNumber = r.value.windowsBuildNumber
   })
@@ -254,7 +257,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     // Compatibility heuristics for a pty hosted on Windows conpty (reflow +
     // how growing the viewport pulls rows back from scrollback); undefined on
     // other platforms, which is xterm's own "not Windows" default.
-    windowsPty: platform === 'win32' ? { backend: 'conpty', buildNumber: winBuildNumber } : undefined,
+    windowsPty: platform === 'win32' ? { backend: 'conpty', buildNumber: bundledConptyBuild(winBuildNumber) } : undefined,
     // Conservatively rescale glyphs that would overlap the next cell — prevents
     // the "letters printed on letters" artifact under GPU acceleration.
     rescaleOverlappingGlyphs: true,

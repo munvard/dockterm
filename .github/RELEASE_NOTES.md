@@ -8,6 +8,7 @@
 - **Scrolling feels like a normal terminal again.** Claude Code now renders **inline** by default and uses the terminal's own scrollback, so scrolling back through a conversation is smooth and native — no more fullscreen take-over. Prefer the flicker-free fullscreen TUI? Turn it on in **Settings → Terminal → Claude Code fullscreen TUI**.
 - **munu drags reliably.** Fixed the intermittent “sticking” when dragging the pinned munu mascot — it now follows your cursor every time (the drag is tracked in the main process and can no longer flip click-through mid-drag).
 - **The Changes panel stays put.** The floating Changes panel never pops open on its own anymore — it appears only when you click a terminal's Changes button.
+- **Option is no longer Meta on macOS by default.** Option now types characters like `@ { } [ ] | ~ \` on German, French and other layouts. If you used Option+B / Option+F for word jumps in your shell, turn it back on in **Settings → Terminal**.
 
 All local and read-only on your own `~/.claude` files — no API, no telemetry.
 
