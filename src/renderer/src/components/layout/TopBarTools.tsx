@@ -6,7 +6,7 @@ import { UsagePill } from '../usage/UsagePill'
 import { AgentPill } from '../agents/AgentPill'
 import { NotesButton } from './NotesButton'
 import { PANELS } from './panels'
-import { k } from './keyLabel'
+import { k } from '../../hooks/keys'
 
 /**
  * The top bar's right-hand tools (usage pill, dock-panel icons, notes, mini
@@ -169,7 +169,7 @@ export function TopBarTools() {
       <NotesButton />
       <button
         className="iconbtn tip--end"
-        data-tip={`Zen mode (${k('⌘.', 'Ctrl+.')})`}
+        data-tip={`Zen mode (${k('⌘.', 'Ctrl+Shift+.')})`}
         aria-label="Zen mode"
         onClick={toggleZen}
       >

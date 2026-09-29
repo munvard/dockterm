@@ -27,6 +27,7 @@ import { TerminalView } from './TerminalView'
 import { focusPaneTerminal } from './terminalPool'
 import { quotePath } from './terminalSelection'
 import { PaneChat } from '../chat/PaneChat'
+import { k } from '../../hooks/keys'
 
 function sameSizes(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5)
@@ -47,15 +48,6 @@ export function refocusIfTerminal(leafId: string): void {
 /** Quote a dropped path for the current OS (see terminalSelection.quotePath). */
 function quoteForThisPlatform(p: string): string {
   return quotePath(p, document.documentElement.dataset.platform ?? '')
-}
-
-/** Platform-appropriate shortcut label for a tooltip: `mac` on darwin, `win`
- * everywhere else (per the review's global key scheme: Cmd+key on mac,
- * Ctrl+Shift+key on Windows/Linux). A tiny local stand-in for the shared
- * k(mac, win) helper another wave is centralizing in its own hooks module:
- * this file shouldn't sit with a hard-coded ⌘ label until that lands. */
-function k(mac: string, win: string): string {
-  return (document.documentElement.dataset.platform ?? '') === 'darwin' ? mac : win
 }
 
 function TerminalPane({

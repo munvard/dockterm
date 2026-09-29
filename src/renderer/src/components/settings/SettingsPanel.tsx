@@ -9,7 +9,7 @@ import { COMFORT_PRESETS, matchPreset, type ReadingWidth } from '../terminal/com
 import type { CursorStyle, TerminalRenderer, Settings } from '@shared/types'
 import { CHARACTERS } from '../munu/mascots'
 import { Munu } from '../munu/Munu'
-import { k } from '../layout/keyLabel'
+import { k } from '../../hooks/keys'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -444,7 +444,7 @@ export function SettingsPanel() {
             </select>
           </Field>
           <div className="settings-note">
-            Try a preset, or fine-tune below. Zen mode (<code>{k('⌘.', 'Ctrl+.')}</code> or the
+            Try a preset, or fine-tune below. Zen mode (<code>{k('⌘.', 'Ctrl+Shift+.')}</code> or the
             top-bar button) hides the chrome for a calm reading canvas.
           </div>
           <Field label="New terminals open in">
@@ -459,7 +459,7 @@ export function SettingsPanel() {
           </Field>
           <div className="settings-note">
             Chat mode renders Claude’s replies as formatted text with a real input box. The
-            terminal keeps running underneath — press <code>{k('⌘R', 'Ctrl+R')}</code> in any pane
+            terminal keeps running underneath — press <code>{k('⌘R', 'Ctrl+Shift+R')}</code> in any pane
             to switch.
           </div>
         </Section>
