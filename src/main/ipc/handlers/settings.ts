@@ -25,8 +25,7 @@ export function registerSettingsHandlers(reg: Registrar): void {
   reg('settings:get', z.void(), () => ok(getSettings()))
 
   reg('settings:set', settingsPatchSchema, (patch) => {
-    // zod has filled every default, so each present section is a complete object.
-    const next = applySettingsPatch(patch as Partial<Settings>)
+    const next = applySettingsPatch(patch)
     broadcast(next)
     if (patch.munu) syncOverlay()
     return ok(next)

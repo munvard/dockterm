@@ -12,7 +12,7 @@ const checkpointSchema = z.object({
   createdAt: z.number().finite()
 })
 
-const workspaceSchema = z
+const workspaceBase = z
   .object({
     tabs: z.array(
       z.object({
@@ -32,7 +32,8 @@ const workspaceSchema = z
     projectPath: z.string().optional()
   })
   .nullable()
-  .default(null)
+
+const workspaceSchema = workspaceBase.default(null)
 
 /** Per-section preference schemas. Every leaf has a default so old/partial
  * configs migrate forward by simply filling the gaps. */
@@ -197,24 +198,47 @@ const settingsSchema = z.object({
   checkpoints: z.record(checkpointSchema).default({})
 })
 
-/** Validates a settings patch from the renderer (preference sections only). */
+/** The same shape with every `.default()` removed and every object field
+ * optional, recursively: a patch validates only what it names. Parsing a patch
+ * with the default-bearing schemas used to fill every omitted field, so a
+ * partial section silently reset its siblings to factory values. */
+function toPatchSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  if (schema instanceof z.ZodDefault) return toPatchSchema(schema._def.innerType)
+  if (schema instanceof z.ZodOptional) return toPatchSchema(schema.unwrap()).optional()
+  if (schema instanceof z.ZodNullable) return toPatchSchema(schema.unwrap()).nullable()
+  if (schema instanceof z.ZodObject) {
+    const shape: Record<string, z.ZodTypeAny> = {}
+    for (const [k, v] of Object.entries(schema.shape as Record<string, z.ZodTypeAny>)) {
+      shape[k] = toPatchSchema(v).optional()
+    }
+    return z.object(shape)
+  }
+  return schema
+}
+
+/** Validates a settings patch from the renderer (preference sections only). No
+ * field is defaulted: what the patch does not name is left as it is. The merged
+ * result is validated again against the full {@link settingsSchema}. */
 export const settingsPatchSchema = z.object({
-  terminal: preference.terminal.optional(),
-  editor: preference.editor.optional(),
-  ui: preference.ui.optional(),
-  git: preference.git.optional(),
-  claude: preference.claude.optional(),
-  update: preference.update.optional(),
-  usage: preference.usage.optional(),
-  agentActivity: preference.agentActivity.optional(),
-  sessionHistory: preference.sessionHistory.optional(),
-  reading: preference.reading.optional(),
-  chat: preference.chat.optional(),
-  munu: preference.munu.optional(),
+  terminal: toPatchSchema(preference.terminal).optional(),
+  editor: toPatchSchema(preference.editor).optional(),
+  ui: toPatchSchema(preference.ui).optional(),
+  git: toPatchSchema(preference.git).optional(),
+  claude: toPatchSchema(preference.claude).optional(),
+  update: toPatchSchema(preference.update).optional(),
+  usage: toPatchSchema(preference.usage).optional(),
+  agentActivity: toPatchSchema(preference.agentActivity).optional(),
+  sessionHistory: toPatchSchema(preference.sessionHistory).optional(),
+  reading: toPatchSchema(preference.reading).optional(),
+  chat: toPatchSchema(preference.chat).optional(),
+  munu: toPatchSchema(preference.munu).optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),
-  workspace: workspaceSchema.optional()
+  // A workspace snapshot is replaced as a whole, never merged tab by tab.
+  workspace: workspaceBase.optional()
 })
+
+export type SettingsPatchInput = z.infer<typeof settingsPatchSchema>
 
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({}) as Settings
 
@@ -236,9 +260,8 @@ export function getSettings(): Settings {
   return getStore().get()
 }
 
-/** Top-level Settings keys that hold a preference OBJECT (as opposed to a
- * scalar like `theme`/`notes`, or the arrays/records with their own dedicated
- * update functions below). */
+/** Top-level Settings keys that hold a preference OBJECT that is merged
+ * field by field (`workspace` is replaced whole, so it is not listed). */
 const OBJECT_PATCH_KEYS = [
   'terminal',
   'editor',
@@ -251,28 +274,40 @@ const OBJECT_PATCH_KEYS = [
   'sessionHistory',
   'reading',
   'chat',
-  'munu',
-  'workspace'
+  'munu'
 ] as const satisfies readonly (keyof Settings)[]
 
-export function applySettingsPatch(patch: Partial<Settings>): Settings {
-  // A patch section is merged field-by-field onto the CURRENTLY STORED section
-  // rather than trusting the caller to have sent a complete object. The renderer
-  // is expected to spread its own current settings before patching, but a
-  // partial section (a stale snapshot from a fast double-edit, or a future
-  // caller that forgets to spread) used to be parsed by the per-field schema
-  // defaults and silently reset every OTHER field in that section back to
-  // factory defaults — a real, data-destroying footgun for a "just move a
-  // slider" action.
-  const current = getStore().get()
-  const merged: Record<string, unknown> = { ...patch }
-  for (const key of OBJECT_PATCH_KEYS) {
-    const value = patch[key]
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      merged[key] = { ...(current[key] as object), ...value }
-    }
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** Deep merge of plain objects; arrays, primitives and null replace. */
+function deepMerge(base: unknown, patch: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(patch)) return patch
+  const out: Record<string, unknown> = { ...base }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue
+    out[k] = k in base ? deepMerge(base[k], v) : v
   }
-  return getStore().update(merged as unknown as Partial<Settings>)
+  return out
+}
+
+/** Pure: merge `patch` into `current` (sections deep-merged, everything else
+ * replaced) and validate the completed result. Throws on an invalid result, so
+ * a bad patch never reaches the store. */
+export function mergeSettingsPatch(current: Settings, patch: SettingsPatchInput): Settings {
+  const merged: Record<string, unknown> = { ...current }
+  for (const key of OBJECT_PATCH_KEYS) {
+    if (patch[key] !== undefined) merged[key] = deepMerge(current[key], patch[key])
+  }
+  if (patch.theme !== undefined) merged.theme = patch.theme
+  if (patch.notes !== undefined) merged.notes = patch.notes
+  if (patch.workspace !== undefined) merged.workspace = patch.workspace
+  return settingsSchema.parse(merged) as Settings
+}
+
+export function applySettingsPatch(patch: SettingsPatchInput): Settings {
+  const current = getStore().get()
+  return getStore().update(mergeSettingsPatch(current, patch))
 }
 
 /** `setAsLastProject` should only be true for the window that owns "last
