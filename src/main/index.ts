@@ -15,6 +15,7 @@ import { startAgentWatcher } from './services/agentActivityService'
 import { startSessionHistoryWatcher } from './services/sessionHistoryService'
 import { setPendingOpen } from './services/pendingOpen'
 import { destroyOverlay, getOverlay } from './overlayWindow'
+import { cleanupOldChatImages } from './services/chatFiles'
 
 // node-pty's Windows conpty backend can re-launch the packaged .exe itself as a
 // helper process (conpty_console_list_agent) when the RunAsNode fuse is off. If
@@ -115,6 +116,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
       startUsageWatcher()
       startAgentWatcher()
       startSessionHistoryWatcher()
+      cleanupOldChatImages()
 
       // A folder queued before the window existed stays pending: the renderer
       // pulls it (project:takePendingOpen) before it restores the last project.

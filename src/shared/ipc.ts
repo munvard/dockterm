@@ -289,6 +289,17 @@ export interface InvokeChannels {
   'app:openExternal': (req: { url: string }) => Result<void>
   /** Read the system clipboard text (main-process, no renderer permission needed). */
   'clipboard:read': (req: void) => Result<string>
+  /** Absolute paths of files copied in Finder / Explorer (existing paths only, never contents). */
+  'clipboard:readFiles': (req: void) => Result<{ paths: string[] }>
+  /** Save the clipboard image (if any) into the DockTerm temp image dir; `path` is null when there is none. */
+  'clipboard:saveImage': (req: void) => Result<{ path: string | null }>
+  /** Save pasted image bytes (png/jpeg/gif/webp, <= 20 MB) into the temp image dir under a random name. */
+  'chat:saveImage': (req: {
+    data: string | Uint8Array
+    mime: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+  }) => Result<{ path: string }>
+  /** Multi-select open dialog for the composer's attach button. */
+  'chat:pickFiles': (req: void) => Result<{ paths: string[] }>
 
   /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
   'usage:get': (req: void) => Result<UsageSnapshot>
@@ -458,6 +469,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'info:get',
   'app:openExternal',
   'clipboard:read',
+  'clipboard:readFiles',
+  'clipboard:saveImage',
+  'chat:saveImage',
+  'chat:pickFiles',
   'usage:get',
   'activity:get',
   'session:getHistory',
