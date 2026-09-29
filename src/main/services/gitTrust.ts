@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { git } from './gitService'
+import { git } from './gitCore'
 
 export interface ExecConfigEntry {
   key: string
@@ -220,4 +220,42 @@ export async function pendingExecConfig(
     throw e
   }
   return detectExecConfig(output)
+}
+
+/** Distinct filter driver names among the flagged entries (`filter.<name>.<var>`). */
+export function filterDriverNames(entries: ExecConfigEntry[]): string[] {
+  const names = new Set<string>()
+  for (const e of entries) {
+    const { section, sub } = splitKey(e.key)
+    if (section === 'filter' && sub !== null) names.add(sub)
+  }
+  return [...names]
+}
+
+/** `-c` settings that empty every repo-defined filter driver. Git treats an empty
+ * clean / smudge / process command as "no filter", and `required=false` stops it
+ * failing on the empty one. A name `-c key=value` cannot express (it contains an
+ * `=` or a newline) cannot be neutralized, so that read fails closed. */
+export function filterOverrides(names: string[]): string[] {
+  const out: string[] = []
+  for (const n of names) {
+    if (/[=\n\r\0]/.test(n)) throw new Error('Refusing to read a repo with an unsafe filter driver name')
+    out.push(`filter.${n}.clean=`, `filter.${n}.smudge=`, `filter.${n}.process=`, `filter.${n}.required=false`)
+  }
+  return out
+}
+
+/** Extra `-c` settings for the automatic read-only git calls: [] for a trusted
+ * repo or one with no command-running config, the filter overrides otherwise. */
+export async function readOnlyHardening(
+  root: string,
+  reader?: LocalConfigReader
+): Promise<string[]> {
+  let entries: ExecConfigEntry[]
+  try {
+    entries = await pendingExecConfig(root, reader)
+  } catch {
+    return [] // the real call that follows reports why the config could not be read
+  }
+  return filterOverrides(filterDriverNames(entries))
 }

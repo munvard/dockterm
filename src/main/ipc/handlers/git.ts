@@ -15,7 +15,7 @@ const pushSchema = z.object({
 const branchSchema = z.object({ name: z.string().min(1).max(255) })
 const trustSchema = z.object({ root: z.string().min(1).max(4096) })
 
-function mapGitError(e: unknown): Err {
+export function mapGitError(e: unknown): Err {
   const msg = e instanceof Error ? e.message : String(e)
   const lower = msg.toLowerCase()
   if (lower.includes('not a git repository')) return err('NOT_REPO', 'Not a Git repository')

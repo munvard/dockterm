@@ -1,4 +1,6 @@
-import { simpleGit, type SimpleGit } from 'simple-git'
+import type { SimpleGit } from 'simple-git'
+import { git } from './gitCore'
+import { readOnlyHardening } from './gitTrust'
 import os from 'node:os'
 import { resolve, sep } from 'node:path'
 import { statusToView, notRepoView } from './gitStatusMap'
@@ -13,28 +15,14 @@ import type {
   DiffContent
 } from '@shared/types'
 
-/**
- * Every git invocation — from this service AND from projectService /
- * projectInfoService's lighter-weight lookups — goes through here.
- * `core.hooksPath=` neutralizes any hooks the (possibly untrusted) project repo
- * defines — opening a malicious repo must never run its code (CVE-2024-32002
- * class). `core.fsmonitor=false` stops a repo-local fsmonitor hook (an arbitrary
- * script honored automatically by plain `git status`) from auto-executing.
- * `GIT_TERMINAL_PROMPT=0` stops a push/pull from opening a native username/
- * password prompt that would block the main process; `GIT_OPTIONAL_LOCKS=0`
- * stops our own background status polls from racing a real `.git/index.lock`
- * (e.g. a commit the user is running by hand in the terminal at the same
- * moment). A block timeout stops a call from hanging forever if a credential
- * helper dialog is left open.
- */
-export function git(root: string): SimpleGit {
-  return simpleGit({
-    baseDir: root,
-    config: ['core.hooksPath=', 'core.fsmonitor=false'],
-    unsafe: { allowUnsafeHooksPath: true, allowUnsafeFsMonitor: true },
-    trimmed: true,
-    timeout: { block: 120_000 }
-  }).env({ ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' })
+export { git }
+
+/** git handle for the AUTOMATIC read-only calls (status, diff, checkpoints). On a
+ * repo the user has not trusted and whose config runs commands, every filter
+ * driver the repo defines is emptied first: plain `git status` re-hashes racy
+ * files through a repo-controlled filter.<x>.clean / .process command. */
+async function readOnlyGit(root: string): Promise<SimpleGit> {
+  return git(root, { extraConfig: await readOnlyHardening(root) })
 }
 
 /** True for simple-git's own "not a git repository" rejection — the only case
@@ -60,7 +48,7 @@ export function isSuspiciouslyBroadToplevel(toplevel: string): boolean {
 }
 
 export async function getStatus(root: string): Promise<GitStatusView> {
-  const g = git(root)
+  const g = await readOnlyGit(root)
   let isRepo: boolean
   try {
     isRepo = await g.checkIsRepo()
@@ -116,7 +104,7 @@ export async function push(
   root: string,
   options: { setUpstream?: boolean; forceWithLease?: boolean }
 ): Promise<string> {
-  const g = git(root)
+  const g = git(root, { userNetworkOp: true })
   const args: string[] = []
   if (options.forceWithLease) args.push('--force-with-lease')
   if (options.setUpstream) {
@@ -130,7 +118,7 @@ export async function push(
 }
 
 export async function pull(root: string): Promise<string> {
-  const r = await git(root).pull()
+  const r = await git(root, { userNetworkOp: true }).pull()
   return `Updated: ${r.summary.changes} change(s), +${r.summary.insertions} -${r.summary.deletions}.`
 }
 
@@ -153,12 +141,12 @@ export async function deleteBranch(root: string, name: string): Promise<void> {
 }
 
 export async function headHash(root: string): Promise<string> {
-  return git(root).revparse(['HEAD'])
+  return (await readOnlyGit(root)).revparse(['HEAD'])
 }
 
 export async function isReachable(root: string, hash: string): Promise<boolean> {
   try {
-    await git(root).raw(['cat-file', '-e', `${hash}^{commit}`])
+    await (await readOnlyGit(root)).raw(['cat-file', '-e', `${hash}^{commit}`])
     return true
   } catch {
     return false
@@ -185,11 +173,11 @@ export async function changedSince(
   checkpointHash: string | null,
   sessionPaths: string[]
 ): Promise<DiffSinceFile[]> {
-  const g = git(root)
+  const g = await readOnlyGit(root)
 
   if (base === 'checkpoint') {
     if (!checkpointHash) return []
-    const numstat = await g.raw(['diff', '--numstat', checkpointHash])
+    const numstat = await g.raw(['diff', '--no-ext-diff', '--no-textconv', '--numstat', checkpointHash])
     const files: DiffSinceFile[] = parseNumstat(numstat).map((n) => ({
       relPath: n.path,
       status: 'modified',
@@ -216,7 +204,7 @@ export async function changedSince(
   for (const f of status.untracked) add(f.path, 'untracked')
 
   try {
-    for (const n of parseNumstat(await g.raw(['diff', '--numstat', 'HEAD']))) {
+    for (const n of parseNumstat(await g.raw(['diff', '--no-ext-diff', '--no-textconv', '--numstat', 'HEAD']))) {
       const entry = map.get(n.path)
       if (entry) {
         entry.insertions = n.ins
@@ -245,7 +233,7 @@ export async function diffFile(
   const ref = base === 'checkpoint' && checkpointHash ? checkpointHash : 'HEAD'
   let original = ''
   try {
-    original = await git(root).show([`${ref}:${relPath}`])
+    original = await (await readOnlyGit(root)).show([`${ref}:${relPath}`])
   } catch {
     original = '' // new file, or no baseline commit
   }
