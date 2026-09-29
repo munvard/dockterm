@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '../state/useWorkspaceStore'
 import { useComposeStore } from '../state/useComposeStore'
 import { confirmCloseLeaves } from '../components/terminal/closeGuard'
 import { refocusIfTerminal } from '../components/terminal/PaneTree'
-import { detectPlatform, matchShortcut } from './keys'
+import { detectPlatform, matchShortcut, PASTE_PLAIN_EVENT } from './keys'
 import { isModalOpen } from '../state/modalState'
 
 const platform = detectPlatform()
@@ -23,6 +23,19 @@ export function useShortcuts(): void {
     const onKey = (e: KeyboardEvent): void => {
       const matched = matchShortcut(e, platform)
       if (!matched) return
+
+      // Plain-text paste only means something inside the chat composer. Anywhere
+      // else the key must reach the focused element (Ctrl+Shift+V is the
+      // terminal's own paste), so it is decided before the modal guard below.
+      if (matched.id === 'pastePlain') {
+        const el = document.activeElement
+        if (el instanceof HTMLTextAreaElement && el.classList.contains('composer__input')) {
+          e.preventDefault()
+          e.stopPropagation()
+          el.dispatchEvent(new CustomEvent(PASTE_PLAIN_EVENT))
+        }
+        return
+      }
 
       // A dialog or overlay owns the keyboard while it's open (Modal traps
       // focus) — never let a global shortcut act on the app underneath it,

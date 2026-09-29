@@ -25,6 +25,9 @@ export function k(mac: string, win: string): string {
   return isMac ? mac : win
 }
 
+/** Custom event the shortcut registry fires at the chat composer for "paste as plain text". */
+export const PASTE_PLAIN_EVENT = 'dockterm:paste-plain'
+
 export type ShortcutId =
   | 'panel:files'
   | 'panel:git'
@@ -39,6 +42,7 @@ export type ShortcutId =
   | 'toggleZen'
   | 'palette'
   | 'compose'
+  | 'pastePlain'
   | 'settings'
   | 'zoomIn'
   | 'zoomOut'
@@ -105,6 +109,11 @@ export function matchShortcut(e: KeyLike, platform: Platform): MatchResult | nul
 
   // Compose a long prompt — ⌘⇧⏎ (mac) / Ctrl+Shift+⏎ (win/linux).
   if (withShift && e.code === 'Enter') return { id: 'compose' }
+
+  // Paste as plain text: ⌘⇧V (mac) / Ctrl+Shift+V (win/linux). useShortcuts only acts
+  // on it while the chat composer has focus; elsewhere (the terminal's own
+  // Ctrl+Shift+V paste) it passes through untouched.
+  if (withShift && e.code === 'KeyV') return { id: 'pastePlain' }
 
   // Settings: Cmd+, (mac) / Ctrl+Shift+, (win/linux). Plain Ctrl+, is the
   // terminal's.

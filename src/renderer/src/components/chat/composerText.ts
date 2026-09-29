@@ -124,3 +124,29 @@ export function buildPromptText(input: BuildInput): string {
 export function countImageMarkers(visible: string): number {
   return (visible.match(/\[Image #/g) ?? []).length
 }
+
+/** A dropped or attached path made absolute against `root` when it is relative. */
+export function absolutize(root: string | null, p: string, platform: ComposerPlatform): string {
+  const isAbs = platform === 'win32' ? /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(p) : p.startsWith('/')
+  if (isAbs || !root) return p
+  const sep = platform === 'win32' ? '\\' : '/'
+  return root.replace(/[\\/]+$/, '') + sep + p.replace(/^\.?[\\/]/, '')
+}
+
+export type PasteImageMime = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+const PASTE_MIMES: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+
+export function toComposerPlatform(p: string): ComposerPlatform {
+  return p === 'win32' ? 'win32' : p === 'darwin' ? 'darwin' : 'linux'
+}
+
+/** The pasteable image type when the clipboard holds NO text, else null. */
+export function pickImageMime(
+  text: string,
+  files: readonly { type: string }[]
+): PasteImageMime | null {
+  if (text.length > 0) return null
+  const hit = files.find((f) => PASTE_MIMES.includes(f.type))
+  return hit ? (hit.type as PasteImageMime) : null
+}
+

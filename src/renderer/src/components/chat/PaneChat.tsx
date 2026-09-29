@@ -8,6 +8,8 @@ import { paneClaudeActive } from '../terminal/paneClaudeActive'
 import { ConversationList, conversationDepKey, useStickyScroll } from '../reading/ConversationList'
 import { AskCard } from './AskCard'
 import { Composer } from './Composer'
+import { attachPaths, dropHasAttachable, leafRoot, pathsFromDrop } from './composerActions'
+import { useToastStore } from '../../state/useToastStore'
 
 const POLL_MS = 700 // chat mode is the primary surface — faster than the side panel
 const IDLE_POLL_MS = 2500 // a chat pane on a BACKGROUND tab: keep fresh, stay cheap
@@ -42,6 +44,7 @@ export function PaneChat({
   const [elapsed, setElapsed] = useState(0)
   const [claudeHere, setClaudeHere] = useState(true)
   const inFlight = useRef(false)
+  const [dropOver, setDropOver] = useState(false)
 
   const messages = conv?.messages ?? []
   const { ref: bodyRef, contentRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
@@ -109,7 +112,30 @@ export function PaneChat({
   const nothingHere = !claudeHere && messages.length === 0
 
   return (
-    <div className="panechat">
+    <div
+      className={`panechat${dropOver ? ' panechat--drop' : ''}`}
+      // Files and file-tree drags land in the composer as attachments. Anything
+      // else (plain text) still bubbles to the pane's own drop handler.
+      onDragOver={(e) => {
+        if (!dropHasAttachable(e.dataTransfer)) return
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'copy'
+        if (!dropOver) setDropOver(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropOver(false)
+      }}
+      onDrop={(e) => {
+        if (!dropHasAttachable(e.dataTransfer)) return
+        e.preventDefault()
+        e.stopPropagation()
+        setDropOver(false)
+        const paths = pathsFromDrop(e.dataTransfer, leafRoot(leafId))
+        if (paths.length === 0) useToastStore.getState().push('Could not read the dropped item.', 'warning')
+        else void attachPaths(leafId, paths)
+      }}
+    >
       <div className="panechat__head">
         <span className="panechat__status">
           {state === 'working' && <Loader2 size={12} className="spin" />}

@@ -7,6 +7,7 @@ import {
   fileRef,
   formatPathForClaude,
   isImagePath,
+  absolutize,
   liveChips,
   pastedToken,
   relativeInside,
@@ -153,5 +154,16 @@ describe('paste rules', () => {
   it('inserts at the caret, replacing a selection', () => {
     expect(insertAtCaret('hello world', 6, 11, 'there')).toEqual({ value: 'hello there', caret: 11 })
     expect(insertAtCaret('ab', 1, 1, 'X')).toEqual({ value: 'aXb', caret: 2 })
+  })
+})
+
+describe('absolutize', () => {
+  it('leaves absolute paths and joins relative ones to the root', () => {
+    expect(absolutize('/p', '/x/a.ts', 'darwin')).toBe('/x/a.ts')
+    expect(absolutize('/p/', 'src/a.ts', 'darwin')).toBe('/p/src/a.ts')
+    expect(absolutize('/p', './a.ts', 'linux')).toBe('/p/a.ts')
+    expect(absolutize(null, 'a.ts', 'darwin')).toBe('a.ts')
+    expect(absolutize('C:\\p', 'src\\a.ts', 'win32')).toBe('C:\\p\\src\\a.ts')
+    expect(absolutize('C:\\p', 'D:\\x\\a.ts', 'win32')).toBe('D:\\x\\a.ts')
   })
 })

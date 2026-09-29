@@ -113,3 +113,8 @@ export function mergeCommands(
   }
   return out
 }
+
+/** True while an IME is composing: Enter / Esc / arrows then belong to the IME, not the composer. */
+export function isComposingKey(e: { isComposing?: boolean; keyCode?: number }): boolean {
+  return e.isComposing === true || e.keyCode === 229
+}

@@ -4,8 +4,14 @@ import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, X, CornerDownLeft, ClipboardPaste } from 'lucide-react'
 import { useComposeStore } from '../../state/useComposeStore'
 import { paneWriters } from '../../state/paneWriters'
-import { sendPrompt } from '../../state/sendPrompt'
+import { sendComposed } from '../../state/sendComposed'
+import { useToastStore } from '../../state/useToastStore'
+import { leafRoot } from '../chat/composerActions'
+import { expandPasted, liveChips, type Attachment, type PastedChip } from '../chat/composerText'
 import { k } from '../../hooks/keys'
+
+const NO_ATTACHMENTS: Attachment[] = []
+const NO_CHIPS: PastedChip[] = []
 
 /**
  * A roomy editor for long prompts. Claude Code's own input box can't be
@@ -22,7 +28,10 @@ export function ComposeOverlay(): React.ReactElement | null {
   const setDraft = useComposeStore((s) => s.setDraft)
   const close = useComposeStore((s) => s.close)
   const clearDraft = useComposeStore((s) => s.clearDraft)
+  const attachments = useComposeStore((s) => (s.leafId ? s.attachments[s.leafId] : undefined)) ?? NO_ATTACHMENTS
+  const allChips = useComposeStore((s) => (s.leafId ? s.chips[s.leafId] : undefined)) ?? NO_CHIPS
   const [full, setFull] = useState(false)
+  const [busy, setBusy] = useState(false)
   const taRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Focus the editor and drop the caret at the end whenever it opens.
@@ -59,18 +68,34 @@ export function ComposeOverlay(): React.ReactElement | null {
   if (!open || !leafId) return null
 
   const hand = (submit: boolean): void => {
+    if (busy) return
     const text = draft
-    if (text.length > 0) {
-      // Submitting sends the paste and Enter ~70ms apart (sendPrompt) — Claude's
-      // TUI can coalesce them into one read and leave the prompt typed but
-      // unsent otherwise. Insert-only has no Enter to pace, so it writes direct.
-      if (submit) sendPrompt(leafId, text)
-      else paneWriters.paste(leafId, text)
+    const chips = liveChips(text, allChips)
+    if (!submit) {
+      // Insert-only has no Enter to pace, so it writes direct (pasted-text chips expanded).
+      if (text.length > 0) paneWriters.paste(leafId, expandPasted(text, chips))
+      clearDraft(leafId)
+      close()
+      return
     }
-    clearDraft(leafId)
-    close()
+    // Send shares the composer's algorithm: images first, then the text
+    // (Enter paced ~70ms after the paste by sendPrompt), attachments included.
+    setBusy(true)
+    void sendComposed(leafId, { text, chips, attachments, root: leafRoot(leafId) })
+      .then((ok) => {
+        if (!ok) {
+          useToastStore.getState().push('Could not send. Is Claude still running in this pane?', 'warning')
+          return
+        }
+        const store = useComposeStore.getState()
+        store.recordHistory(leafId, expandPasted(text, chips).trim())
+        store.clearComposer(leafId)
+        close()
+      })
+      .finally(() => setBusy(false))
   }
 
+  const extras = attachments.length + liveChips(draft, allChips).length
   const lines = draft.length ? draft.split('\n').length : 0
   const chars = draft.length
 
@@ -115,12 +140,17 @@ export function ComposeOverlay(): React.ReactElement | null {
         <div className="compose__foot">
           <span className="compose__count">
             {lines} line{lines === 1 ? '' : 's'} · {chars} char{chars === 1 ? '' : 's'}
+            {extras > 0 && ` · ${extras} attachment${extras === 1 ? '' : 's'} or pasted text will be sent too`}
           </span>
           <div className="compose__actions">
             <button className="btn btn--ghost btn--sm" onClick={() => hand(false)} disabled={!draft.length}>
               <ClipboardPaste size={14} /> Insert
             </button>
-            <button className="btn btn--primary btn--sm" onClick={() => hand(true)} disabled={!draft.length}>
+            <button
+              className="btn btn--primary btn--sm"
+              onClick={() => hand(true)}
+              disabled={busy || (!draft.length && attachments.length === 0)}
+            >
               <CornerDownLeft size={14} /> Send
             </button>
           </div>

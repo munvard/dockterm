@@ -126,3 +126,19 @@ describe('matchShortcut', () => {
     expect(matchShortcut(key({ code: 'KeyZ', ctrlKey: true, shiftKey: true }), 'win')).toBeNull()
   })
 })
+
+describe('plain-text paste shortcut', () => {
+  it('mac: Cmd+Shift+V', () => {
+    expect(matchShortcut(key({ code: 'KeyV', metaKey: true, shiftKey: true }), 'mac')).toEqual({ id: 'pastePlain' })
+  })
+  it('win/linux: Ctrl+Shift+V', () => {
+    for (const platform of ['win', 'linux'] as const) {
+      expect(matchShortcut(key({ code: 'KeyV', ctrlKey: true, shiftKey: true }), platform)).toEqual({ id: 'pastePlain' })
+    }
+  })
+  it('plain Cmd+V and Ctrl+V are never matched (native paste / the terminal)', () => {
+    expect(matchShortcut(key({ code: 'KeyV', metaKey: true }), 'mac')).toBeNull()
+    expect(matchShortcut(key({ code: 'KeyV', ctrlKey: true }), 'win')).toBeNull()
+    expect(matchShortcut(key({ code: 'KeyV', ctrlKey: true }), 'linux')).toBeNull()
+  })
+})

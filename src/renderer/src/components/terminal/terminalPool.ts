@@ -16,6 +16,13 @@ import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
 import { bundledConptyBuild } from './conptyBuild'
+import {
+  handleImagePasteEvent,
+  pasteImageFromSystemClipboard,
+  type ImagePasteDeps
+} from './terminalImagePaste'
+import { toComposerPlatform } from '../chat/composerText'
+import { useToastStore } from '../../state/useToastStore'
 import type { TerminalOptions } from './useTerminal'
 import '@xterm/xterm/css/xterm.css'
 
@@ -310,6 +317,17 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
 
   term.open(host)
 
+  // Image paste (⌘V on macOS, where the DOM paste event carries the image): only
+  // when the clipboard has no text. Claude-only, decided inside the handler.
+  const imageDeps = (): ImagePasteDeps => ({
+    // Lazy: paneClaudeActive imports this module.
+    isClaude: () => import('./paneClaudeActive').then((m) => m.paneClaudeActive(id)),
+    paste: (text) => p.paste(text),
+    platform: toComposerPlatform(platform),
+    warn: (m) => useToastStore.getState().push(m, 'warning')
+  })
+  host.addEventListener('paste', (e) => void handleImagePasteEvent(e, imageDeps()), true)
+
   const p: PooledTerminal = {
     id,
     cwd: opts.cwd,
@@ -427,6 +445,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         e.preventDefault()
         void window.dockterm.invoke('clipboard:read', undefined).then((r) => {
           if (r.ok && r.value) p.paste(r.value)
+          else if (r.ok) void pasteImageFromSystemClipboard(imageDeps())
         })
         return false
     }

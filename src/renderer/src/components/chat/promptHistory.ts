@@ -28,7 +28,11 @@ export function mergeHistory(transcript: string[], memory: string[], max = HISTO
   return out.length > max ? out.slice(out.length - max) : out
 }
 
-/** Up recalls on an empty input or with the caret at the very start; Down only while browsing, caret at the end. */
+/**
+ * Up recalls on an empty input or with the caret at the very start; while
+ * already browsing it keeps going from the first line. Down only while
+ * browsing, from the last line.
+ */
 export function shouldRecall(
   dir: 'up' | 'down',
   value: string,
@@ -37,8 +41,11 @@ export function shouldRecall(
   nav: HistoryNav
 ): boolean {
   if (selStart !== selEnd) return false
-  if (dir === 'up') return value.length === 0 || selStart === 0
-  return nav.index >= 0 && selStart === value.length
+  if (dir === 'up') {
+    if (value.length === 0 || selStart === 0) return true
+    return nav.index >= 0 && !value.slice(0, selStart).includes('\n')
+  }
+  return nav.index >= 0 && !value.slice(selEnd).includes('\n')
 }
 
 export interface StepResult {

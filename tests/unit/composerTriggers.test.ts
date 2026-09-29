@@ -4,6 +4,7 @@ import {
   BUILTIN_COMMANDS,
   detectTrigger,
   fuzzyScore,
+  isComposingKey,
   mergeCommands,
   rankFuzzy
 } from '../../src/renderer/src/components/chat/composerTriggers'
@@ -100,7 +101,10 @@ describe('prompt history', () => {
     expect(shouldRecall('up', 'text', 0, 4, IDLE_NAV)).toBe(false)
     expect(shouldRecall('down', 'text', 4, 4, IDLE_NAV)).toBe(false)
     expect(shouldRecall('down', 'text', 4, 4, { index: 0, stash: '' })).toBe(true)
-    expect(shouldRecall('down', 'text', 1, 1, { index: 0, stash: '' })).toBe(false)
+    expect(shouldRecall('down', 'a\nb', 0, 0, { index: 0, stash: '' })).toBe(false)
+    expect(shouldRecall('down', 'a\nb', 3, 3, { index: 0, stash: '' })).toBe(true)
+    expect(shouldRecall('up', 'a\nb', 3, 3, { index: 0, stash: '' })).toBe(false)
+    expect(shouldRecall('up', 'ab', 2, 2, { index: 0, stash: '' })).toBe(true)
   })
   it('walks back through history and forward again, restoring the stash', () => {
     const list = ['one', 'two', 'three']
@@ -121,5 +125,14 @@ describe('prompt history', () => {
     expect(r.nav).toEqual(IDLE_NAV)
     expect(stepHistory(list, IDLE_NAV, 'down', 'x').text).toBeNull()
     expect(stepHistory([], IDLE_NAV, 'up', 'x').text).toBeNull()
+  })
+})
+
+describe('isComposingKey', () => {
+  it('is true while composing or for keyCode 229', () => {
+    expect(isComposingKey({ isComposing: true, keyCode: 13 })).toBe(true)
+    expect(isComposingKey({ isComposing: false, keyCode: 229 })).toBe(true)
+    expect(isComposingKey({ isComposing: false, keyCode: 13 })).toBe(false)
+    expect(isComposingKey({})).toBe(false)
   })
 })
