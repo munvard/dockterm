@@ -17,7 +17,10 @@ const ENTER_DELAY_MS = 70
  */
 export function sendPrompt(leafId: string, text: string): boolean {
   if (!text) return false
-  const wrote = paneWriters.write(leafId, wrapBracketedPaste(text))
+  // Raw writes (never xterm's paste path, which would wrap the text and the
+  // Enter again). Wrap here, and only when the app has bracketed-paste on.
+  const body = paneWriters.bracketedPaste(leafId) ? wrapBracketedPaste(text) : text
+  const wrote = paneWriters.write(leafId, body)
   if (!wrote) return false
   setTimeout(() => {
     paneWriters.write(leafId, '\r')

@@ -4,7 +4,6 @@ import { Maximize2, Minimize2, X, CornerDownLeft, ClipboardPaste } from 'lucide-
 import { useComposeStore } from '../../state/useComposeStore'
 import { paneWriters } from '../../state/paneWriters'
 import { sendPrompt } from '../../state/sendPrompt'
-import { wrapBracketedPaste } from '../terminal/terminalSelection'
 import { k } from '../../hooks/keys'
 
 /**
@@ -58,7 +57,7 @@ export function ComposeOverlay(): React.ReactElement | null {
       // TUI can coalesce them into one read and leave the prompt typed but
       // unsent otherwise. Insert-only has no Enter to pace, so it writes direct.
       if (submit) sendPrompt(leafId, text)
-      else paneWriters.write(leafId, wrapBracketedPaste(text))
+      else paneWriters.paste(leafId, text)
     }
     clearDraft(leafId)
     close()

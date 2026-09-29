@@ -29,7 +29,7 @@ import { selectClick, flattenVisible, type SelState } from './fileSelect'
 function writeToFocusedPane(text: string): boolean {
   const { tabs, activeId } = useWorkspaceStore.getState()
   const tab = tabs.find((t) => t.id === activeId)
-  return tab ? paneWriters.write(tab.focusedLeafId, text) : false
+  return tab ? paneWriters.paste(tab.focusedLeafId, text) : false
 }
 
 interface Menu {

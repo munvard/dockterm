@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CornerDownLeft, Maximize2, Square } from 'lucide-react'
 import { paneWriters } from '../../state/paneWriters'
 import { useComposeStore } from '../../state/useComposeStore'
-import { wrapBracketedPaste } from '../terminal/terminalSelection'
+import { sendPrompt } from '../../state/sendPrompt'
 import { opensPicker, ESC } from '../terminal/askKeys'
 
 /**
@@ -35,8 +35,7 @@ export function Composer({
   const send = (): void => {
     const body = text.trim()
     if (!body || disabled) return
-    paneWriters.write(leafId, wrapBracketedPaste(body))
-    paneWriters.write(leafId, '\r')
+    if (!sendPrompt(leafId, body)) return
     setText('')
     if (opensPicker(body)) onSentPicker()
   }

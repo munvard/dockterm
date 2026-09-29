@@ -275,9 +275,9 @@ function TerminalPane({
             kind="main"
             cwd={leaf.cwd}
             active={focused}
-            onPasteReady={(p) => {
-              pasteRef.current = p
-              paneWriters.register(leaf.id, p)
+            onInputReady={(input) => {
+              pasteRef.current = input.paste
+              paneWriters.register(leaf.id, input)
             }}
             onCwd={(cwd) => useWorkspaceStore.getState().setPaneCwd(leaf.id, cwd)}
             onCwdFallback={(actualCwd) => {

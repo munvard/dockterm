@@ -13,7 +13,11 @@ describe('sendPrompt', () => {
 
   it('writes the bracketed-paste chunk immediately and Enter ~70ms later, never in the same write', () => {
     const writes: string[] = []
-    paneWriters.register('leaf-1', (text) => writes.push(text))
+    paneWriters.register('leaf-1', {
+      write: (text) => writes.push(text),
+      paste: () => {},
+      bracketedPaste: () => true
+    })
 
     const ok = sendPrompt('leaf-1', 'hello claude')
     expect(ok).toBe(true)
@@ -28,7 +32,11 @@ describe('sendPrompt', () => {
 
   it('returns false and writes nothing for an empty prompt', () => {
     const writes: string[] = []
-    paneWriters.register('leaf-1', (text) => writes.push(text))
+    paneWriters.register('leaf-1', {
+      write: (text) => writes.push(text),
+      paste: () => {},
+      bracketedPaste: () => true
+    })
     expect(sendPrompt('leaf-1', '')).toBe(false)
     expect(writes).toEqual([])
   })

@@ -63,11 +63,14 @@ export interface TerminalHandle {
   findPrevious: (query: string) => void
   clearSearch: () => void
   focus: () => void
-  /** Write text into the PTY (queued until the session is ready). No newline
-   * added. Goes through xterm's own `Terminal.paste`, which wraps the text in
-   * bracketed-paste markers only when the app underneath has turned that mode
-   * on, never assume either way from the caller. */
+  /** A real user paste into the PTY (queued until the session is ready). Goes
+   * through xterm's own `Terminal.paste`, which wraps the text in bracketed-paste
+   * markers only when the app underneath has turned that mode on. */
   paste: (text: string) => void
+  /** Raw PTY write for app-sent input (commands, keys). No paste wrapping. */
+  write: (text: string) => void
+  /** Whether the app underneath has bracketed-paste mode on. */
+  bracketedPaste: () => boolean
   /** The terminal's current selected text ('' if none). */
   getSelection: () => string
   /** True when the app underneath has turned on mouse tracking (Claude's
@@ -151,6 +154,8 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     clearSearch: () => poolRef.current?.clearSearch(),
     focus: () => poolRef.current?.focus(),
     paste: (text) => poolRef.current?.paste(text),
+    write: (text) => poolRef.current?.write(text),
+    bracketedPaste: () => poolRef.current?.term.modes.bracketedPasteMode ?? false,
     getSelection: () => poolRef.current?.term.getSelection() ?? '',
     mouseTrackingActive: () => (poolRef.current?.term.modes.mouseTrackingMode ?? 'none') !== 'none'
   }

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTerminal, type TerminalOptions } from './useTerminal'
 import { useAppStore } from '../../state/useAppStore'
+import type { PaneInput } from '../../state/paneWriters'
 import { SelectionToolbar } from './SelectionToolbar'
 import { clampToolbar, buildClaudeReference, type Pt } from './terminalSelection'
 
 type Props = TerminalOptions & {
-  /** Receives a stable paste function once the terminal mounts (for drag-drop). */
-  onPasteReady?: (paste: (text: string) => void) => void
+  /** Receives stable input functions once the terminal mounts: `paste` for
+   * drag-drop and user paste, `write` for raw app-sent input. */
+  onInputReady?: (input: PaneInput) => void
 }
 
 const TOOLBAR_SIZE = { w: 168, h: 30 }
@@ -15,7 +17,7 @@ const DRAG_PX = 8
 // the drag ends, then read what it put on the clipboard.
 const CLAUDE_COPY_MS = 200
 
-export function TerminalView({ onPasteReady, ...options }: Props) {
+export function TerminalView({ onInputReady, ...options }: Props) {
   const copyOnSelect = useAppStore((s) => s.settings?.terminal.copyOnSelect) ?? false
   const showToolbar = useAppStore((s) => s.settings?.terminal.selectionToolbar) ?? true
 
@@ -36,8 +38,8 @@ export function TerminalView({ onPasteReady, ...options }: Props) {
   termRef.current = term
 
   useEffect(() => {
-    onPasteReady?.(term.paste)
-    // term.paste closes over stable refs, so the first instance is valid forever.
+    onInputReady?.({ write: term.write, paste: term.paste, bracketedPaste: term.bracketedPaste })
+    // These close over stable refs, so the first instance is valid forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

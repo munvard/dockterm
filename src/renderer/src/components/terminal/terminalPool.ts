@@ -14,6 +14,7 @@ import { findPathLinks, columnForStringIndex, type CellSpan } from './pathLinks'
 import { useThemeStore } from '../../state/useThemeStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
+import { createPtyInput } from './ptyInput'
 import type { TerminalOptions } from './useTerminal'
 import '@xterm/xterm/css/xterm.css'
 
@@ -66,7 +67,10 @@ export interface PooledTerminal {
   attach: (container: HTMLElement) => void
   detach: () => void
   refit: () => void
+  /** User-paste semantics (xterm paste). Not for app-sent input, see ptyInput.ts. */
   paste: (text: string) => void
+  /** Raw PTY write, queued until the session exists. */
+  write: (text: string) => void
   findNext: (q: string) => void
   findPrevious: (q: string) => void
   clearSearch: () => void
@@ -100,11 +104,9 @@ export function paneBufferType(leafId: string): 'normal' | 'alternate' | null {
 
 /** Whether the pane's PTY currently expects bracketed-paste markers around
  * pasted text (set by full-screen apps like Claude Code, vim; a plain shell
- * usually leaves it off). `paneWriters`/`PooledTerminal.paste` already handle
- * this automatically via xterm's own `Terminal.paste`. This is exposed for
- * callers that write to a pane WITHOUT going through that (e.g. a future chat
- * composer sending text directly), so they can decide whether to wrap it
- * themselves instead of assuming either way. */
+ * usually leaves it off). `PooledTerminal.paste` handles this via xterm's own
+ * `Terminal.paste`; callers that write raw (sendPrompt) use this to decide
+ * whether to wrap the text themselves. */
 export function paneBracketedPasteMode(leafId: string): boolean {
   return pool.get(leafId)?.term.modes.bracketedPasteMode ?? false
 }
@@ -317,6 +319,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     detach: () => {},
     refit: () => {},
     paste: () => {},
+    write: () => {},
     findNext: () => {},
     findPrevious: () => {},
     clearSearch: () => {},
@@ -506,7 +509,11 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   const pending: PtyDataEvent[] = []
 
   let sessionId: string | null = null
-  let pasteQueue = ''
+  const input = createPtyInput({
+    sessionId: () => sessionId,
+    send: (sid, data) => void window.dockterm.invoke('pty:write', { sessionId: sid, data }),
+    termPaste: (text) => term.paste(text)
+  })
 
   const writeChunk = (data: string): void => {
     term.write(data, () => {
@@ -614,10 +621,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           if (e.sessionId === sessionId) writeChunk(e.data)
         }
         pending.length = 0
-        if (pasteQueue) {
-          void window.dockterm.invoke('pty:write', { sessionId, data: pasteQueue })
-          pasteQueue = ''
-        }
+        input.flush()
         term.focus()
       })
   }
@@ -634,13 +638,8 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (host.parentElement) host.parentElement.removeChild(host)
   }
   p.refit = safeFit
-  p.paste = (text) => {
-    // Go through xterm's own paste (not a raw pty:write): it wraps the text in
-    // bracketed-paste markers when, and only when, the app underneath has
-    // turned that mode on, instead of us guessing either way per call site.
-    if (sessionId) term.paste(text)
-    else pasteQueue += text
-  }
+  p.paste = input.paste
+  p.write = input.write
   p.findNext = (q) => search.findNext(q)
   p.findPrevious = (q) => search.findPrevious(q)
   p.clearSearch = () => search.clearDecorations()
