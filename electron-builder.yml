@@ -16,6 +16,11 @@ files:
   - out/**/*
   - package.json
   - build/icon.png
+  # node-pty ships prebuilt binaries for every platform+arch it supports, and
+  # a .pdb debug-symbol file alongside each Windows one — neither is ever
+  # needed at runtime on any OS, so drop the ones this build isn't. The
+  # per-platform sections below additionally drop the OTHER OS's prebuilds.
+  - "!**/node_modules/node-pty/prebuilds/**/*.pdb"
 
 asarUnpack:
   - resources/**
@@ -28,6 +33,8 @@ win:
       arch: [x64]
   icon: build/icon.ico
   artifactName: ${productName}-${version}-windows-${arch}.${ext}
+  files:
+    - "!**/node_modules/node-pty/prebuilds/darwin-*/**"
 
 nsis:
   oneClick: false
@@ -53,6 +60,14 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  files:
+    - "!**/node_modules/node-pty/prebuilds/win32-*/**"
+  # Required alongside entitlements.mac.plist's audio-input entitlement: macOS
+  # refuses to even show the mic permission prompt without a usage string, and
+  # attributes it to DockTerm (the responsible top-level app), not to whatever
+  # CLI a user runs inside its terminal.
+  extendInfo:
+    NSMicrophoneUsageDescription: "Claude Code's voice mode records through DockTerm's terminal."
 
 dmg:
   writeUpdateInfo: false
@@ -76,11 +91,16 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
+    - target: deb
+      arch: [x64]
   category: Development
   icon: build/icon.png
   maintainer: Menua Vardanyan <taronmenua@gmail.com>
   synopsis: Terminal-first workspace for Claude Code
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
+  files:
+    - "!**/node_modules/node-pty/prebuilds/darwin-*/**"
+    - "!**/node_modules/node-pty/prebuilds/win32-*/**"
 
 publish:
   provider: github

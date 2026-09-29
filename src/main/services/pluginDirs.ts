@@ -9,14 +9,24 @@ export interface InstalledPlugin {
   path: string
 }
 
+/** Base Claude Code user config directory — normally `~/.claude`, but honors
+ * CLAUDE_CONFIG_DIR when set (matching Claude Code's own CLI), so plugin,
+ * skill, command, and agent discovery keeps working under a relocated
+ * config directory instead of silently looking in the wrong place. */
+export function claudeConfigDir(): string {
+  const override = process.env.CLAUDE_CONFIG_DIR?.trim()
+  return override ? override : join(homedir(), '.claude')
+}
+
 /**
  * Enumerate installed Claude Code plugins from
- * `~/.claude/plugins/installed_plugins.json`. Returns each plugin's short name +
- * its install path. Empty if the registry is missing/unreadable. Shared by the
- * MCP, skills, commands, and agents scanners so plugin-provided items show up.
+ * `<claudeConfigDir>/plugins/installed_plugins.json`. Returns each plugin's
+ * short name + its install path. Empty if the registry is missing/unreadable.
+ * Shared by the MCP, skills, commands, and agents scanners so plugin-provided
+ * items show up.
  */
 export function listInstalledPlugins(): InstalledPlugin[] {
-  const file = join(homedir(), '.claude', 'plugins', 'installed_plugins.json')
+  const file = join(claudeConfigDir(), 'plugins', 'installed_plugins.json')
   if (!existsSync(file)) return []
   try {
     const json = JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')) as {

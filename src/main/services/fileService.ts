@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import { shell } from 'electron'
-import { resolveInside } from './pathJail'
+import { resolveInside, isRegularFile } from './pathJail'
 import { IGNORED_ENTRIES, MAX_EDIT_FILE_BYTES, MAX_TREE_ENTRIES } from '@shared/constants'
 import type { TreeNode, ReadFileResult, WriteFileResult } from '@shared/ipc'
 
@@ -72,12 +72,28 @@ export async function searchTree(root: string, query: string): Promise<TreeNode[
   return out.slice(0, MAX_SEARCH_RESULTS)
 }
 
+/** True if `buffer` is not valid UTF-8. Decoding in fatal mode is the reliable
+ * check — a byte-scan heuristic misses many invalid sequences that `toString`
+ * would otherwise silently replace with U+FFFD, corrupting the file the
+ * moment it's opened (and again, permanently, the moment it's saved back). */
+function isInvalidUtf8(buffer: Buffer): boolean {
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+    return false
+  } catch {
+    return true
+  }
+}
+
 export async function readFile(root: string, relPath: string): Promise<ReadFileResult> {
   const abs = resolveInside(root, relPath)
   const stat = await fs.stat(abs)
+  if (!isRegularFile(abs)) return { kind: 'binary', size: stat.size }
   if (stat.size > MAX_EDIT_FILE_BYTES) return { kind: 'too-large', size: stat.size }
   const buffer = await fs.readFile(abs)
-  if (isBinary(buffer)) return { kind: 'binary', size: stat.size }
+  // Not valid text we can safely round-trip: treat it like a binary file so
+  // the editor never opens (and risks re-saving a corrupted copy of) it.
+  if (isBinary(buffer) || isInvalidUtf8(buffer)) return { kind: 'binary', size: stat.size }
   return { kind: 'text', content: buffer.toString('utf8'), mtimeMs: stat.mtimeMs }
 }
 
@@ -98,7 +114,18 @@ export async function writeFile(
       // file vanished — fall through and recreate it
     }
   }
-  await fs.writeFile(abs, content, 'utf8')
+  // Write-then-rename: a crash or power loss mid-write leaves the original
+  // file untouched instead of a truncated/corrupted one, since rename onto an
+  // existing path is atomic on the same filesystem (always true here — the
+  // temp file is a sibling of the target).
+  const tmp = `${abs}.dockterm-tmp-${process.pid}-${Date.now()}`
+  try {
+    await fs.writeFile(tmp, content, 'utf8')
+    await fs.rename(tmp, abs)
+  } catch (e) {
+    await fs.unlink(tmp).catch(() => {})
+    throw e
+  }
   const stat = await fs.stat(abs)
   return { kind: 'ok', mtimeMs: stat.mtimeMs }
 }
@@ -114,7 +141,20 @@ export async function createDir(root: string, relPath: string): Promise<void> {
 }
 
 export async function rename(root: string, fromRel: string, toRel: string): Promise<void> {
-  await fs.rename(resolveInside(root, fromRel), resolveInside(root, toRel))
+  const fromAbs = resolveInside(root, fromRel)
+  const toAbs = resolveInside(root, toRel)
+  // fs.rename silently overwrites an existing destination (POSIX semantics).
+  // Refuse that — except a pure case change on the SAME path (e.g. renaming
+  // "Foo.txt" to "foo.txt" on a case-insensitive filesystem), which resolves
+  // to the same real path and must still be allowed.
+  if (fromAbs !== toAbs) {
+    const destExists = await fs.stat(toAbs).then(
+      () => true,
+      () => false
+    )
+    if (destExists) throw new Error('A file or folder with that name already exists')
+  }
+  await fs.rename(fromAbs, toAbs)
 }
 
 export async function trash(root: string, relPath: string): Promise<void> {
@@ -144,6 +184,7 @@ export async function readDataUrl(
   relPath: string
 ): Promise<{ dataUrl: string; size: number }> {
   const abs = resolveInside(root, relPath)
+  if (!isRegularFile(abs)) throw new Error('Not a regular file')
   const stat = await fs.stat(abs)
   if (stat.size > MAX_DATAURL_BYTES) throw new Error('File is too large to preview')
   const buffer = await fs.readFile(abs)

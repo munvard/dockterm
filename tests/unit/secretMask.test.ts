@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { safeUrl, isSecretKey, keysOf } from '@main/services/secretMask'
+import { safeUrl, isSecretKey, keysOf, looksLikeSecret, maskCommandLine, MASK } from '@main/services/secretMask'
 
 describe('safeUrl', () => {
   it('keeps scheme, host, and path', () => {
@@ -15,6 +15,62 @@ describe('safeUrl', () => {
     const masked = safeUrl('https://user:supersecret@host.com/p?token=abc123')
     expect(masked).not.toContain('supersecret')
     expect(masked).not.toContain('abc123')
+  })
+  it('masks a high-entropy path segment (e.g. a Slack incoming-webhook token)', () => {
+    const token = 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4'
+    const masked = safeUrl(`https://hooks.slack.com/services/T00000000/B00000000/${token}`)
+    expect(masked).not.toContain(token)
+    expect(masked.startsWith('https://hooks.slack.com/')).toBe(true)
+  })
+  it('keeps an ordinary, low-entropy path untouched', () => {
+    expect(safeUrl('https://mcp.example.com/api/v1/endpoint')).toBe(
+      'https://mcp.example.com/api/v1/endpoint'
+    )
+  })
+})
+
+describe('looksLikeSecret', () => {
+  it('recognizes common token prefixes', () => {
+    expect(looksLikeSecret('sk-abcdefghijklmnop1234')).toBe(true)
+    expect(looksLikeSecret('ghp_abcdefghijklmnopqrstuvwxyz1234')).toBe(true)
+    expect(looksLikeSecret('AKIAABCDEFGHIJKLMNOP')).toBe(true)
+    expect(looksLikeSecret('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0')).toBe(true)
+  })
+  it('does not flag ordinary short or plain-English args', () => {
+    expect(looksLikeSecret('--verbose')).toBe(false)
+    expect(looksLikeSecret('production')).toBe(false)
+    expect(looksLikeSecret('@example/mcp@latest')).toBe(false)
+  })
+})
+
+describe('maskCommandLine', () => {
+  it('masks the value of a --flag=value secret-named flag', () => {
+    expect(maskCommandLine('npx', ['-y', '@foo/mcp', '--api-key=sk-abcdefghijklmnop'])).toBe(
+      `npx -y @foo/mcp --api-key=${MASK}`
+    )
+  })
+  it('masks the bare arg following a secret-named flag', () => {
+    expect(maskCommandLine('foo', ['--token', 'abcdefghijklmnopqrstuvwx'])).toBe(`foo --token ${MASK}`)
+  })
+  it('masks the bare arg following --header and -e/--env', () => {
+    expect(maskCommandLine('foo', ['--header', 'Authorization: Bearer xyz'])).toBe(
+      `foo --header ${MASK}`
+    )
+    expect(maskCommandLine('foo', ['-e', 'SOME_SECRET_VALUE'])).toBe(`foo -e ${MASK}`)
+  })
+  it('masks a KEY=VALUE pair whose key looks like a secret', () => {
+    expect(maskCommandLine('foo', ['API_TOKEN=abcdefghijklmnop1234'])).toBe(`foo API_TOKEN=${MASK}`)
+  })
+  it('masks a bare token-shaped argument even with no flag context', () => {
+    expect(maskCommandLine('foo', ['sk-abcdefghijklmnop1234'])).toBe(`foo ${MASK}`)
+  })
+  it('masks an embedded URL via safeUrl', () => {
+    expect(maskCommandLine('foo', ['--url', 'https://user:pw@host.com/x?token=abc'])).toContain(
+      'https://host.com'
+    )
+  })
+  it('leaves non-secret args untouched', () => {
+    expect(maskCommandLine('npx', ['-y', '@example/mcp@latest'])).toBe('npx -y @example/mcp@latest')
   })
 })
 

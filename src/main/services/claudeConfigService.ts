@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { safeUrl, keysOf } from './secretMask'
+import { safeUrl, keysOf, maskCommandLine } from './secretMask'
 import { listInstalledPlugins } from './pluginDirs'
 import { getSettings } from './settingsService'
+import { resolveInside, isRegularFile } from './pathJail'
 import type { McpServerView, McpSource, McpReadResult, McpTransport, McpScope } from '@shared/types'
 
 const MCP_TEMPLATE = `{
@@ -52,7 +53,7 @@ function serversFromMap(
     }
     if (typeof def.command === 'string') {
       const args = Array.isArray(def.args) ? def.args.map((a) => String(a)) : []
-      view.command = [def.command, ...args].join(' ')
+      view.command = maskCommandLine(def.command, args)
     }
     if (typeof def.url === 'string') view.url = safeUrl(def.url)
     servers.push(view)
@@ -72,6 +73,12 @@ function readInto(
 ): void {
   if (!existsSync(file)) {
     sources.push({ path: file, scope, exists: false, ok: true })
+    return
+  }
+  // A symlinked or FIFO ".mcp.json" would otherwise read through to an
+  // arbitrary file, or hang, the moment a project is opened.
+  if (!isRegularFile(file)) {
+    sources.push({ path: file, scope, exists: true, ok: false, error: 'Not a regular file' })
     return
   }
   try {
@@ -97,6 +104,10 @@ function readUserConfig(
 ): void {
   if (!existsSync(file)) {
     sources.push({ path: file, scope: 'user', exists: false, ok: true })
+    return
+  }
+  if (!isRegularFile(file)) {
+    sources.push({ path: file, scope: 'user', exists: true, ok: false, error: 'Not a regular file' })
     return
   }
   try {
@@ -170,7 +181,10 @@ export function readMcp(root: string, includeUser: boolean): McpReadResult {
 }
 
 export function createMcpTemplate(root: string): string {
-  const file = join(root, '.mcp.json')
+  // resolveInside follows a symlinked ".mcp.json" (or a symlinked project
+  // root ancestor) to where it actually points and refuses it if that's
+  // outside the project, instead of writing through it.
+  const file = resolveInside(root, '.mcp.json')
   if (existsSync(file)) throw new Error('.mcp.json already exists')
   writeFileSync(file, MCP_TEMPLATE, { flag: 'wx' })
   return '.mcp.json'

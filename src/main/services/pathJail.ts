@@ -1,5 +1,5 @@
-import { realpathSync } from 'node:fs'
-import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
+import { realpathSync, lstatSync, readlinkSync, type Stats } from 'node:fs'
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 export class JailViolation extends Error {
   constructor(message: string) {
@@ -36,6 +36,18 @@ export function isInside(root: string, child: string): boolean {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
 
+/** True if `path` exists and is a regular file, with no symlink, FIFO, device,
+ * or socket at that exact spot. Callers use this before reading/writing a file
+ * that was reached by walking a (jailed) directory tree, so a crafted entry
+ * can't trigger a symlink-followed read/hang-on-FIFO. */
+export function isRegularFile(path: string): boolean {
+  try {
+    return lstatSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
 function canonicalize(p: string): string {
   try {
     return realpathSync(p)
@@ -44,19 +56,55 @@ function canonicalize(p: string): string {
   }
 }
 
+function tryLstat(p: string): Stats | null {
+  try {
+    return lstatSync(p)
+  } catch {
+    return null
+  }
+}
+
+function realpathSyncSafe(p: string): string {
+  try {
+    return realpathSync(p)
+  } catch {
+    return p
+  }
+}
+
+/**
+ * Fully resolves `path` through a symlink chain, even a *dangling* one whose
+ * final target doesn't exist. Node's own `realpathSync` throws the instant any
+ * link in the chain can't be followed, which is exactly the case an attacker
+ * needs: a symlink whose target is missing (or not yet created) resolves as
+ * "doesn't exist" instead of "points outside the root", letting a mutation
+ * that creates-on-write (like `fs.writeFile`) follow it straight through.
+ * Walking the chain ourselves with `lstat`/`readlink` finds where it ACTUALLY
+ * points regardless of whether that target exists yet.
+ */
+function resolveSymlinkChain(path: string, depth = 0): string {
+  if (depth > 40) throw new JailViolation('Too many levels of symbolic links')
+  const st = tryLstat(path)
+  if (!st) return path // nothing at this path at all
+  if (!st.isSymbolicLink()) return realpathSyncSafe(path)
+  const link = readlinkSync(path)
+  const target = isAbsolute(link) ? link : resolve(dirname(path), link)
+  return resolveSymlinkChain(target, depth + 1)
+}
+
 function realpathNearest(target: string): string {
   let existing = target
   const tail: string[] = []
   for (;;) {
-    try {
-      const real = realpathSync(existing)
+    const st = tryLstat(existing)
+    if (st) {
+      const real = st.isSymbolicLink() ? resolveSymlinkChain(existing) : realpathSyncSafe(existing)
       return tail.length ? resolve(real, ...tail.reverse()) : real
-    } catch {
-      const parent = resolve(existing, '..')
-      if (parent === existing) return target // reached a non-existent root
-      tail.push(basename(existing))
-      existing = parent
     }
+    const parent = resolve(existing, '..')
+    if (parent === existing) return target // reached a non-existent root
+    tail.push(basename(existing))
+    existing = parent
   }
 }
 

@@ -1,6 +1,7 @@
 import { protocol, net } from 'electron'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { PROD_CSP } from './security'
 
 const SCHEME = 'app'
 
@@ -30,7 +31,7 @@ export function registerAppSchemePrivileges(): void {
  */
 export function serveAppProtocol(): void {
   const rendererRoot = join(__dirname, '../renderer')
-  protocol.handle(SCHEME, (request) => {
+  protocol.handle(SCHEME, async (request) => {
     const { pathname } = new URL(request.url)
     let rel = decodeURIComponent(pathname)
     if (rel === '/' || rel === '') rel = '/index.html'
@@ -38,6 +39,13 @@ export function serveAppProtocol(): void {
     if (filePath !== rendererRoot && !filePath.startsWith(rendererRoot + sep)) {
       return new Response('Forbidden', { status: 403 })
     }
-    return net.fetch(pathToFileURL(filePath).toString())
+    const res = await net.fetch(pathToFileURL(filePath).toString())
+    // security.ts's onHeadersReceived CSP is a webRequest-layer hook; it isn't
+    // guaranteed to run for every response a custom protocol.handle() serves
+    // (e.g. the very first document load), so set the same policy directly
+    // here too — belt and suspenders for the one scheme that's ever loaded.
+    const headers = new Headers(res.headers)
+    headers.set('Content-Security-Policy', PROD_CSP)
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
   })
 }

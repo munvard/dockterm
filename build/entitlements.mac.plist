@@ -12,5 +12,12 @@
   <true/>
   <key>com.apple.security.cs.allow-dyld-environment-variables</key>
   <true/>
+  <!-- Claude Code's own CLI has a voice-mode feature; a CLI process the user
+       runs inside DockTerm's terminal needs this (plus the inherited copy in
+       entitlements.mac.inherit.plist, and NSMicrophoneUsageDescription in
+       electron-builder.yml's mac.extendInfo) for macOS to grant it mic
+       access at all under the hardened runtime. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
 </dict>
 </plist>

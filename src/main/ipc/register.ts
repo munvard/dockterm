@@ -2,6 +2,8 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import type { z } from 'zod'
 import { err, type Result } from '@shared/result'
 import { isTrustedSender } from '../security'
+import { getOverlay } from '../overlayWindow'
+import { isChannelAllowedForSender } from './overlayChannels'
 import { registerAppHandlers } from './handlers/app'
 import { registerPtyHandlers } from './handlers/pty'
 import { registerSettingsHandlers } from './handlers/settings'
@@ -24,11 +26,19 @@ export type Registrar = <T>(
   handler: (req: T, event: IpcMainInvokeEvent) => Result<unknown> | Promise<Result<unknown>>
 ) => void
 
+function isOverlaySender(event: IpcMainInvokeEvent): boolean {
+  const overlay = getOverlay()
+  return !!overlay && event.sender.id === overlay.webContents.id
+}
+
 export function registerIpc(): void {
   const reg: Registrar = (channel, schema, handler) => {
     ipcMain.handle(channel, async (event, raw) => {
       if (!isTrustedSender(event.senderFrame?.url)) {
         return err('VALIDATION', 'Untrusted sender')
+      }
+      if (!isChannelAllowedForSender(channel, isOverlaySender(event))) {
+        return err('VALIDATION', 'Channel not available to this window')
       }
       const parsed = schema.safeParse(raw)
       if (!parsed.success) {
