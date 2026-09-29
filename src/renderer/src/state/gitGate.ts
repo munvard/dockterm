@@ -1,4 +1,4 @@
-import type { InvokeChannel, ReqOf, ResOf } from '@shared/ipc'
+import type { DockTermApi, InvokeChannel, ReqOf, ResOf } from '@shared/ipc'
 import { err } from '@shared/result'
 import { useDialogStore } from './useDialogStore'
 
@@ -29,25 +29,32 @@ export function parseUntrustedDetails(details: unknown): UntrustedConfigDetails 
  * retries the action exactly once; Cancel resolves to a CANCELED error (callers
  * must not toast it).
  */
-export async function invokeGitGated<C extends InvokeChannel>(
-  channel: C,
-  req: ReqOf<C>
-): Promise<ResOf<C>> {
-  const res = await window.dockterm.invoke(channel, req)
-  if (res.ok || res.error.code !== 'UNTRUSTED_GIT_CONFIG') return res
-  const details = parseUntrustedDetails(res.error.details)
-  if (!details) return res
-  const run = await useDialogStore.getState().confirm({
-    title: "This repo's git config runs commands",
-    message: 'Git will run these commands from the repository’s own .git/config when you continue:',
-    detail: 'Only continue if you trust this repository.',
-    command: details.entries.map((e) => `${e.key} = ${e.value}`).join('\n'),
-    confirmLabel: 'Run anyway',
-    cancelLabel: 'Cancel',
-    danger: true
-  })
-  if (!run) return err('CANCELED', 'Canceled') as ResOf<C>
-  const trusted = await window.dockterm.invoke('git:trustRepo', { root: details.root })
-  if (!trusted.ok) return trusted as ResOf<C>
-  return window.dockterm.invoke(channel, req)
+export function createGitGate(
+  invoke: DockTermApi['invoke']
+): <C extends InvokeChannel>(channel: C, req: ReqOf<C>) => Promise<ResOf<C>> {
+  return async function invokeGitGated<C extends InvokeChannel>(
+    channel: C,
+    req: ReqOf<C>
+  ): Promise<ResOf<C>> {
+    const res = await invoke(channel, req)
+    if (res.ok || res.error.code !== 'UNTRUSTED_GIT_CONFIG') return res
+    const details = parseUntrustedDetails(res.error.details)
+    if (!details) return res
+    const run = await useDialogStore.getState().confirm({
+      title: "This repo's git config runs commands",
+      message: 'Git will run these commands from the repository’s own .git/config when you continue:',
+      detail:
+        (details.entries.some((e) => /^(filter\.lfs|lfs)\./i.test(e.key))
+          ? 'Git LFS is set up here; its filters run git-lfs. '
+          : '') + 'Only continue if you trust this repository.',
+      command: details.entries.map((e) => `${e.key} = ${e.value}`).join('\n'),
+      confirmLabel: 'Run anyway',
+      cancelLabel: 'Cancel',
+      danger: true
+    })
+    if (!run) return err('CANCELED', 'Canceled') as ResOf<C>
+    const trusted = await invoke('git:trustRepo', { root: details.root })
+    if (!trusted.ok) return trusted as ResOf<C>
+    return invoke(channel, req)
+  }
 }

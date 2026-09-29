@@ -14,90 +14,145 @@ import {
 import { registerGitHandlers } from '@main/ipc/handlers/git'
 import { setActiveRoot, clearActiveRoot } from '@main/services/activeRoot'
 
-/** Build `git config --local --null --list` output from key/value pairs. */
-const cfg = (pairs: [string, string | null][]): string =>
-  pairs.map(([k, v]) => (v === null ? k : `${k}\n${v}`)).join('\0') + '\0'
+type Row = [string, string | null] | [string, string | null, string]
 
-const keys = (pairs: [string, string | null][]): string[] =>
-  detectExecConfig(cfg(pairs)).map((e) => e.key)
+/** Build `git config --list --show-scope --includes --null` output: each entry
+ * is `scope NUL key NEWLINE value NUL`. Rows default to the repo's local scope. */
+const cfg = (rows: Row[]): string =>
+  rows
+    .map((r) => {
+      const [key, value] = r
+      const scope = r[2] ?? 'local'
+      return `${scope}\0${value === null ? key : `${key}\n${value}`}\0`
+    })
+    .join('')
+
+const keys = (rows: Row[]): string[] => detectExecConfig(cfg(rows)).map((e) => e.key)
 
 describe('detectExecConfig', () => {
-  it('ignores ordinary repo config', () => {
+  it('passes a typical repo config (allowlist)', () => {
     expect(
       keys([
         ['core.repositoryformatversion', '0'],
         ['core.filemode', 'true'],
         ['core.bare', 'false'],
+        ['core.logallrefupdates', 'true'],
+        ['core.ignorecase', 'true'],
+        ['core.precomposeunicode', 'true'],
+        ['core.autocrlf', 'input'],
+        ['user.name', 'Ann'],
+        ['user.email', 'a@example.com'],
         ['remote.origin.url', 'https://example.com/a.git'],
         ['remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
+        ['remote.origin.tagopt', '--no-tags'],
         ['branch.main.remote', 'origin'],
-        ['user.name', 'Ann'],
-        ['filter.lfs.required', 'true']
+        ['branch.main.merge', 'refs/heads/main'],
+        ['branch.main.rebase', 'true'],
+        ['extensions.partialclone', 'origin'],
+        ['gc.auto', '0'],
+        ['pack.threads', '2'],
+        ['index.version', '4'],
+        ['feature.manyfiles', 'true'],
+        ['pull.rebase', 'true'],
+        ['push.default', 'current'],
+        ['push.autosetupremote', 'true'],
+        ['fetch.prune', 'true'],
+        ['rebase.autostash', 'true'],
+        ['merge.conflictstyle', 'zdiff3'],
+        ['diff.algorithm', 'histogram'],
+        ['color.ui', 'auto'],
+        ['commit.gpgsign', 'false'],
+        ['lfs.url', 'https://lfs.example.com'],
+        ['submodule.lib.url', 'https://example.com/lib.git'],
+        ['submodule.lib.active', 'true'],
+        ['submodule.lib.update', 'checkout'],
+        ['url.git@github.com:.insteadof', 'https://github.com/']
       ])
     ).toEqual([])
   })
 
-  it('flags filter drivers', () => {
-    expect(
-      keys([
-        ['filter.x.clean', 'evil'],
-        ['filter.x.smudge', 'evil'],
-        ['filter.x.process', 'evil']
-      ])
-    ).toEqual(['filter.x.clean', 'filter.x.smudge', 'filter.x.process'])
+  it('flags an unknown key (allowlist, not denylist)', () => {
+    expect(keys([['alias.co', '!evil']])).toEqual(['alias.co'])
+    expect(keys([['some.future.key', 'x']])).toEqual(['some.future.key'])
+    expect(keys([['core.somethingnew', 'x']])).toEqual(['core.somethingnew'])
+    expect(keys([['branch.main.mergeoptions', '--x']])).toEqual(['branch.main.mergeoptions'])
   })
 
-  it('flags the other command-running keys', () => {
+  it('flags command-running keys, including ones a denylist would miss', () => {
     const found = keys([
+      ['filter.x.clean', 'evil'],
+      ['filter.x.smudge', 'evil'],
+      ['filter.x.process', 'evil'],
       ['core.sshcommand', 'sh -c evil'],
       ['core.hookspath', '/tmp/hooks'],
+      ['core.fsmonitor', '/tmp/hook'],
       ['core.editor', 'evil'],
       ['core.pager', 'evil'],
+      ['core.askpass', 'evil'],
+      ['core.gitproxy', 'evil'],
+      ['core.alternaterefscommand', 'evil'],
       ['sequence.editor', 'evil'],
       ['credential.helper', '!evil'],
       ['credential.https://example.com.helper', '!evil'],
       ['diff.x.textconv', 'evil'],
       ['diff.x.command', 'evil'],
+      ['diff.external', 'evil'],
       ['merge.x.driver', 'evil %A'],
+      ['interactive.difffilter', 'evil'],
+      ['trailer.x.command', 'evil'],
       ['gpg.program', 'evil'],
       ['gpg.ssh.program', 'evil'],
+      ['pager.log', 'evil'],
       ['remote.origin.uploadpack', 'evil'],
       ['remote.origin.receivepack', 'evil'],
-      ['uploadpack.packobjectshook', 'evil']
+      ['remote.origin.vcs', 'evil'],
+      ['uploadpack.packobjectshook', 'evil'],
+      ['protocol.allow', 'always'],
+      ['protocol.ext.allow', 'always'],
+      ['commit.gpgsign', 'true'],
+      ['submodule.lib.update', '!evil'],
+      ['lfs.customtransfer.x.path', 'evil'],
+      ['lfs.standalonetransferagent', 'x']
     ])
-    expect(found).toHaveLength(15)
+    expect(found).toHaveLength(33)
   })
 
-  it('flags core.fsmonitor only when it is a command, not a boolean', () => {
-    expect(keys([['core.fsmonitor', '/tmp/hook']])).toEqual(['core.fsmonitor'])
-    expect(keys([['core.fsmonitor', 'true']])).toEqual([])
-    expect(keys([['core.fsmonitor', 'false']])).toEqual([])
-    expect(keys([['core.fsmonitor', null]])).toEqual([])
+  it('flags core.fsmonitor even as a boolean (not on the allowlist; git() forces it off anyway)', () => {
+    expect(keys([['core.fsmonitor', 'true']])).toEqual(['core.fsmonitor'])
   })
 
   it('is case-insensitive on section and variable names', () => {
     expect(keys([['FILTER.x.CLEAN', 'evil']])).toEqual(['FILTER.x.CLEAN'])
     expect(keys([['Core.SshCommand', 'evil']])).toEqual(['Core.SshCommand'])
     expect(keys([['CREDENTIAL.HELPER', 'store']])).toEqual(['CREDENTIAL.HELPER'])
+    expect(keys([['CORE.FileMode', 'true']])).toEqual([])
   })
 
-  it('flags url.<base>.insteadOf when the base is an ext:: or fd:: transport', () => {
-    expect(keys([['url.ext::sh -c evil.insteadof', 'https://example.com/']])).toHaveLength(1)
-    expect(keys([['url.EXT::sh -c evil.pushinsteadof', 'https://example.com/']])).toHaveLength(1)
-    expect(keys([['url.fd::3.insteadof', 'x']])).toHaveLength(1)
-    expect(keys([['url.git@github.com:.insteadof', 'https://github.com/']])).toEqual([])
-    expect(keys([['url.https://example.com/.insteadof', 'ext::']])).toEqual([])
+  it('flags include.path and includeIf.<cond>.path on their own', () => {
+    expect(keys([['include.path', '../evil.cfg']])).toEqual(['include.path'])
+    expect(keys([['includeif.gitdir:/work/.path', '../evil.cfg']])).toEqual([
+      'includeif.gitdir:/work/.path'
+    ])
+    expect(keys([['includeIf.onbranch:main.path', 'x']])).toHaveLength(1)
   })
 
-  it('flags a remote url that is an ext:: transport', () => {
+  it('reads worktree-scope entries as repo-controlled, and ignores user scopes', () => {
+    expect(keys([['filter.w.clean', 'evil', 'worktree']])).toEqual(['filter.w.clean'])
+    expect(keys([['filter.g.clean', 'git-lfs clean', 'global']])).toEqual([])
+    expect(keys([['credential.helper', 'osxkeychain', 'system']])).toEqual([])
+    expect(keys([['core.hookspath', '', 'command']])).toEqual([])
+    expect(keys([['core.sshcommand', 'evil', 'unknown']])).toEqual([])
+  })
+
+  it('flags ext:: / fd:: in remote and submodule urls and url.*.insteadOf, even though those keys are allowed', () => {
     expect(keys([['remote.origin.url', 'ext::sh -c evil']])).toEqual(['remote.origin.url'])
-  })
-
-  it('flags protocol.allow and protocol.ext.allow unless "never"', () => {
-    expect(keys([['protocol.allow', 'always']])).toEqual(['protocol.allow'])
-    expect(keys([['protocol.ext.allow', 'always']])).toEqual(['protocol.ext.allow'])
-    expect(keys([['protocol.ext.allow', 'never']])).toEqual([])
-    expect(keys([['protocol.file.allow', 'always']])).toEqual([])
+    expect(keys([['remote.origin.pushurl', 'EXT::sh -c evil']])).toEqual(['remote.origin.pushurl'])
+    expect(keys([['remote.origin.url', 'fd::3']])).toHaveLength(1)
+    expect(keys([['submodule.lib.url', 'ext::sh -c evil']])).toHaveLength(1)
+    expect(keys([['url.ext::sh -c evil.insteadof', 'https://example.com/']])).toHaveLength(1)
+    expect(keys([['url.fd::3.pushinsteadof', 'x']])).toHaveLength(1)
+    expect(keys([['url.https://example.com/.insteadof', 'ext::']])).toHaveLength(1)
+    expect(keys([['remote.origin.url', 'git@example.com:a/b.git']])).toEqual([])
   })
 
   it('keeps values with newlines and truncates long ones to 200 chars', () => {
@@ -244,6 +299,25 @@ describe('git handlers: trust gate (real temp repo)', () => {
     expect(res.ok).toBe(false)
     if (!res.ok) {
       expect(res.error.code).toBe('UNTRUSTED_GIT_CONFIG')
+      const d = res.error.details as { entries: { key: string }[] }
+      const found = d.entries.map((e) => e.key)
+      expect(found).toContain('include.path')
+      expect(found).toContain('core.sshcommand')
     }
+  })
+
+  it('sees keys in worktree-scope config (extensions.worktreeConfig)', async () => {
+    run(['config', '--unset', 'filter.probe.clean'])
+    run(['config', 'extensions.worktreeConfig', 'true'])
+    run(['config', '--worktree', 'core.sshCommand', 'evil'])
+    const res = await call('git:push', {})
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error.code).toBe('UNTRUSTED_GIT_CONFIG')
+  })
+
+  it('does not trust the user\'s own global config', async () => {
+    run(['config', '--unset', 'filter.probe.clean'])
+    const res = await call('git:stage', { paths: ['a.txt'] })
+    expect(res.ok).toBe(true)
   })
 })

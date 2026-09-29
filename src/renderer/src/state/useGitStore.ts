@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { GitStatusView, GitBranches } from '@shared/types'
 import { useToastStore } from './useToastStore'
 import { useDialogStore } from './useDialogStore'
-import { invokeGitGated } from './gitGate'
+import { createGitGate } from './gitGate'
 
 interface GitState {
   status: GitStatusView | null
@@ -39,6 +39,8 @@ interface GitState {
    * neutral "loading" state instead of stale data. */
   reset: () => void
 }
+
+const invokeGitGated = createGitGate((channel, req) => window.dockterm.invoke(channel, req))
 
 const toast = (msg: string, kind: 'success' | 'error' | 'info' | 'warning') =>
   useToastStore.getState().push(msg, kind)

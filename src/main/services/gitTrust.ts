@@ -8,8 +8,8 @@ export interface ExecConfigEntry {
 }
 
 const VALUE_MAX = 200
-const BOOL_WORDS = new Set(['true', 'false', 'yes', 'no', 'on', 'off', '0', '1'])
 const EXEC_TRANSPORT = /^(ext|fd)::/i
+const FALSE_WORDS = new Set(['false', 'no', 'off', '0'])
 
 function truncate(v: string): string {
   return v.length > VALUE_MAX ? v.slice(0, VALUE_MAX) + '…' : v
@@ -17,9 +17,8 @@ function truncate(v: string): string {
 
 /** Split a git config key into its section, optional subsection and variable.
  * The subsection may itself contain dots (a URL), so only the FIRST and LAST dot
- * are structural. Section and variable are case-insensitive in git; the
- * subsection is compared as-is but none of the rules below depend on its case
- * except the transport prefix, which is matched case-insensitively. */
+ * are structural. Section and variable are case-insensitive in git and are
+ * lowercased here; the subsection is kept as written. */
 function splitKey(key: string): { section: string; sub: string | null; name: string } {
   const first = key.indexOf('.')
   const last = key.lastIndexOf('.')
@@ -34,64 +33,138 @@ function splitKey(key: string): { section: string; sub: string | null; name: str
   }
 }
 
-function isExecKey(key: string, value: string): boolean {
+const CORE_SAFE = new Set([
+  'repositoryformatversion',
+  'filemode',
+  'bare',
+  'logallrefupdates',
+  'ignorecase',
+  'precomposeunicode',
+  'autocrlf',
+  'safecrlf',
+  'symlinks',
+  'eol',
+  'quotepath',
+  'abbrev',
+  'sparsecheckout',
+  'sparsecheckoutcone'
+])
+const BRANCH_SAFE = new Set(['remote', 'merge', 'rebase', 'pushremote', 'description'])
+// promisor / partialclonefilter are plain data on a partial clone, not commands.
+const REMOTE_SAFE = new Set([
+  'url',
+  'pushurl',
+  'fetch',
+  'push',
+  'tagopt',
+  'prune',
+  'mirror',
+  'promisor',
+  'partialclonefilter'
+])
+const SUBMODULE_SAFE = new Set(['url', 'path', 'active', 'branch'])
+
+/** A URL-ish setting that names git's `ext::` / `fd::` transports, which run an
+ * arbitrary command (or hand git a file descriptor) instead of connecting. */
+function usesExecTransport(key: string, value: string): boolean {
+  const { section, sub, name } = splitKey(key)
+  const v = value.trim()
+  if (section === 'remote' || section === 'submodule') {
+    return (name === 'url' || name === 'pushurl') && EXEC_TRANSPORT.test(v)
+  }
+  if (section === 'url') {
+    // `[url "<base>"] insteadOf = <prefix>` rewrites <prefix> into <base>, so a
+    // hostile transport normally sits in the subsection. Either side is flagged.
+    return (
+      (name === 'insteadof' || name === 'pushinsteadof') &&
+      ((sub !== null && EXEC_TRANSPORT.test(sub)) || EXEC_TRANSPORT.test(v))
+    )
+  }
+  return false
+}
+
+/**
+ * ALLOWLIST. True only for repo-controlled settings that are known to be plain
+ * data. Everything else counts as "runs or may run a command": filter, diff and
+ * merge drivers, the alias, pager, credential, gpg, protocol, trailer, uploadpack
+ * and receivepack sections, core.sshCommand / askPass / gitProxy / editor / pager
+ * / hooksPath / fsmonitor / alternateRefsCommand, diff.external,
+ * interactive.diffFilter, remote.NAME.vcs, and any key a future git adds. The
+ * include and includeIf sections fall through too: an include can pull in any of
+ * the above.
+ */
+function isKnownSafe(key: string, value: string): boolean {
+  if (usesExecTransport(key, value)) return false
   const { section, sub, name } = splitKey(key)
   const v = value.trim()
   switch (section) {
-    case 'filter':
-      return sub !== null && (name === 'clean' || name === 'smudge' || name === 'process')
-    case 'diff':
-      return sub !== null && (name === 'textconv' || name === 'command')
-    case 'merge':
-      return sub !== null && name === 'driver'
-    case 'credential':
-      return name === 'helper'
-    case 'gpg':
-      return name === 'program'
     case 'core':
-      if (sub !== null) return false
-      if (name === 'fsmonitor') return !BOOL_WORDS.has(v.toLowerCase()) && v !== ''
-      return (
-        name === 'sshcommand' || name === 'hookspath' || name === 'editor' || name === 'pager'
-      )
-    case 'sequence':
-      return sub === null && name === 'editor'
-    case 'uploadpack':
-      return sub === null && name === 'packobjectshook'
+      return sub === null && CORE_SAFE.has(name)
+    case 'user':
+    case 'extensions':
+    case 'gc':
+    case 'pack':
+    case 'index':
+    case 'feature':
+    case 'color':
+      return true
+    case 'branch':
+      return sub !== null && BRANCH_SAFE.has(name)
     case 'remote':
-      if (sub === null) return false
-      if (name === 'uploadpack' || name === 'receivepack') return true
-      return (name === 'url' || name === 'pushurl') && EXEC_TRANSPORT.test(v)
+      return sub !== null && REMOTE_SAFE.has(name)
+    case 'pull':
+      return sub === null && (name === 'rebase' || name === 'ff')
+    case 'push':
+      return sub === null && (name === 'default' || name === 'autosetupremote' || name === 'followtags')
+    case 'fetch':
+      return sub === null && name === 'prune'
+    case 'rebase':
+      return sub === null && (name === 'autostash' || name === 'autosquash')
+    case 'merge':
+      return sub === null && (name === 'ff' || name === 'conflictstyle')
+    case 'diff':
+      return sub === null && (name === 'renames' || name === 'algorithm' || name === 'colormoved')
+    case 'commit':
+      return sub === null && name === 'gpgsign' && FALSE_WORDS.has(v.toLowerCase())
+    case 'lfs':
+      // Custom transfer agents are commands.
+      return !(sub?.toLowerCase().startsWith('customtransfer') || name === 'standalonetransferagent')
+    case 'submodule':
+      if (name === 'update') return sub !== null && !v.startsWith('!')
+      return (sub !== null || name === 'active') && SUBMODULE_SAFE.has(name)
     case 'url':
-      return (
-        sub !== null &&
-        (name === 'insteadof' || name === 'pushinsteadof') &&
-        EXEC_TRANSPORT.test(sub)
-      )
-    case 'protocol':
-      if (name !== 'allow') return false
-      if (sub !== null && sub.toLowerCase() !== 'ext') return false
-      return v.toLowerCase() !== 'never'
+      return sub !== null && (name === 'insteadof' || name === 'pushinsteadof')
     default:
       return false
   }
 }
 
+/** Only these scopes come from files the repository itself controls. system,
+ * global and command-line config belong to the user. */
+const REPO_SCOPES = new Set(['local', 'worktree'])
+
 /**
- * Given the output of `git config --local --includes --null --list`, return the
- * repo-local settings that make git EXECUTE something (a filter driver, an ssh
- * command, a credential helper, …). Entries are NUL-separated `key\nvalue`; a
- * key with no `=` (a bare boolean) has no newline. Values are truncated for
- * display.
+ * Given the output of `git config --list --show-scope --includes --null`,
+ * return the repo-controlled settings (scope local or worktree, includes
+ * followed) that are NOT known-safe: the ones that make git run, or possibly
+ * run, a command. `--local` alone would be wrong: it turns include.* processing
+ * off, while git itself follows includes when it stages or commits, so an
+ * `include.path` could hide a filter driver from the scan.
+ *
+ * `--null --show-scope` prints `scope NUL key NEWLINE value NUL` per entry (a
+ * bare boolean key has no newline). Values are truncated for display.
  */
 export function detectExecConfig(output: string): ExecConfigEntry[] {
   const found: ExecConfigEntry[] = []
-  for (const raw of output.split('\0')) {
-    if (!raw) continue
+  const parts = output.split('\0')
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const scope = parts[i].trim().toLowerCase()
+    if (!REPO_SCOPES.has(scope)) continue
+    const raw = parts[i + 1]
     const nl = raw.indexOf('\n')
     const key = nl < 0 ? raw : raw.slice(0, nl)
     const value = nl < 0 ? '' : raw.slice(nl + 1)
-    if (isExecKey(key, value)) found.push({ key, value: truncate(value) })
+    if (!isKnownSafe(key, value)) found.push({ key, value: truncate(value) })
   }
   return found
 }
@@ -121,11 +194,11 @@ export function clearTrustedRepos(): void {
 
 export type LocalConfigReader = (root: string) => Promise<string>
 
-/** Read-only. `--includes` matters: `--local` alone does NOT follow
- * `include.path`, but git itself does at run time, so an included file could
- * otherwise smuggle in a filter driver the list never shows. */
+/** Read-only, through the hardened git() wrapper (hooks off, fsmonitor off). All
+ * scopes are listed with `--includes`, so config pulled in by include.path /
+ * includeIf and worktree config are seen exactly as git will see them. */
 const readLocalConfig: LocalConfigReader = (root) =>
-  git(root).raw(['config', '--local', '--includes', '--null', '--list'])
+  git(root).raw(['config', '--list', '--show-scope', '--includes', '--null'])
 
 /**
  * The exec-capable local config keys standing between the user and a git write
