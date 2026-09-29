@@ -1,5 +1,17 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, readdirSync, writeFileSync, utimesSync, existsSync, readFileSync } from 'node:fs'
+import {
+  mkdtempSync,
+  rmSync,
+  readdirSync,
+  writeFileSync,
+  utimesSync,
+  existsSync,
+  readFileSync,
+  symlinkSync,
+  statSync,
+  mkdirSync,
+  chmodSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -10,6 +22,7 @@ import {
   selectStale,
   writeImage,
   sweepOldImages,
+  ensurePrivateDir,
   randomImageName,
   extForMime
 } from '../../src/main/services/chatImageCore'
@@ -97,5 +110,70 @@ describe('writeImage / sweepOldImages', () => {
     expect(randomImageName('image/gif')).toMatch(/\.gif$/)
     expect(randomImageName('image/png')).not.toBe(randomImageName('image/png'))
     expect(extForMime('image/webp')).toBe('webp')
+  })
+})
+
+describe('temp image dir safety', () => {
+  it('creates the dir private (0700) and tightens a loose one we own', () => {
+    const dir = join(tmp(), 'dockterm-images')
+    writeImage(dir, new Uint8Array([1]), 'image/png')
+    expect(statSync(dir).mode & 0o777).toBe(0o700)
+    chmodSync(dir, 0o755)
+    writeImage(dir, new Uint8Array([1]), 'image/png')
+    expect(statSync(dir).mode & 0o777).toBe(0o700)
+  })
+  it('refuses to write through a symlinked dir', () => {
+    const root = tmp()
+    const target = join(root, 'target')
+    mkdirSync(target)
+    const link = join(root, 'dockterm-images')
+    symlinkSync(target, link)
+    expect(() => writeImage(link, new Uint8Array([1]), 'image/png')).toThrow(/plain directory/)
+    expect(readdirSync(target)).toHaveLength(0)
+  })
+  it('refuses a dir owned by someone else', () => {
+    const dir = join(tmp(), 'dockterm-images')
+    mkdirSync(dir)
+    expect(() => ensurePrivateDir(dir, (statSync(dir).uid ?? 0) + 1)).toThrow(/another user/)
+  })
+  it('sweep does not enter a symlinked dir or delete what it points to', () => {
+    const root = tmp()
+    const target = join(root, 'target')
+    mkdirSync(target)
+    const victim = join(target, 'victim.png')
+    writeFileSync(victim, 'x')
+    const old = (Date.now() - 30 * 24 * 3600 * 1000) / 1000
+    utimesSync(victim, old, old)
+    const link = join(root, 'dockterm-images')
+    symlinkSync(target, link)
+    expect(sweepOldImages(link)).toBe(0)
+    expect(existsSync(victim)).toBe(true)
+  })
+  it('sweep skips symlink entries and subdirectories, leaving link targets alone', () => {
+    const root = tmp()
+    const dir = join(root, 'dockterm-images')
+    mkdirSync(dir)
+    const outside = join(root, 'outside.png')
+    writeFileSync(outside, 'x')
+    const old = (Date.now() - 30 * 24 * 3600 * 1000) / 1000
+    utimesSync(outside, old, old)
+    symlinkSync(outside, join(dir, 'link.png'))
+    mkdirSync(join(dir, 'sub'))
+    writeFileSync(join(dir, 'sub', 'deep.png'), 'x')
+    utimesSync(join(dir, 'sub', 'deep.png'), old, old)
+    const stale = join(dir, 'stale.png')
+    writeFileSync(stale, 'x')
+    utimesSync(stale, old, old)
+    expect(sweepOldImages(dir)).toBe(1)
+    expect(existsSync(stale)).toBe(false)
+    expect(existsSync(outside)).toBe(true)
+    expect(existsSync(join(dir, 'sub', 'deep.png'))).toBe(true)
+    expect(existsSync(join(dir, 'link.png'))).toBe(true)
+  })
+  it('never overwrites an existing file (exclusive create)', () => {
+    const dir = join(tmp(), 'dockterm-images')
+    const names = new Set<string>()
+    for (let i = 0; i < 20; i++) names.add(writeImage(dir, new Uint8Array([i + 1]), 'image/png'))
+    expect(names.size).toBe(20)
   })
 })

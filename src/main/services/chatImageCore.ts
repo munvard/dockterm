@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
 
@@ -56,21 +56,47 @@ export function selectStale(
   return entries.filter((e) => now - e.mtimeMs > maxAgeMs).map((e) => e.name)
 }
 
-/** Write the bytes into `dir` (created private) under a random name. Returns the absolute path. */
+/** This process's user id, or null where the platform has none (Windows). */
+function currentUid(): number | null {
+  return typeof process.getuid === 'function' ? process.getuid() : null
+}
+
+/**
+ * Make sure `dir` is a real directory (never a symlink) owned by this user and
+ * private (0700). The temp folder is shared with other local users, so a
+ * pre-planted symlink or a foreign-owned folder would let them redirect our
+ * writes and deletes. Throws when it cannot be trusted.
+ */
+export function ensurePrivateDir(dir: string, uid: number | null = currentUid()): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  const st = lstatSync(dir)
+  if (st.isSymbolicLink() || !st.isDirectory()) throw new Error('The image folder is not a plain directory')
+  if (uid !== null && st.uid !== uid) throw new Error('The image folder belongs to another user')
+  if (process.platform !== 'win32' && (st.mode & 0o077) !== 0) chmodSync(dir, 0o700)
+}
+
+/** Write the bytes into `dir` (a private dir we own) under a random name, exclusively. Returns the absolute path. */
 export function writeImage(dir: string, data: string | Uint8Array, mime: ImageMime): string {
   const buf = decodeImageData(data)
   const bad = validateImage(mime, buf.byteLength)
   if (bad) throw new Error(bad)
-  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  ensurePrivateDir(dir)
   const path = join(dir, randomImageName(mime))
   writeFileSync(path, buf, { flag: 'wx', mode: 0o600 })
   return path
 }
 
-/** Delete files older than the TTL in `dir`. Missing dir or unreadable file is fine. */
-export function sweepOldImages(dir: string, now: number = Date.now()): number {
+/**
+ * Delete regular files older than the TTL directly inside `dir`. Never follows
+ * a link: `lstat` sees a symlink as a link (skipped), and a symlinked or
+ * foreign `dir` is refused outright. Missing dir or unreadable file is fine.
+ */
+export function sweepOldImages(dir: string, now: number = Date.now(), uid: number | null = currentUid()): number {
   let names: string[]
   try {
+    const st = lstatSync(dir)
+    if (st.isSymbolicLink() || !st.isDirectory()) return 0
+    if (uid !== null && st.uid !== uid) return 0
     names = readdirSync(dir)
   } catch {
     return 0
@@ -78,7 +104,7 @@ export function sweepOldImages(dir: string, now: number = Date.now()): number {
   const entries: { name: string; mtimeMs: number }[] = []
   for (const name of names) {
     try {
-      const st = statSync(join(dir, name))
+      const st = lstatSync(join(dir, name))
       if (st.isFile()) entries.push({ name, mtimeMs: st.mtimeMs })
     } catch {
       // vanished meanwhile
