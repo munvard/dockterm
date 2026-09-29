@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { claudeConfigDir } from './claudeConfigDir'
@@ -220,6 +220,24 @@ function countHits(blob: string, needles: string[]): number {
   return n
 }
 
+/** True when `path` is a transcript of the project `cwd` — i.e. it lives in that
+ * project's own transcripts directory. A sticky pane binding or a hint must
+ * never point at another project's transcript. */
+function belongsToProject(path: string, cwd: string): boolean {
+  return dirname(path) === join(PROJECTS_DIR, slugFor(cwd))
+}
+
+/** The pane's bound transcript, but only if it belongs to the requested project
+ * (a stale binding from a different cwd is dropped). */
+function boundPath(paneKey: string, nc: string): string | undefined {
+  const path = leafBind.get(paneKey)
+  if (path && !belongsToProject(path, nc)) {
+    leafBind.delete(paneKey)
+    return undefined
+  }
+  return path
+}
+
 /** Newest-first transcript paths for a project. */
 async function candidates(cwd: string): Promise<string[]> {
   const dir = join(PROJECTS_DIR, slugFor(cwd))
@@ -249,7 +267,7 @@ async function candidates(cwd: string): Promise<string[]> {
 async function bestMatch(nc: string, sample: string[], hint: string | null): Promise<string | null> {
   const needles = needlesFrom(sample)
   if (needles.length === 0) return null
-  if (hint && countHits(await textTail(hint), needles) >= MIN_HITS) return hint
+  if (hint && belongsToProject(hint, nc) && countHits(await textTail(hint), needles) >= MIN_HITS) return hint
   let best: string | null = null
   let bestHits = MIN_HITS - 1
   for (const path of (await candidates(nc)).slice(0, 8)) {
@@ -331,6 +349,9 @@ const emptyHistory = (cwd: string): SessionHistory => ({ sessionId: '', cwd, pro
 
 /**
  * Checkpoints for the session running in pane `leafId` (which produced `sample`).
+ * `leafId` here is the pane KEY main built from the sender's window id plus the
+ * renderer's leafId (windowNamespace.paneKey), so panes of different windows
+ * never share a binding.
  *
  * The binding is STICKY so scrolling can't blank the rail: a positive fingerprint
  * match (re)binds the pane to that transcript; with no positive match we KEEP the
@@ -348,11 +369,11 @@ export async function getSessionHistory(
   if (!enabled()) return emptyHistory(cwd)
   const nc = norm(cwd)
   touchLeaf(leafId)
-  const hint = leafBind.get(leafId) ?? null
+  const hint = boundPath(leafId, nc) ?? null
   const positive = await bestMatch(nc, sample, hint)
   if (positive) setLeafBind(leafId, positive)
   else if (!claudeActive) leafBind.delete(leafId)
-  const path = leafBind.get(leafId)
+  const path = boundPath(leafId, nc)
   if (!path) return emptyHistory(nc)
   touchFilePath(path)
   return serialize(path, async () => {
@@ -395,11 +416,11 @@ export async function getConversation(
 ): Promise<ReadingConversation> {
   const nc = norm(cwd)
   touchLeaf(leafId)
-  const hint = leafBind.get(leafId) ?? null
+  const hint = boundPath(leafId, nc) ?? null
   const positive = await bestMatch(nc, sample, hint)
   if (positive) setLeafBind(leafId, positive)
   else if (!claudeActive) leafBind.delete(leafId)
-  const path = leafBind.get(leafId)
+  const path = boundPath(leafId, nc)
   if (!path) return emptyConversation(nc)
   touchFilePath(path)
 

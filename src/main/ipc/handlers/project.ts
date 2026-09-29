@@ -10,6 +10,7 @@ import {
 } from '../../services/settingsService'
 import { retargetWatcher } from '../../services/watcherService'
 import { setActiveRoot } from '../../services/activeRoot'
+import { setWindowProject } from '../../services/windowNamespace'
 import { resolveProjectRoot } from '../../services/projectResolve'
 import { isPrimaryWindow } from '../../window'
 import type { Registrar } from '../register'
@@ -32,6 +33,7 @@ export function registerProjectHandlers(reg: Registrar): void {
     try {
       const info = await inspectProject(req.path)
       setActiveRoot(event.sender.id, info.path)
+      setWindowProject(event.sender.id, info.path)
       // Only the primary window's "last project" is what a relaunch restores —
       // a secondary (⌘N) window opening its own project must not silently
       // redirect what the primary window reopens next launch.

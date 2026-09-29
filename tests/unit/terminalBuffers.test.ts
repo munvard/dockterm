@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { capBuffers, mergeBuffers } from '../../src/main/services/terminalBufferStore'
+import { capBuffers, mergeBuffers, buffersFor } from '../../src/main/services/terminalBufferStore'
 
-const buf = (leafId: string, n: number) => ({ leafId, data: 'x'.repeat(n) })
+const buf = (leafId: string, n: number, ns = '/proj') => ({ ns, leafId, data: 'x'.repeat(n) })
 
 describe('capBuffers', () => {
   it('keeps buffers until the total byte budget is exceeded', () => {
@@ -39,5 +39,32 @@ describe('mergeBuffers', () => {
     const fresh = [buf('fresh', 10)]
     const stale = [buf('stale', 10)]
     expect(mergeBuffers(fresh, stale).map((b) => b.leafId)).toEqual(['fresh', 'stale'])
+  })
+})
+
+describe('namespaced buffers', () => {
+  it('two windows on different projects can reuse a leafId without touching each other', () => {
+    const a = [buf('leaf-1', 10, '/proj-a')]
+    const b = [buf('leaf-1', 5, '/proj-b')]
+    const merged = mergeBuffers(b, a)
+    expect(merged).toHaveLength(2)
+    expect(buffersFor(merged, '/proj-a')).toEqual([{ leafId: 'leaf-1', data: 'x'.repeat(10) }])
+    expect(buffersFor(merged, '/proj-b')).toEqual([{ leafId: 'leaf-1', data: 'x'.repeat(5) }])
+  })
+
+  it('a save by one namespace never overwrites another namespace\'s same leafId', () => {
+    const existing = [buf('same', 100, '/victim')]
+    const merged = mergeBuffers([{ ns: '/attacker', leafId: 'same', data: 'evil' }], existing)
+    expect(buffersFor(merged, '/victim')[0].data).toBe('x'.repeat(100))
+  })
+
+  it('load returns only the requesting namespace, and nothing for an unknown one', () => {
+    const all = [buf('a', 1, '/p1'), buf('b', 1, '/p2'), buf('c', 1, '/p1')]
+    expect(buffersFor(all, '/p1').map((b) => b.leafId)).toEqual(['a', 'c'])
+    expect(buffersFor(all, '/nope')).toEqual([])
+  })
+
+  it('the returned entries do not expose the namespace', () => {
+    expect(Object.keys(buffersFor([buf('a', 1)], '/proj')[0]).sort()).toEqual(['data', 'leafId'])
   })
 })

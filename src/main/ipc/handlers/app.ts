@@ -15,6 +15,7 @@ import {
 import { getUsageSnapshot } from '../../services/usageService'
 import { getAgentActivity } from '../../services/agentActivityService'
 import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
+import { paneKey } from '../../services/windowNamespace'
 import { broadcastSettings } from '../../services/settingsBroadcast'
 import type { Registrar } from '../register'
 
@@ -56,7 +57,8 @@ export function registerAppHandlers(reg: Registrar): void {
       leafId: z.string().max(128),
       claudeActive: z.boolean()
     }),
-    async (req) => ok(await getSessionHistory(req.cwd, req.sample, req.leafId, req.claudeActive))
+    async (req, event) =>
+      ok(await getSessionHistory(req.cwd, req.sample, paneKey(event.sender.id, req.leafId), req.claudeActive))
   )
 
   reg(
@@ -68,8 +70,16 @@ export function registerAppHandlers(reg: Registrar): void {
       claudeActive: z.boolean(),
       sinceRevision: z.number().int().min(0).finite().optional()
     }),
-    async (req) =>
-      ok(await getConversation(req.cwd, req.sample, req.leafId, req.claudeActive, req.sinceRevision))
+    async (req, event) =>
+      ok(
+        await getConversation(
+          req.cwd,
+          req.sample,
+          paneKey(event.sender.id, req.leafId),
+          req.claudeActive,
+          req.sinceRevision
+        )
+      )
   )
 
   reg('update:check', z.void(), async () => {

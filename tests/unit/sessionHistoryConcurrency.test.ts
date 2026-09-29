@@ -95,3 +95,40 @@ describe('getConversation revision / unchanged', () => {
     expect(grown.messages.map((m) => m.id)).toEqual(['u1', 'a1', 'a2'])
   })
 })
+
+describe('pane keys keep windows apart', () => {
+  it('a pane key from another window cannot inherit a sticky binding', async () => {
+    const cwd = '/Users/test/isolated'
+    const path = transcriptPath(cwd, 'iso.jsonl')
+    writeFileSync(
+      path,
+      userLine('u1', 'please help me fix the login bug now') +
+        assistantLine('a1', 'Sure, I will look at the login bug right now')
+    )
+    const sample = ['please help me fix the login bug now', 'Sure, I will look at the login bug right now']
+    const mine = await getConversation(cwd, sample, '1\0leaf', true)
+    expect(mine.messages.length).toBeGreaterThan(0)
+    // Another window, SAME leafId, nothing matching, "Claude active" (sticky):
+    const other = await getConversation(cwd, ['unrelated text that matches nothing here'], '2\0leaf', true)
+    expect(other.messages).toEqual([])
+    // ...while the original window keeps its sticky binding.
+    const again = await getConversation(cwd, ['unrelated text that matches nothing here'], '1\0leaf', true)
+    expect(again.messages.length).toBeGreaterThan(0)
+  })
+
+  it('drops a sticky binding when the pane is asked about a different project', async () => {
+    const cwdA = '/Users/test/proj-a'
+    const cwdB = '/Users/test/proj-b'
+    const path = transcriptPath(cwdA, 'a.jsonl')
+    writeFileSync(
+      path,
+      userLine('u1', 'please help me fix the login bug now') +
+        assistantLine('a1', 'Sure, I will look at the login bug right now')
+    )
+    const sample = ['please help me fix the login bug now', 'Sure, I will look at the login bug right now']
+    const bound = await getConversation(cwdA, sample, '3\0leaf', true)
+    expect(bound.messages.length).toBeGreaterThan(0)
+    const asked = await getConversation(cwdB, ['nothing matches here at all, really'], '3\0leaf', true)
+    expect(asked.messages).toEqual([])
+  })
+})

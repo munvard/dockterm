@@ -11,6 +11,7 @@ import {
   isSessionOwner
 } from '../../services/ptyService'
 import { loadBuffers, saveBuffers } from '../../services/terminalBufferStore'
+import { bufferNamespace } from '../../services/windowNamespace'
 import type { Registrar } from '../register'
 
 const createSchema = z.object({
@@ -82,12 +83,19 @@ export function registerPtyHandlers(reg: Registrar): void {
     return ok(undefined)
   })
 
-  reg('pty:foreground', sessionSchema, (req) => ok({ process: foregroundProcess(req.sessionId) }))
+  reg('pty:foreground', sessionSchema, (req, event) => {
+    if (!isSessionOwner(req.sessionId, event.sender.id)) return NOT_OWNER()
+    return ok({ process: foregroundProcess(req.sessionId) })
+  })
 
-  reg('terminal:saveBuffers', saveBuffersSchema, (req) => {
-    saveBuffers(req.buffers)
+  // Saved scrollback is namespaced by main (the window's own project), never by
+  // anything the renderer sends: a window reads and writes only its own.
+  reg('terminal:saveBuffers', saveBuffersSchema, (req, event) => {
+    saveBuffers(bufferNamespace(event.sender.id), req.buffers)
     return ok(undefined)
   })
 
-  reg('terminal:loadBuffers', z.void(), () => ok(loadBuffers()))
+  reg('terminal:loadBuffers', z.void(), (_req, event) =>
+    ok(loadBuffers(bufferNamespace(event.sender.id)))
+  )
 }
