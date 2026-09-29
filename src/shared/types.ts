@@ -112,6 +112,9 @@ export interface TerminalSettings {
   padding: number
   /** Reading comfort: centered reading-column cap on wide screens. */
   readingWidth: 'off' | 'narrow' | 'medium' | 'wide'
+  /** macOS only: Option+key sends Meta instead of the layout's own character.
+   * Off by default (German/French/etc. layouts need Option for @{}[]|~\). */
+  macOptionIsMeta: boolean
 }
 
 export interface SessionHistorySettings {

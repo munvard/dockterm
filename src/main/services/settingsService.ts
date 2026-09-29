@@ -71,7 +71,11 @@ const preference = {
       /** Reading comfort: inner padding around the terminal content (px). */
       padding: z.number().int().min(4).max(28).default(8),
       /** Reading comfort: centered reading-column cap on wide screens. */
-      readingWidth: z.enum(['off', 'narrow', 'medium', 'wide']).default('off')
+      readingWidth: z.enum(['off', 'narrow', 'medium', 'wide']).default('off'),
+      /** macOS only: Option+key sends Meta instead of the layout's own
+       * character. Off by default (German/French/etc. layouts need Option for
+       * @{}[]|~\). */
+      macOptionIsMeta: z.boolean().default(false)
     })
     .default({}),
   sessionHistory: z

@@ -26,12 +26,21 @@ export interface TerminalOptions {
   lineHeight?: number
   /** xterm letter-spacing in px (reading comfort). */
   letterSpacing?: number
+  /** macOS only: treat Option+key as Meta (sends an escape prefix) instead of
+   * letting the OS produce the layout's own character. Off by default: on
+   * German/French/etc. layouts Option is how you type @{}[]|~\, and forcing
+   * Meta breaks that. */
+  macOptionIsMeta?: boolean
   /** True when this terminal's tab is the visible/active one. */
   active?: boolean
   /** Called when output arrives (used to flag background-tab activity). */
   onActivity?: () => void
   /** Called with the shell's live working directory (from OSC 7), when reported. */
   onCwd?: (cwd: string) => void
+  /** Called once, right after the PTY starts, when the requested cwd didn't
+   * exist and the shell fell back to the home directory: `actualCwd` is where
+   * it actually landed. */
+  onCwdFallback?: (actualCwd: string) => void
   /** The terminal's live title from OSC 0/2 (what Claude Code / the shell sets). */
   onTitle?: (title: string) => void
   /** Reports the pane's inferred Claude state from the rendered buffer. */
@@ -54,10 +63,16 @@ export interface TerminalHandle {
   findPrevious: (query: string) => void
   clearSearch: () => void
   focus: () => void
-  /** Write text into the PTY (queued until the session is ready). No newline added. */
+  /** Write text into the PTY (queued until the session is ready). No newline
+   * added. Goes through xterm's own `Terminal.paste`, which wraps the text in
+   * bracketed-paste markers only when the app underneath has turned that mode
+   * on, never assume either way from the caller. */
   paste: (text: string) => void
   /** The terminal's current selected text ('' if none). */
   getSelection: () => string
+  /** True when the app underneath has turned on mouse tracking (Claude's
+   * fullscreen UI, vim, …), i.e. it can plausibly have grabbed a click itself. */
+  mouseTrackingActive: () => boolean
 }
 
 export function useTerminal(options: TerminalOptions): TerminalHandle {
@@ -99,6 +114,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     p.term.options.cursorBlink = options.cursorBlink ?? true
     p.term.options.lineHeight = options.lineHeight ?? 1.15
     p.term.options.letterSpacing = options.letterSpacing ?? 0
+    p.term.options.macOptionIsMeta = options.macOptionIsMeta ?? false
     p.refit()
   }, [
     options.fontSize,
@@ -106,7 +122,8 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     options.cursorStyle,
     options.cursorBlink,
     options.lineHeight,
-    options.letterSpacing
+    options.letterSpacing,
+    options.macOptionIsMeta
   ])
 
   // When this terminal's tab becomes active, refit (it may have been hidden at
@@ -134,6 +151,7 @@ export function useTerminal(options: TerminalOptions): TerminalHandle {
     clearSearch: () => poolRef.current?.clearSearch(),
     focus: () => poolRef.current?.focus(),
     paste: (text) => poolRef.current?.paste(text),
-    getSelection: () => poolRef.current?.term.getSelection() ?? ''
+    getSelection: () => poolRef.current?.term.getSelection() ?? '',
+    mouseTrackingActive: () => (poolRef.current?.term.modes.mouseTrackingMode ?? 'none') !== 'none'
   }
 }

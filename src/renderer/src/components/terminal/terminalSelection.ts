@@ -13,6 +13,25 @@ export function wrapBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`
 }
 
+const NEEDS_QUOTE = /[\s"'`$\\!*?[\](){}<>|&;~#]/
+
+/**
+ * Quote a path for safe interpolation at the shell prompt (dropping a file
+ * from the tree, or Finder/Explorer, onto a pane). A plain double-quote is NOT
+ * safe on POSIX shells: bash/zsh still expand `$()`, backticks and `\` inside
+ * double quotes, so a folder literally named `notes ($(rm -rf ~))` would run
+ * when the pasted line is submitted. Single-quoting is the only POSIX style
+ * that treats everything inside it literally: close the quote, splice in an
+ * escaped literal quote, reopen. Windows shells (cmd.exe, pwsh) don't have
+ * that literal-quote convention, so they get double-quoting with embedded
+ * double quotes escaped instead.
+ */
+export function quotePath(p: string, platform: string): string {
+  if (!NEEDS_QUOTE.test(p)) return p
+  if (platform === 'win32') return `"${p.replace(/"/g, '""')}"`
+  return `'${p.replace(/'/g, `'\\''`)}'`
+}
+
 /**
  * Frame a terminal selection as a tidy reference to paste into Claude, leaving
  * the cursor on a fresh line for the user's actual question. A single line uses

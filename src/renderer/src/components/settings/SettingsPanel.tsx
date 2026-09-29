@@ -115,7 +115,8 @@ export function SettingsPanel() {
         lineHeight: 1.15,
         letterSpacing: 0,
         padding: 8,
-        readingWidth: 'off'
+        readingWidth: 'off',
+        macOptionIsMeta: false
       },
       editor: { fontSize: 13 },
       git: { beginnerMode: true, confirmDanger: true },
@@ -307,6 +308,21 @@ export function SettingsPanel() {
               onChange={(v) => setTerminal({ copyOnSelect: v })}
             />
           </Field>
+          {(document.documentElement.dataset.platform ?? '') === 'darwin' && (
+            <>
+              <Field label="⌥ Option key sends Meta">
+                <Toggle
+                  checked={s.terminal.macOptionIsMeta}
+                  onChange={(v) => setTerminal({ macOptionIsMeta: v })}
+                />
+              </Field>
+              <div className="settings-note">
+                Off (default): Option types your keyboard layout's own characters (e.g. Option+2 →{' '}
+                <code>@</code> on German). On: Option+key sends an escape prefix instead, for
+                Emacs-style bindings.
+              </div>
+            </>
+          )}
           <Field label="Restore scrollback after quit">
             <Toggle
               checked={s.terminal.restoreScrollback}

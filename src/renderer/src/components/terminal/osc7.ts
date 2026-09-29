@@ -17,6 +17,14 @@ export function parseOsc7(payload: string): string | null {
     // malformed percent-encoding — fall back to the raw path
   }
 
+  // A UNC path (\\server\share\dir) arrives as "//server/share/dir": the pwsh
+  // integration keeps the doubled leading slash to mark it, since the host
+  // segment here is our own machine name, not the remote server. Convert every
+  // separator to a backslash for the real Windows UNC form.
+  if (/^\/\/[^/]+\/[^/]+/.test(path)) {
+    return path.replace(/\//g, '\\')
+  }
+
   // Windows drive paths arrive as "/C:/Users/x" → "C:\Users\x".
   if (/^\/[A-Za-z]:/.test(path)) {
     path = path.slice(1).replace(/\//g, '\\')
