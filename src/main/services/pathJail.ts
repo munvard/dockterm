@@ -1,5 +1,5 @@
 import { realpathSync, lstatSync, readlinkSync, type Stats } from 'node:fs'
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path'
 
 export class JailViolation extends Error {
   constructor(message: string) {
@@ -22,7 +22,8 @@ export class JailViolation extends Error {
  */
 export function resolveInside(root: string, relPath: string): string {
   const canonicalRoot = canonicalize(resolve(root))
-  const candidate = isAbsolute(relPath) ? resolve(relPath) : resolve(canonicalRoot, relPath)
+  // Not normalized here: `link/..` must be walked by the resolver, not folded away.
+  const candidate = isAbsolute(relPath) ? relPath : `${canonicalRoot}${sep}${relPath}`
   const real = realpathNearest(candidate)
   if (!isInside(canonicalRoot, real)) {
     throw new JailViolation(`Path escapes project root: ${relPath}`)
@@ -72,37 +73,60 @@ function realpathSyncSafe(p: string): string {
   }
 }
 
+const SEPARATORS = process.platform === 'win32' ? /[\\/]+/ : /\/+/
+const MAX_LINK_HOPS = 40
+
 /**
- * Fully resolves `path` through a symlink chain, even a *dangling* one whose
- * final target doesn't exist. Node's own `realpathSync` throws the instant any
- * link in the chain can't be followed, which is exactly the case an attacker
- * needs: a symlink whose target is missing (or not yet created) resolves as
- * "doesn't exist" instead of "points outside the root", letting a mutation
- * that creates-on-write (like `fs.writeFile`) follow it straight through.
- * Walking the chain ourselves with `lstat`/`readlink` finds where it ACTUALLY
- * points regardless of whether that target exists yet.
+ * Resolves `input` component by component, following every symlink on the way
+ * (including dangling ones, and links met in the middle of the path or inside
+ * another link's target) and stopping the lexical walk only at components that
+ * do not exist. Node's own `realpathSync` throws the instant any link cannot be
+ * followed, which is exactly the case an attacker needs: `bridge -> /outside`
+ * plus `leaf -> bridge/new-file` names a target that does not exist yet, so it
+ * looks "inside" lexically while `fs.writeFile` follows `bridge` out of the
+ * jail. Walking with `lstat`/`readlink` resolves the existing ancestors of a
+ * missing target too. One hop budget is shared by the whole walk.
  */
-function resolveSymlinkChain(path: string, depth = 0): string {
-  if (depth > 40) throw new JailViolation('Too many levels of symbolic links')
-  const st = tryLstat(path)
-  if (!st) return path // nothing at this path at all
-  if (!st.isSymbolicLink()) return realpathSyncSafe(path)
-  const link = readlinkSync(path)
-  const target = isAbsolute(link) ? link : resolve(dirname(path), link)
-  return resolveSymlinkChain(target, depth + 1)
+function resolveThroughLinks(input: string): string {
+  const root = parse(input).root
+  const queue = input.slice(root.length).split(SEPARATORS).filter(Boolean)
+  let cur = root
+  let hops = 0
+  while (queue.length) {
+    const comp = queue.shift() as string
+    if (comp === '.') continue
+    if (comp === '..') {
+      cur = dirname(cur)
+      continue
+    }
+    const next = join(cur, comp)
+    const st = tryLstat(next)
+    if (st?.isSymbolicLink()) {
+      if (++hops > MAX_LINK_HOPS) throw new JailViolation('Too many levels of symbolic links')
+      const link = readlinkSync(next)
+      const linkRoot = parse(link).root
+      if (isAbsolute(link)) cur = linkRoot
+      queue.unshift(...link.slice(isAbsolute(link) ? linkRoot.length : 0).split(SEPARATORS).filter(Boolean))
+      continue
+    }
+    cur = next
+  }
+  return cur
 }
 
+/** Canonical (case-normalized) form of the nearest existing ancestor of the
+ * symlink-free `walked` path, with the not-yet-existing tail re-attached. */
 function realpathNearest(target: string): string {
-  let existing = target
+  const walked = resolveThroughLinks(target)
+  let existing = walked
   const tail: string[] = []
   for (;;) {
-    const st = tryLstat(existing)
-    if (st) {
-      const real = st.isSymbolicLink() ? resolveSymlinkChain(existing) : realpathSyncSafe(existing)
+    if (tryLstat(existing)) {
+      const real = realpathSyncSafe(existing)
       return tail.length ? resolve(real, ...tail.reverse()) : real
     }
     const parent = resolve(existing, '..')
-    if (parent === existing) return target // reached a non-existent root
+    if (parent === existing) return walked // reached a non-existent root
     tail.push(basename(existing))
     existing = parent
   }

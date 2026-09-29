@@ -87,6 +87,65 @@ describe('resolveInside', () => {
   })
 })
 
+describe('resolveInside: nested links', () => {
+  const tryLink = (target: string, path: string): boolean => {
+    try {
+      symlinkSync(target, path)
+      return true
+    } catch {
+      return false // no privilege to create links on this machine
+    }
+  }
+
+  it('rejects leaf -> bridge/new-file where bridge -> outside and new-file does not exist', () => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'dockterm-jail-out-')))
+    try {
+      if (!tryLink(outside, join(root, 'bridge'))) return
+      if (!tryLink('bridge/new-file', join(root, 'leaf'))) return
+      expect(() => resolveInside(root, 'leaf')).toThrow(JailViolation)
+      expect(() => resolveInside(root, 'bridge/new-file')).toThrow(JailViolation)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an absolute two-link chain through a missing ancestor', () => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'dockterm-jail-out2-')))
+    try {
+      if (!tryLink(outside, join(root, 'bridge2'))) return
+      if (!tryLink(join(root, 'bridge2', 'missing-dir', 'file'), join(root, 'leaf2'))) return
+      expect(() => resolveInside(root, 'leaf2')).toThrow(JailViolation)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('follows a ".." that comes after a link, the way the OS does', () => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'dockterm-jail-out3-')))
+    try {
+      mkdirSync(join(outside, 'deep'))
+      if (!tryLink(join(outside, 'deep'), join(root, 'deeplink'))) return
+      // deeplink/.. is `outside`, not the project root.
+      expect(() => resolveInside(root, 'deeplink/../x')).toThrow(JailViolation)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('allows a two-link chain that stays inside the root', () => {
+    mkdirSync(join(root, 'real-dir'), { recursive: true })
+    if (!tryLink(join(root, 'real-dir'), join(root, 'in-bridge'))) return
+    if (!tryLink('in-bridge/new-file', join(root, 'in-leaf'))) return
+    expect(resolveInside(root, 'in-leaf')).toBe(join(root, 'real-dir', 'new-file'))
+  })
+
+  it('stops a link loop at the shared hop limit', () => {
+    if (!tryLink('loop-b', join(root, 'loop-a'))) return
+    if (!tryLink('loop-a', join(root, 'loop-b'))) return
+    expect(() => resolveInside(root, 'loop-a')).toThrow(JailViolation)
+  })
+})
+
 describe('isRegularFile', () => {
   it('is true for a real file', () => {
     expect(isRegularFile(join(root, 'src', 'a.txt'))).toBe(true)
