@@ -17,6 +17,9 @@ export function getActiveRoot(webContentsId: number): string {
 
 export function clearActiveRoot(webContentsId: number): void {
   roots.delete(webContentsId)
+  // The roots a window has had are only valid for that window; forget them too or
+  // every closed or reloaded window leaks its set.
+  knownRoots.delete(webContentsId)
 }
 
 /** Resolve the active project root for the window that sent an IPC request. */

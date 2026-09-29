@@ -2,12 +2,16 @@ import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, rmSync, realpath
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { getConversation as GetConversation } from '@main/services/sessionHistoryService'
+import type {
+  getConversation as GetConversation,
+  serialize as Serialize
+} from '@main/services/sessionHistoryService'
 
 // sessionHistoryService reads CLAUDE_CONFIG_DIR at module load (PROJECTS_DIR is a
 // top-level const), so the override has to be set before a fresh import of it.
 let root: string
 let getConversation: typeof GetConversation
+let serialize: typeof Serialize
 
 const slugFor = (cwd: string): string => cwd.replace(/[^a-zA-Z0-9]/g, '-')
 
@@ -33,6 +37,7 @@ beforeAll(async () => {
   process.env.CLAUDE_CONFIG_DIR = root
   const mod = await import('@main/services/sessionHistoryService')
   getConversation = mod.getConversation
+  serialize = mod.serialize
 })
 
 afterAll(() => {
@@ -159,5 +164,58 @@ describe('pane keys keep windows apart', () => {
     expect(bound.messages.length).toBeGreaterThan(0)
     const asked = await getConversation(cwdB, ['nothing matches here at all, really'], '3\0leaf', true)
     expect(asked.messages).toEqual([])
+  })
+})
+
+describe('serialize (Codex 11)', () => {
+  it('a failing job rejects its own caller but raises no unhandled rejection', async () => {
+    const seen: unknown[] = []
+    const onUnhandled = (reason: unknown): void => void seen.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      await expect(serialize('/x/fail.jsonl', async () => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
+      // Let any stray rejection surface (unhandledRejection fires after the microtask queue drains).
+      await new Promise((r) => setTimeout(r, 20))
+      expect(seen).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
+  })
+
+  it('still runs the next job for the same path after a failure, in order', async () => {
+    const order: number[] = []
+    const first = serialize('/x/seq.jsonl', async () => {
+      order.push(1)
+      throw new Error('first fails')
+    })
+    const second = serialize('/x/seq.jsonl', async () => {
+      order.push(2)
+      return 'ok'
+    })
+    await expect(first).rejects.toThrow()
+    await expect(second).resolves.toBe('ok')
+    expect(order).toEqual([1, 2])
+  })
+})
+
+describe('revision across a rotated transcript (Codex 12)', () => {
+  it('a truncated transcript is re-parsed and never answered "unchanged"', async () => {
+    const cwd = '/Users/test/rotate'
+    const path = transcriptPath(cwd)
+    const sample = ['please rotate this transcript now', 'Rotating the transcript right away']
+    const pad = 'padding so the first file is clearly longer than its replacement '.repeat(6)
+    writeFileSync(
+      path,
+      userLine('r1', sample[0]) + assistantLine('r2', sample[1]) + assistantLine('r3', pad) + assistantLine('r4', pad)
+    )
+    const before = await getConversation(cwd, sample, 'leaf-rotate', true)
+    expect(before.messages.length).toBe(4)
+
+    // Rotation: the file is replaced by a shorter one (size < the cached offset).
+    writeFileSync(path, userLine('n1', sample[0]) + assistantLine('n2', sample[1]))
+    const after = await getConversation(cwd, sample, 'leaf-rotate', true, before.revision)
+    expect(after.unchanged).toBeUndefined()
+    expect(after.revision).toBeGreaterThan(before.revision)
+    expect(after.messages.length).toBe(2)
   })
 })

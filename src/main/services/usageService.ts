@@ -259,25 +259,29 @@ function budgetsForTier(tier: string | null): PlanBudgets {
   return PLAN.pro // pro / free / unknown — the conservative default
 }
 
-function mtimeOf(p: string): number {
-  try {
-    return statSync(p).mtimeMs
-  } catch {
-    return 0
-  }
-}
-
 // readPlanTier used to re-read and re-parse two JSON config files on every
 // broadcast() call (every scan tick that saw new bytes, i.e. roughly every 5s
 // while Claude is active) even though the rate-limit tier almost never
-// changes. Cache by the primary file's mtime.
-let planTierCache: { mtime: number; tier: string | null } | null = null
+// changes. Cached by (mtime, size) of BOTH files it can read: the tier may come
+// from the credentials fallback, so a login or plan change there must invalidate
+// it too.
+let planTierCache: { key: string; tier: string | null } | null = null
+
+function fileSignature(p: string): string {
+  try {
+    const st = statSync(p)
+    return `${st.mtimeMs}:${st.size}`
+  } catch {
+    return 'missing'
+  }
+}
 
 /** The user's Claude plan tier, read from local config (null if not found). */
 export function readPlanTier(): string | null {
   const path = claudeJsonPath()
-  const mtime = mtimeOf(path)
-  if (planTierCache && planTierCache.mtime === mtime) return planTierCache.tier
+  const credsPath = join(claudeConfigDir(), '.credentials.json')
+  const key = `${fileSignature(path)}|${fileSignature(credsPath)}`
+  if (planTierCache && planTierCache.key === key) return planTierCache.tier
   const tryJson = (p: string): Record<string, unknown> | null => {
     try {
       return JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
@@ -291,11 +295,11 @@ export function readPlanTier(): string | null {
     | undefined
   let tier = acct?.userRateLimitTier ?? acct?.organizationRateLimitTier ?? null
   if (!tier) {
-    const creds = tryJson(join(claudeConfigDir(), '.credentials.json'))
+    const creds = tryJson(credsPath)
     const oauth = creds?.claudeAiOauth as { rateLimitTier?: string } | undefined
     tier = oauth?.rateLimitTier ?? null
   }
-  planTierCache = { mtime, tier }
+  planTierCache = { key, tier }
   return tier
 }
 

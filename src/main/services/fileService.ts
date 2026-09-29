@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { shell } from 'electron'
 import { resolveInside, isRegularFile } from './pathJail'
 import { IGNORED_ENTRIES, MAX_EDIT_FILE_BYTES, MAX_TREE_ENTRIES } from '@shared/constants'
@@ -140,19 +141,50 @@ export async function createDir(root: string, relPath: string): Promise<void> {
   await fs.mkdir(abs)
 }
 
+/** Split a renderer-supplied relative path into its parent dir and the basename
+ * exactly as the caller spelled it. resolveInside canonicalizes to the spelling
+ * already on disk, so a case-only rename ("Foo.txt" -> "foo.txt") would resolve
+ * both sides to the same string and silently do nothing. */
+export function splitRelPath(relPath: string): { parent: string; name: string } {
+  const p = relPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const i = p.lastIndexOf('/')
+  const name = i < 0 ? p : p.slice(i + 1)
+  if (!name || name === '.' || name === '..') throw new Error('Invalid name')
+  return { parent: i < 0 ? '' : p.slice(0, i), name }
+}
+
+/** A rename whose destination differs from the source only by letter case. */
+export function isCaseOnlyChange(fromName: string, toName: string): boolean {
+  return fromName !== toName && fromName.toLowerCase() === toName.toLowerCase()
+}
+
 export async function rename(root: string, fromRel: string, toRel: string): Promise<void> {
   const fromAbs = resolveInside(root, fromRel)
-  const toAbs = resolveInside(root, toRel)
-  // fs.rename silently overwrites an existing destination (POSIX semantics).
-  // Refuse that — except a pure case change on the SAME path (e.g. renaming
-  // "Foo.txt" to "foo.txt" on a case-insensitive filesystem), which resolves
-  // to the same real path and must still be allowed.
-  if (fromAbs !== toAbs) {
-    const destExists = await fs.stat(toAbs).then(
-      () => true,
-      () => false
-    )
-    if (destExists) throw new Error('A file or folder with that name already exists')
+  const { parent, name } = splitRelPath(toRel)
+  const toAbs = join(resolveInside(root, parent), name)
+  if (fromAbs === toAbs) return
+  // fs.rename silently overwrites an existing destination (POSIX semantics), so
+  // refuse that. The one exception is a pure case change of the SAME file on a
+  // case-insensitive filesystem, where the destination "exists" because it is the
+  // source: go through a unique sibling name so the new spelling really lands.
+  const [fromStat, destStat] = await Promise.all([
+    fs.lstat(fromAbs),
+    fs.lstat(toAbs).catch(() => null)
+  ])
+  if (destStat) {
+    const sameFile = destStat.ino === fromStat.ino && destStat.dev === fromStat.dev
+    if (!(sameFile && dirname(fromAbs) === dirname(toAbs) && isCaseOnlyChange(basename(fromAbs), name))) {
+      throw new Error('A file or folder with that name already exists')
+    }
+    const tmp = join(dirname(fromAbs), `.dockterm-rename-${process.pid}-${Date.now()}`)
+    await fs.rename(fromAbs, tmp)
+    try {
+      await fs.rename(tmp, toAbs)
+    } catch (e) {
+      await fs.rename(tmp, fromAbs).catch(() => {})
+      throw e
+    }
+    return
   }
   await fs.rename(fromAbs, toAbs)
 }

@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, realpathSync, existsSync, writeFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, realpathSync, existsSync, writeFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { readFile, writeFile, rename, createFile } from '@main/services/fileService'
+import { readFile, writeFile, rename, createFile, splitRelPath, isCaseOnlyChange } from '@main/services/fileService'
 
 let root: string
 
@@ -77,5 +77,53 @@ describe('rename', () => {
     await rename(root, 'a.txt', 'c.txt')
     expect(existsSync(join(root, 'a.txt'))).toBe(false)
     expect(existsSync(join(root, 'c.txt'))).toBe(true)
+  })
+})
+
+describe('rename: case-only changes (Codex 10)', () => {
+  it('splitRelPath keeps the requested spelling and rejects bad names', () => {
+    expect(splitRelPath('foo.txt')).toEqual({ parent: '', name: 'foo.txt' })
+    expect(splitRelPath('src/Sub/foo.txt')).toEqual({ parent: 'src/Sub', name: 'foo.txt' })
+    expect(splitRelPath('src\\Foo.txt')).toEqual({ parent: 'src', name: 'Foo.txt' })
+    expect(() => splitRelPath('a/..')).toThrow()
+    expect(() => splitRelPath('')).toThrow()
+  })
+
+  it('isCaseOnlyChange is true only for a pure case change', () => {
+    expect(isCaseOnlyChange('Foo.txt', 'foo.txt')).toBe(true)
+    expect(isCaseOnlyChange('foo.txt', 'foo.txt')).toBe(false)
+    expect(isCaseOnlyChange('foo.txt', 'bar.txt')).toBe(false)
+  })
+
+  it('renames Foo.txt to foo.txt so the new spelling is on disk', async () => {
+    await createFile(root, 'Foo.txt')
+    await rename(root, 'Foo.txt', 'foo.txt')
+    expect(readdirSync(root)).toEqual(['foo.txt'])
+  })
+
+  it('does the same inside a subfolder and for a folder', async () => {
+    mkdirSync(join(root, 'sub'))
+    mkdirSync(join(root, 'sub', 'Dir'))
+    await rename(root, 'sub/Dir', 'sub/dir')
+    expect(readdirSync(join(root, 'sub'))).toEqual(['dir'])
+  })
+
+  it('leaves no temporary sibling behind', async () => {
+    await createFile(root, 'Foo.txt')
+    await rename(root, 'Foo.txt', 'FOO.txt')
+    expect(readdirSync(root)).toEqual(['FOO.txt'])
+  })
+
+  it('still refuses a different existing file that differs only by case', async () => {
+    await createFile(root, 'Foo.txt')
+    await createFile(root, 'other.txt')
+    await expect(rename(root, 'other.txt', 'foo.txt')).rejects.toThrow(/already exists|ENOENT/)
+    expect(existsSync(join(root, 'other.txt'))).toBe(true)
+  })
+
+  it('renaming to the same name is a no-op', async () => {
+    await createFile(root, 'a.txt')
+    await rename(root, 'a.txt', 'a.txt')
+    expect(readdirSync(root)).toEqual(['a.txt'])
   })
 })

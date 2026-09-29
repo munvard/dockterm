@@ -1,10 +1,11 @@
 import { watch, type FSWatcher } from 'chokidar'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import os from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { IGNORED_ENTRIES, WATCH_DEBOUNCE_MS, SESSION_CHANGE_LOG_CAP } from '@shared/constants'
 import { exceedsWatchBudget, countDirsBounded } from './watchPolicy'
+import { git } from './gitCore'
 import type { WatchEvent } from '@shared/ipc'
 
 /**
@@ -41,7 +42,7 @@ export function hasIgnoredSegment(root: string, absolutePath: string): boolean {
  * is in IGNORED_ENTRIES so the file tree/watch budget stay cheap). */
 interface WindowWatch {
   watcher: FSWatcher
-  gitWatcher: FSWatcher | null
+  gitWatchers: FSWatcher[]
   root: string
   batch: WatchEvent[]
   timer: ReturnType<typeof setTimeout> | null
@@ -110,7 +111,7 @@ function closeWatch(id: number): void {
   const w = watches.get(id)
   if (!w) return
   void w.watcher.close()
-  if (w.gitWatcher) void w.gitWatcher.close()
+  for (const g of w.gitWatchers) void g.close()
   if (w.timer) clearTimeout(w.timer)
   watches.delete(id)
 }
@@ -148,35 +149,90 @@ export function retargetWatcher(win: BrowserWindow, projectRoot: string): void {
   )
 }
 
-/** A small, always-cheap watcher over just `.git/HEAD`, `.git/index` and
- * `.git/refs/**` — enough to notice a commit/checkout/branch switch/merge run
- * from the terminal (or another tool) that the main watcher can't see, since
- * `.git` itself is in IGNORED_ENTRIES. Pushed into the SAME batch as the main
- * watcher, so the renderer's existing "any fs:watch event -> refresh git
- * status" handling picks it up for free. */
-function startGitWatcher(w: WindowWatch): FSWatcher | null {
-  const gitDir = join(w.root, '.git')
-  if (!existsSync(gitDir)) return null
-  const watcher = watch(gitDir, {
-    ignoreInitial: true,
-    followSymlinks: false,
-    depth: 3,
-    ignored: (p: string) => {
-      const rel = relative(gitDir, p)
-      if (rel === '') return false
-      const top = rel.split(/[\\/]/)[0]
-      return top !== 'HEAD' && top !== 'index' && top !== 'refs'
+/** In a linked worktree or a submodule `.git` is a FILE ("gitdir: ..."), and the
+ * real metadata lives elsewhere. Ask git (through the safe wrapper: hooks and
+ * fsmonitor off, unsafe env stripped) where it actually is. `gitDir` holds this
+ * checkout's HEAD and index; `commonDir` holds the refs (the same directory in a
+ * plain repo, the main repo's `.git` for a worktree). Both are canonicalized. */
+export interface GitDirs {
+  gitDir: string
+  commonDir: string
+}
+
+/** Pure: parse `git rev-parse --absolute-git-dir --git-common-dir` output.
+ * `--git-common-dir` may be relative to the command's cwd (`root`). */
+export function parseGitDirs(stdout: string, root: string): GitDirs | null {
+  const lines = stdout.split(/\r?\n/).filter((l) => l.length > 0)
+  if (lines.length < 2) return null
+  const canon = (p: string): string => {
+    try {
+      return realpathSync(p)
+    } catch {
+      return p
     }
-  })
+  }
+  return { gitDir: canon(resolve(root, lines[0])), commonDir: canon(resolve(root, lines[1])) }
+}
+
+export async function resolveGitDirs(root: string): Promise<GitDirs | null> {
+  try {
+    const out = await git(root).raw(['rev-parse', '--absolute-git-dir', '--git-common-dir'])
+    return parseGitDirs(out, root)
+  } catch {
+    return null
+  }
+}
+
+export interface GitWatchTarget {
+  dir: string
+  /** Top-level entries under `dir` worth watching; everything else is ignored. */
+  allowed: string[]
+}
+
+/** Pure: what to watch. HEAD and index come from the checkout's own git dir, refs
+ * from the common dir (they differ in a worktree, where a commit moves a ref in
+ * the main repo's `.git` while HEAD/index sit under `.git/worktrees/<name>`). */
+export function gitWatchPlan({ gitDir, commonDir }: GitDirs): GitWatchTarget[] {
+  if (gitDir === commonDir) return [{ dir: gitDir, allowed: ['HEAD', 'index', 'refs'] }]
+  return [
+    { dir: gitDir, allowed: ['HEAD', 'index'] },
+    { dir: commonDir, allowed: ['refs'] }
+  ]
+}
+
+/** Small, always-cheap watchers over just the git metadata that changes on a
+ * commit/checkout/branch switch/merge run from the terminal (or another tool) —
+ * main's own watcher never sees those, since `.git` is in IGNORED_ENTRIES.
+ * Pushed into the SAME batch as the main watcher, so the renderer's existing
+ * "any fs:watch event -> refresh git status" handling picks it up for free. */
+async function startGitWatchers(w: WindowWatch): Promise<FSWatcher[]> {
+  // A plain folder has no `.git` at all: skip spawning git for it.
+  if (!existsSync(join(w.root, '.git'))) return []
+  const dirs = await resolveGitDirs(w.root)
+  if (!dirs) return []
   const onChange = (): void => {
     w.batch.push({ type: 'change', relPath: '.git' })
     schedule(w.win.webContents.id)
   }
-  watcher.on('add', onChange).on('change', onChange).on('unlink', onChange)
-  watcher.on('error', (err: unknown) => {
-    console.error('[watcherService] .git watcher error:', err)
-  })
-  return watcher
+  return gitWatchPlan(dirs)
+    .filter((t) => existsSync(t.dir))
+    .map(({ dir, allowed }) => {
+      const watcher = watch(dir, {
+        ignoreInitial: true,
+        followSymlinks: false,
+        depth: 3,
+        ignored: (p: string) => {
+          const rel = relative(dir, p)
+          if (rel === '') return false
+          return !allowed.includes(rel.split(/[\\/]/)[0])
+        }
+      })
+      watcher.on('add', onChange).on('change', onChange).on('unlink', onChange)
+      watcher.on('error', (err: unknown) => {
+        console.error('[watcherService] .git watcher error:', err)
+      })
+      return watcher
+    })
 }
 
 /** Replace a window's watcher with one rooted at `projectRoot` (the debounced
@@ -214,7 +270,7 @@ async function applyRetarget(win: BrowserWindow, projectRoot: string): Promise<v
   })
   const w: WindowWatch = {
     watcher,
-    gitWatcher: null,
+    gitWatchers: [],
     root: projectRoot,
     batch: [],
     timer: null,
@@ -222,7 +278,11 @@ async function applyRetarget(win: BrowserWindow, projectRoot: string): Promise<v
     win
   }
   watches.set(id, w)
-  w.gitWatcher = startGitWatcher(w)
+  void startGitWatchers(w).then((list) => {
+    // The window moved on (or closed) while git was being asked: don't leak them.
+    if (watches.get(id) !== w) for (const g of list) void g.close()
+    else w.gitWatchers = list
+  })
 
   const handler =
     (type: WatchEvent['type']) =>
@@ -268,5 +328,14 @@ export function stopWatchingById(webContentsId: number): void {
 }
 
 export function stopAllWatchers(): void {
-  for (const id of [...watches.keys()]) stopWatchingById(id)
+  // Not just installed watchers: a window that only has a pending retarget timer
+  // (its watcher was never installed) still owns a timer and map entries.
+  const ids = new Set<number>([
+    ...watches.keys(),
+    ...retargetTimers.keys(),
+    ...pendingRoot.keys(),
+    ...retargetGen.keys(),
+    ...sessionLogs.keys()
+  ])
+  for (const id of ids) stopWatchingById(id)
 }

@@ -140,13 +140,17 @@ const slugFor = (cwd: string): string => cwd.replace(/[^a-zA-Z0-9]/g, '-')
 // where either read actually reached). Serialize all path-keyed work for a
 // given transcript through one promise chain.
 const pathChains = new Map<string, Promise<unknown>>()
-function serialize<T>(path: string, fn: () => Promise<T>): Promise<T> {
+export function serialize<T>(path: string, fn: () => Promise<T>): Promise<T> {
   const prev = pathChains.get(path) ?? Promise.resolve()
   const run = prev.catch(() => {}).then(fn)
   pathChains.set(path, run)
-  void run.finally(() => {
+  // NOT run.finally(...): that returns a second promise which rejects whenever
+  // `fn` throws, and nothing handles it (an unhandled rejection can take the
+  // main process down). then(cleanup, cleanup) settles either way.
+  const cleanup = (): void => {
     if (pathChains.get(path) === run) pathChains.delete(path)
-  })
+  }
+  void run.then(cleanup, cleanup)
   return run
 }
 

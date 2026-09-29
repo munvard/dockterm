@@ -46,3 +46,21 @@ describe('known-root validation (RU-C3)', () => {
     expect(isKnownRoot(504, '/project-c')).toBe(false)
   })
 })
+
+describe('clearActiveRoot forgets the window entirely (Codex 13)', () => {
+  it('drops the known roots together with the active root', () => {
+    setActiveRoot(41, '/a')
+    rememberKnownRoot(41, '/a')
+    rememberKnownRoot(41, '/b')
+    clearActiveRoot(41)
+    expect(isKnownRoot(41, '/a')).toBe(false)
+    expect(isKnownRoot(41, '/b')).toBe(false)
+  })
+
+  it('leaves other windows alone', () => {
+    rememberKnownRoot(42, '/x')
+    rememberKnownRoot(43, '/x')
+    clearActiveRoot(42)
+    expect(isKnownRoot(43, '/x')).toBe(true)
+  })
+})
