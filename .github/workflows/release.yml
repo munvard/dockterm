@@ -86,6 +86,34 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ startsWith(matrix.os, 'macos') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ startsWith(matrix.os, 'macos') && secrets.APPLE_TEAM_ID || '' }}
 
+      # electron-builder cannot give us a correct macOS checksum file: it names it
+      # latest-mac.yml for BOTH arches, and the two parallel mac jobs would race to
+      # publish it, each holding one architecture (dmg.writeUpdateInfo is off for
+      # that reason). So each mac job writes its OWN arch-specific file from the .dmg
+      # it just built and uploads it under a distinct name (latest-mac-arm64.yml /
+      # latest-mac-x64.yml). The app reads the file for its own arch and refuses to
+      # auto-update without it.
+      - name: Publish per-arch update info (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO="${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+          LABEL="${{ matrix.label }}"   # mac-arm64 | mac-x64
+          DMG=$(ls release/*-${LABEL}.dmg | head -n1)
+          OUT="release/latest-${LABEL}.yml"
+          node scripts/write-update-info.mjs "$DMG" "$OUT"
+          NAME=$(basename "$OUT")
+          ID=$(gh api "repos/$REPO/releases" --paginate -q ".[] | select(.tag_name==\"$TAG\") | .id" | head -n1)
+          test -n "$ID"
+          gh api "repos/$REPO/releases/$ID/assets" --paginate -q ".[] | select(.name==\"$NAME\") | .id" \
+            | while read -r AID; do gh api --method DELETE "repos/$REPO/releases/assets/$AID"; done
+          gh api --method POST "https://uploads.github.com/repos/$REPO/releases/$ID/assets?name=$NAME" \
+            -H "Content-Type: application/x-yaml" --input "$OUT" >/dev/null
+
   # After all platforms upload, give the release human-friendly asset names,
   # drop the unused auto-updater metadata, and write a clear download guide.
   finalize:
@@ -107,13 +135,13 @@ jobs:
                 case "$NAME" in
                   *.blockmap)
                     gh api --method DELETE "repos/$REPO/releases/assets/$ID" ;;
-                  # latest*.yml (electron-builder's generated update-info,
-                  # with the sha512 of each installer) is KEPT and left with
-                  # its original name — DockTerm's in-app update checker
-                  # fetches it by that exact name to verify a downloaded
-                  # installer's checksum before running it. Deleting it here
-                  # (as this job used to) silently turned that check off for
-                  # every user.
+                  # latest*.yml (the sha512 of each installer: electron-builder's
+                  # latest.yml / latest-linux.yml, and the per-arch
+                  # latest-mac-arm64.yml / latest-mac-x64.yml written by the mac
+                  # jobs) is KEPT and left with its original name — DockTerm's
+                  # in-app update checker fetches it by that exact name and will
+                  # NOT auto-update without it. Deleting it here (as this job
+                  # used to) silently turned the check off for every user.
                   *mac-arm64.dmg)
                     gh api --method PATCH "repos/$REPO/releases/assets/$ID" -f name="DockTerm-$VER-macOS-Apple-Silicon.dmg" >/dev/null ;;
                   *mac-x64.dmg)
@@ -124,6 +152,12 @@ jobs:
                     gh api --method PATCH "repos/$REPO/releases/assets/$ID" -f name="DockTerm-$VER-Linux.AppImage" >/dev/null ;;
                 esac
               done
+          # The app refuses to auto-update a platform whose checksum file is missing
+          # (it sends the user to the release page), so say so loudly here.
+          ASSETS=$(gh api "repos/$REPO/releases" -q ".[] | select(.tag_name==\"$TAG\") | .assets[].name")
+          for F in latest.yml latest-linux.yml latest-mac-arm64.yml latest-mac-x64.yml; do
+            echo "$ASSETS" | grep -qx "$F" || echo "::warning::$F is missing from $TAG: that platform cannot auto-update"
+          done
           sed "s/__VER__/$VER/g" .github/RELEASE_NOTES.md > /tmp/notes.md
           gh release edit "$TAG" -R "$REPO" --notes-file /tmp/notes.md
           # Publish automatically: this job only runs after every platform built

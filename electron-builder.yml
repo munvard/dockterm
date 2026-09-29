@@ -70,6 +70,9 @@ mac:
     NSMicrophoneUsageDescription: "Claude Code's voice mode records through DockTerm's terminal."
 
 dmg:
+  # Off on purpose: electron-builder would write latest-mac.yml from BOTH parallel mac
+  # jobs (one arch each) and they would race. The mac jobs write per-arch
+  # latest-mac-<arch>.yml themselves (scripts/write-update-info.mjs).
   writeUpdateInfo: false
   title: ${productName} ${version}
   background: build/background.png

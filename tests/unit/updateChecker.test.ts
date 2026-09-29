@@ -14,6 +14,11 @@ import {
   linuxRelaunchArgs,
   parseUpdateYmlShaByUrl,
   pickAsset,
+  isValidSha512,
+  updateInfoAssetName,
+  parseUpdateYmlVersion,
+  resolveExpectedSha512,
+  safeReleaseUrl,
   type GhAsset
 } from '@main/services/updateChecker'
 
@@ -157,5 +162,87 @@ describe('pickAsset (URL pinning + platform/arch matching)', () => {
       }
     ]
     expect(pickAsset(assets)?.name).toBe('DockTerm-0.29.4-macOS-Apple-Silicon.dmg')
+  })
+})
+
+describe('update checksum fail-closed (Codex 7)', () => {
+  const SHA_A = 'A'.repeat(86) + '=='
+  const SHA_B = 'B'.repeat(86) + '=='
+  const yml = (version: string, files: Array<[string, string]>): string =>
+    [
+      `version: ${version}`,
+      'files:',
+      ...files.flatMap(([u, s]) => [`  - url: ${u}`, `    sha512: ${s}`, '    size: 10']),
+      `path: ${files[0][0]}`,
+      `sha512: ${files[0][1]}`,
+      "releaseDate: '2026-09-29T00:00:00.000Z'",
+      ''
+    ].join('\n')
+
+  it('isValidSha512 accepts only base64 of 64 bytes', () => {
+    expect(isValidSha512(SHA_A)).toBe(true)
+    expect(isValidSha512('')).toBe(false)
+    expect(isValidSha512(null)).toBe(false)
+    expect(isValidSha512(undefined)).toBe(false)
+    expect(isValidSha512('abc')).toBe(false)
+    expect(isValidSha512('A'.repeat(86))).toBe(false)
+    expect(isValidSha512('!'.repeat(86) + '==')).toBe(false)
+  })
+
+  it('names the checksum asset per platform and, on macOS, per arch', () => {
+    expect(updateInfoAssetName('win32', 'x64')).toBe('latest.yml')
+    expect(updateInfoAssetName('linux', 'x64')).toBe('latest-linux.yml')
+    expect(updateInfoAssetName('darwin', 'arm64')).toBe('latest-mac-arm64.yml')
+    expect(updateInfoAssetName('darwin', 'x64')).toBe('latest-mac-x64.yml')
+    expect(updateInfoAssetName('freebsd', 'x64')).toBeNull()
+  })
+
+  it('reads the manifest version', () => {
+    expect(parseUpdateYmlVersion(yml('0.31.0', [['a-mac-arm64.dmg', SHA_A]]))).toBe('0.31.0')
+    expect(parseUpdateYmlVersion("version: '0.31.0'\n")).toBe('0.31.0')
+    expect(parseUpdateYmlVersion('files:\n')).toBeNull()
+  })
+
+  it('selects the checksum of this arch from a per-arch manifest', () => {
+    const y = yml('0.31.0', [['DockTerm-0.31.0-mac-arm64.dmg', SHA_A]])
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'arm64', version: '0.31.0' })).toBe(SHA_A)
+  })
+
+  it('selects by arch when a manifest lists both mac arches', () => {
+    const y = yml('0.31.0', [
+      ['DockTerm-0.31.0-mac-arm64.dmg', SHA_A],
+      ['DockTerm-0.31.0-mac-x64.dmg', SHA_B]
+    ])
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'x64', version: '0.31.0' })).toBe(SHA_B)
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'arm64', version: '0.31.0' })).toBe(SHA_A)
+  })
+
+  it('returns null (fail closed) for the wrong arch, wrong version, or no match', () => {
+    const y = yml('0.31.0', [['DockTerm-0.31.0-mac-arm64.dmg', SHA_A]])
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'x64', version: '0.31.0' })).toBeNull()
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'arm64', version: '0.32.0' })).toBeNull()
+    expect(resolveExpectedSha512(y, { platform: 'win32', arch: 'x64', version: '0.31.0' })).toBeNull()
+    expect(resolveExpectedSha512('', { platform: 'win32', arch: 'x64', version: '0.31.0' })).toBeNull()
+  })
+
+  it('returns null for a malformed or empty checksum', () => {
+    for (const bad of ['', 'not-a-hash', 'A'.repeat(86)]) {
+      const y = yml('0.31.0', [['DockTerm-0.31.0-windows-x64.exe', bad]])
+      expect(resolveExpectedSha512(y, { platform: 'win32', arch: 'x64', version: '0.31.0' })).toBeNull()
+    }
+  })
+
+  it('returns null when two matching files disagree', () => {
+    const y = yml('0.31.0', [
+      ['DockTerm-0.31.0-mac-arm64.dmg', SHA_A],
+      ['Other-0.31.0-mac-arm64.dmg', SHA_B]
+    ])
+    expect(resolveExpectedSha512(y, { platform: 'darwin', arch: 'arm64', version: '0.31.0' })).toBeNull()
+  })
+
+  it('only opens release pages of this repository', () => {
+    expect(safeReleaseUrl('https://github.com/munvard/dockterm/releases/tag/v1')).toContain('github.com/')
+    expect(safeReleaseUrl('https://evil.example/x')).toBe(safeReleaseUrl(undefined))
+    expect(safeReleaseUrl('file:///etc/passwd')).toBe(safeReleaseUrl(undefined))
   })
 })

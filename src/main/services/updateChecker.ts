@@ -20,12 +20,18 @@ const FETCH_TIMEOUT_MS = 15_000
 const DOWNLOAD_TIMEOUT_MS = 5 * 60_000 // installers can be 100+MB on a slow link
 
 let timer: ReturnType<typeof setInterval> | null = null
-/** The downloadable asset for THIS platform from the latest release, if found. */
-let pendingAsset: { url: string; name: string } | null = null
-/** Expected sha512 (base64) for `pendingAsset`, read from the release's
- * electron-builder-generated latest*.yml — null when it couldn't be
- * obtained (see fetchExpectedSha512 for why that doesn't block the update). */
-let pendingSha512: string | null = null
+
+/** Everything a download needs, captured together when a release is found so a
+ * later poll (which replaces this object) can never mix one release's asset with
+ * another's checksum while a download is in flight. */
+interface PendingUpdate {
+  asset: { url: string; name: string }
+  /** Expected sha512 (base64) of `asset`, from the release's update-info file.
+   * null when it is missing or malformed: the update then cannot be automatic. */
+  sha512: string | null
+  releaseUrl: string
+}
+let pending: PendingUpdate | null = null
 let downloading = false
 
 function isTrustedAssetUrl(url: string): boolean {
@@ -148,36 +154,73 @@ export function parseUpdateYmlShaByUrl(yml: string): Map<string, string> {
   return out
 }
 
-/** Which electron-builder update-info asset holds this platform's checksum. */
-function updateYmlAssetName(): string | null {
-  if (process.platform === 'win32') return 'latest.yml'
-  if (process.platform === 'darwin') return 'latest-mac.yml'
-  if (process.platform === 'linux') return 'latest-linux.yml'
+/** A sha512 as electron-builder writes it: base64 of 64 bytes (86 chars + "=="). */
+export function isValidSha512(s: string | null | undefined): s is string {
+  return typeof s === 'string' && /^[A-Za-z0-9+/]{86}==$/.test(s)
+}
+
+/** Which release asset holds this platform's checksums. macOS has one file PER
+ * ARCH (written by the mac CI jobs, see scripts/write-update-info.mjs) because
+ * electron-builder's single latest-mac.yml would be raced by the two parallel
+ * mac jobs, each holding one architecture. */
+export function updateInfoAssetName(platform: string, arch: string): string | null {
+  if (platform === 'win32') return 'latest.yml'
+  if (platform === 'darwin') return arch === 'arm64' ? 'latest-mac-arm64.yml' : 'latest-mac-x64.yml'
+  if (platform === 'linux') return 'latest-linux.yml'
   return null
 }
 
 /** Matches this platform+arch's ORIGINAL (pre-friendly-rename) artifact name
- * inside latest*.yml — the yml's own url/path fields are never touched by the
+ * inside the update-info file — its url/path fields are never touched by the
  * release workflow's later cosmetic asset rename, so matching by the stable
- * build-time name (rather than pendingAsset's current, renamed display name)
- * is what actually lines up. */
-function originalNamePattern(): RegExp {
-  if (process.platform === 'darwin') return process.arch === 'arm64' ? /arm64\.dmg$/i : /x64\.dmg$/i
-  if (process.platform === 'win32') return /\.exe$/i
+ * build-time name is what actually lines up. */
+export function originalNamePattern(platform: string, arch: string): RegExp {
+  if (platform === 'darwin') return arch === 'arm64' ? /arm64\.dmg$/i : /x64\.dmg$/i
+  if (platform === 'win32') return /\.exe$/i
   return /\.appimage$/i
 }
 
+/** The top-level `version:` of an update-info file. */
+export function parseUpdateYmlVersion(yml: string): string | null {
+  const m = yml.match(/^version:\s*(.+)$/m)
+  return m ? m[1].trim().replace(/^['"]|['"]$/g, '') : null
+}
+
 /**
- * Fetch and parse this platform's latest*.yml to find the expected sha512 for
- * the asset we're about to download. Returns null (rather than throwing) on
- * ANY failure — a transient network hiccup or a temporarily-missing yml
- * degrades to "download without a verifiable checksum", not "updates are
- * broken for everyone", since the download itself is still fetched only from
- * the pinned, HTTPS GitHub releases path. The sha512 check this feeds is
- * defense in depth on top of that, not the sole integrity guarantee.
+ * The expected sha512 for this platform+arch, or null when it cannot be
+ * established. Fails closed: null for a manifest of another version, for no
+ * matching file, for several matching files that disagree, and for any value
+ * that is not a well-formed sha512.
  */
-async function fetchExpectedSha512(assets: GhAsset[]): Promise<string | null> {
-  const ymlName = updateYmlAssetName()
+export function resolveExpectedSha512(
+  yml: string,
+  opts: { platform: string; arch: string; version: string }
+): string | null {
+  if (parseUpdateYmlVersion(yml) !== opts.version) return null
+  const pattern = originalNamePattern(opts.platform, opts.arch)
+  const found = new Set<string>()
+  for (const [url, sha] of parseUpdateYmlShaByUrl(yml)) {
+    if (pattern.test(url)) found.add(sha)
+  }
+  if (found.size !== 1) return null
+  const [sha] = found
+  return isValidSha512(sha) ? sha : null
+}
+
+/** A release page URL we are willing to open: only this repository's own. */
+export function safeReleaseUrl(url: string | undefined): string {
+  return url && url.startsWith(`https://github.com/${REPO}/`) ? url : RELEASES_PAGE
+}
+
+/**
+ * Fetch this platform's update-info file and resolve the expected sha512 for
+ * the asset we're about to offer. Returns null on ANY failure or malformed
+ * content: without a verifiable checksum the update is NOT automatic (the user
+ * is sent to the release page to download it by hand), never "download and
+ * run it anyway".
+ */
+async function fetchExpectedSha512(assets: GhAsset[], version: string): Promise<string | null> {
+  const ymlName = updateInfoAssetName(process.platform, process.arch)
   if (!ymlName) return null
   const ymlAsset = assets.find((a) => a.name === ymlName)
   if (!ymlAsset?.browser_download_url || !isTrustedAssetUrl(ymlAsset.browser_download_url)) return null
@@ -187,12 +230,11 @@ async function fetchExpectedSha512(assets: GhAsset[]): Promise<string | null> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
     })
     if (!res.ok) return null
-    const byUrl = parseUpdateYmlShaByUrl(await res.text())
-    const pattern = originalNamePattern()
-    for (const [url, sha] of byUrl) {
-      if (pattern.test(url)) return sha
-    }
-    return null
+    return resolveExpectedSha512(await res.text(), {
+      platform: process.platform,
+      arch: process.arch,
+      version
+    })
   } catch {
     return null
   }
@@ -236,13 +278,17 @@ export async function checkForUpdate(manual = false): Promise<UpdateAvailable | 
   const latest = rel.tag_name.replace(/^v/i, '')
   if (!isNewer(latest, app.getVersion())) return null
   if (!manual && (u.dismissedVersion === latest || Date.now() < u.remindAfter)) return null
-  pendingAsset = pickAsset(rel.assets ?? [])
-  pendingSha512 = pendingAsset ? await fetchExpectedSha512(rel.assets ?? []) : null
+  const asset = pickAsset(rel.assets ?? [])
+  const sha512 = asset ? await fetchExpectedSha512(rel.assets ?? [], latest) : null
+  const releaseUrl = safeReleaseUrl(rel.html_url)
+  pending = asset ? { asset, sha512, releaseUrl } : null
   const payload: UpdateAvailable = {
     latestVersion: latest,
-    releaseUrl: rel.html_url || RELEASES_PAGE,
+    releaseUrl,
     notes: cleanNotes(rel.body ?? ''),
-    canAutoUpdate: !!pendingAsset
+    // No verifiable checksum = no automatic update: the popup sends the user to
+    // the release page instead.
+    canAutoUpdate: !!pending && isValidSha512(pending.sha512)
   }
   send('update:available', payload)
   return payload
@@ -272,12 +318,24 @@ export function linuxRelaunchArgs(): string[] {
  * extracted) fall back to revealing the download. No browser. */
 export async function downloadAndInstall(): Promise<void> {
   if (downloading) return
-  if (!pendingAsset) {
+  // Snapshot asset + checksum + release page together: a poll that finds another
+  // release while this one downloads replaces `pending` but not this copy.
+  const snap = pending
+  if (!snap) {
     send('update:error', { message: 'no-asset' })
     return
   }
-  if (!isTrustedAssetUrl(pendingAsset.url)) {
-    // Defense in depth: pendingAsset only ever comes from pickAsset, which
+  if (!isValidSha512(snap.sha512)) {
+    // Fail closed: nothing is downloaded or run without a checksum to verify it
+    // against. Hand the user the release page instead.
+    void shell.openExternal(snap.releaseUrl)
+    send('update:error', { message: 'no-checksum' })
+    return
+  }
+  const expectedSha512 = snap.sha512
+  const asset = snap.asset
+  if (!isTrustedAssetUrl(asset.url)) {
+    // Defense in depth: the asset only ever comes from pickAsset, which
     // already checks this, but never stream a download to an unpinned host.
     send('update:error', { message: 'untrusted download URL' })
     return
@@ -290,10 +348,10 @@ export async function downloadAndInstall(): Promise<void> {
   const appImage = process.platform === 'linux' ? runningAppImage() : null
   const dest = appImage
     ? join(dirname(appImage), `.${basename(appImage)}.new-${process.pid}`)
-    : join(app.getPath('downloads'), pendingAsset.name)
+    : join(app.getPath('downloads'), asset.name)
 
   try {
-    const res = await net.fetch(pendingAsset.url, {
+    const res = await net.fetch(asset.url, {
       headers: { 'User-Agent': 'DockTerm' },
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
     })
@@ -318,13 +376,11 @@ export async function downloadAndInstall(): Promise<void> {
     })
     await pipeline(source, createWriteStream(dest))
 
-    if (pendingSha512) {
-      const actual = await sha512OfFile(dest)
-      if (actual !== pendingSha512) {
-        await unlink(dest).catch(() => {})
-        send('update:error', { message: 'integrity check failed' })
-        return
-      }
+    const actual = await sha512OfFile(dest)
+    if (actual !== expectedSha512) {
+      await unlink(dest).catch(() => {})
+      send('update:error', { message: 'integrity check failed' })
+      return
     }
 
     if (process.platform === 'linux') {
