@@ -414,6 +414,13 @@ export interface CommandView {
   canOpen: boolean
 }
 
+/** What Claude Code's own voice mode is set to (read-only, from its settings.json). */
+export interface ClaudeVoiceSettings {
+  enabled: boolean
+  mode: 'hold' | 'tap'
+  autoSubmit: boolean
+}
+
 export interface SkillsReadResult {
   skills: SkillView[]
   commands: CommandView[]

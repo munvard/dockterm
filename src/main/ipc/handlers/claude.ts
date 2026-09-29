@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ok, err } from '@shared/result'
 import { readMcp, createMcpTemplate } from '../../services/claudeConfigService'
 import { readSkills, readAgents, createSkill } from '../../services/skillsService'
+import { readVoiceSettings } from '../../services/claudeVoiceSettings'
 import { getSettings } from '../../services/settingsService'
 import { rootFor } from '../../services/activeRoot'
 import type { Registrar } from '../register'
@@ -47,6 +48,9 @@ export function registerClaudeHandlers(reg: Registrar): void {
       return err('IO', e instanceof Error ? e.message : 'Could not read agents')
     }
   })
+
+  // Three booleans/enums about Claude's own voice mode; nothing else from settings.json crosses.
+  reg('claude:voiceSettings', z.void(), () => ok(readVoiceSettings()))
 
   reg(
     'claude:skillCreate',

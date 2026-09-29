@@ -25,6 +25,7 @@ import type {
   CheckpointStatus,
   McpReadResult,
   SkillsReadResult,
+  ClaudeVoiceSettings,
   AgentsReadResult,
   SkillTemplate,
   ProjectInfoData,
@@ -279,6 +280,8 @@ export interface InvokeChannels {
   'claude:mcpCreateTemplate': (req: void) => Result<{ relPath: string }>
   'claude:skillsRead': (req: { includeUser: boolean }) => Result<SkillsReadResult>
   'claude:agentsRead': (req: { includeUser: boolean }) => Result<AgentsReadResult>
+  /** Claude Code's own voice-mode settings (enabled, hold/tap, auto-submit). Read-only. */
+  'claude:voiceSettings': (req: void) => Result<ClaudeVoiceSettings>
   'claude:skillCreate': (req: {
     name: string
     kind: 'skill' | 'command'
@@ -469,6 +472,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'claude:mcpCreateTemplate',
   'claude:skillsRead',
   'claude:agentsRead',
+  'claude:voiceSettings',
   'claude:skillCreate',
   'info:get',
   'app:openExternal',
