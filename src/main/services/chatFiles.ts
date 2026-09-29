@@ -1,12 +1,14 @@
-import { app, clipboard } from 'electron'
+import { app, clipboard, nativeImage } from 'electron'
+import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  classifyPaths,
   keepExistingAbsolute,
   parseFileNameW,
   parseNSFilenames,
   parseUriList
 } from './clipboardFilesCore'
-import { IMAGE_DIR_NAME, sweepOldImages, writeImage, type ImageMime } from './chatImageCore'
+import { IMAGE_DIR_NAME, MAX_IMAGE_BYTES, sweepOldImages, writeImage, type ImageMime } from './chatImageCore'
 
 export function imageDir(): string {
   return join(app.getPath('temp'), IMAGE_DIR_NAME)
@@ -38,4 +40,31 @@ export function readClipboardFilePaths(): string[] {
     paths = []
   }
   return keepExistingAbsolute(paths)
+}
+
+const THUMB_WIDTH = 360
+
+/** A small JPEG data URL for the attachment chip, or undefined (unsupported type, too big, unreadable). */
+function thumbnailFor(path: string): string | undefined {
+  try {
+    if (statSync(path).size > MAX_IMAGE_BYTES) return undefined
+    const img = nativeImage.createFromPath(path)
+    if (img.isEmpty()) return undefined
+    const { width } = img.getSize()
+    const small = width > THUMB_WIDTH ? img.resize({ width: THUMB_WIDTH }) : img
+    return `data:image/jpeg;base64,${small.toJPEG(80).toString('base64')}`
+  } catch {
+    return undefined
+  }
+}
+
+/** For the composer's attachment tray: which paths exist, folder or not, and an image thumbnail. */
+export function describePaths(
+  paths: string[],
+  thumbs: boolean
+): { path: string; isDir: boolean; thumb?: string }[] {
+  return classifyPaths(paths).map((p) => ({
+    ...p,
+    thumb: thumbs && !p.isDir && /\.(png|jpe?g)$/i.test(p.path) ? thumbnailFor(p.path) : undefined
+  }))
 }

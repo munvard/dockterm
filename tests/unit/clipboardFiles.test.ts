@@ -54,3 +54,20 @@ describe('keepExistingAbsolute', () => {
     ).toEqual([])
   })
 })
+
+import { classifyPaths } from '../../src/main/services/clipboardFilesCore'
+
+describe('classifyPaths', () => {
+  it('flags folders, drops relative and unreadable paths', () => {
+    const dirs = new Set(['/a/dir'])
+    const files = new Set(['/a/x.png'])
+    const stat = (p: string): { isDirectory(): boolean } => {
+      if (!dirs.has(p) && !files.has(p)) throw new Error('ENOENT')
+      return { isDirectory: () => dirs.has(p) }
+    }
+    expect(classifyPaths(['/a/x.png', '/a/dir', 'rel', '/a/missing'], stat)).toEqual([
+      { path: '/a/x.png', isDir: false },
+      { path: '/a/dir', isDir: true }
+    ])
+  })
+})

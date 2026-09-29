@@ -2,7 +2,7 @@ import { BrowserWindow, clipboard, dialog } from 'electron'
 import { z } from 'zod'
 import { ok, err } from '@shared/result'
 import { saveImageSchema, validateImage } from '../../services/chatImageCore'
-import { readClipboardFilePaths, saveChatImage } from '../../services/chatFiles'
+import { describePaths, readClipboardFilePaths, saveChatImage } from '../../services/chatFiles'
 import type { Registrar } from '../register'
 
 export function registerChatHandlers(reg: Registrar): void {
@@ -30,6 +30,12 @@ export function registerChatHandlers(reg: Registrar): void {
   })
 
   reg('clipboard:readFiles', z.void(), () => ok({ paths: readClipboardFilePaths() }))
+
+  reg(
+    'chat:statPaths',
+    z.object({ paths: z.array(z.string().max(4096)).max(100), thumbs: z.boolean() }),
+    (req) => ok({ items: describePaths(req.paths, req.thumbs) })
+  )
 
   reg('chat:pickFiles', z.void(), async (_req, event) => {
     const win = BrowserWindow.fromWebContents(event.sender)

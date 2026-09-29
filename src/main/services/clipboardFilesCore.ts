@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -57,4 +57,25 @@ export function keepExistingAbsolute(paths: string[], exists: (p: string) => boo
     if (ok) seen.add(p)
   }
   return [...seen]
+}
+
+export interface PathInfo {
+  path: string
+  isDir: boolean
+}
+
+/** Existing absolute paths with a folder flag (missing or unreadable ones are dropped). */
+export function classifyPaths(
+  paths: string[],
+  stat: (p: string) => { isDirectory(): boolean } = statSync
+): PathInfo[] {
+  const out: PathInfo[] = []
+  for (const p of keepExistingAbsolute(paths, () => true)) {
+    try {
+      out.push({ path: p, isDir: stat(p).isDirectory() })
+    } catch {
+      // gone or unreadable
+    }
+  }
+  return out
 }

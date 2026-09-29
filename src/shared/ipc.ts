@@ -300,6 +300,10 @@ export interface InvokeChannels {
   }) => Result<{ path: string }>
   /** Multi-select open dialog for the composer's attach button. */
   'chat:pickFiles': (req: void) => Result<{ paths: string[] }>
+  /** Which of these absolute paths exist, whether each is a folder, and (png/jpeg) a small thumbnail. */
+  'chat:statPaths': (req: { paths: string[]; thumbs: boolean }) => Result<{
+    items: { path: string; isDir: boolean; thumb?: string }[]
+  }>
 
   /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
   'usage:get': (req: void) => Result<UsageSnapshot>
@@ -473,6 +477,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'clipboard:saveImage',
   'chat:saveImage',
   'chat:pickFiles',
+  'chat:statPaths',
   'usage:get',
   'activity:get',
   'session:getHistory',
