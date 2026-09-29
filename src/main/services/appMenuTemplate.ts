@@ -7,6 +7,8 @@ export interface MenuDeps {
   send: (action: MenuAction) => void
   newWindow: () => void
   openExternal: (url: string) => void
+  /** Reload a window, asking first when it has live terminals. */
+  reload: (win: BrowserWindow | undefined, ignoreCache: boolean) => void
 }
 
 /**
@@ -102,8 +104,8 @@ export function buildMenuTemplate(platform: NodeJS.Platform, deps: MenuDeps): Me
         // Not the `reload` / `forceReload` roles: their default keys (Ctrl+R,
         // Ctrl+Shift+R) are the shell's reverse-search and the renderer's own
         // chat-mode toggle, and a role cannot hide its key label.
-        { label: 'Reload', click: (_item, win) => (win as BrowserWindow | undefined)?.webContents.reload() },
-        { label: 'Force Reload', click: (_item, win) => (win as BrowserWindow | undefined)?.webContents.reloadIgnoringCache() },
+        { label: 'Reload', click: (_item, win) => deps.reload(win as BrowserWindow | undefined, false) },
+        { label: 'Force Reload', click: (_item, win) => deps.reload(win as BrowserWindow | undefined, true) },
         { role: 'toggleDevTools' },
         { type: 'separator' },
         // Their win/linux defaults are plain Ctrl+0 / Ctrl+Plus / Ctrl+-, which the

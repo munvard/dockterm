@@ -201,6 +201,13 @@ export function killAllPtys(): void {
   for (const id of [...sessions.keys()]) killPty(id)
 }
 
+/** How many live PTYs a window owns. */
+export function countPtysForWindow(webContentsId: number): number {
+  let n = 0
+  for (const session of sessions.values()) if (session.ownerId === webContentsId) n++
+  return n
+}
+
 /** Kill every PTY owned by a window (called when that window closes). */
 export function killPtysForWindow(webContentsId: number): void {
   for (const [id, session] of sessions) {
