@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, clipboard } from 'electron'
+import { app, shell, clipboard } from 'electron'
 import os from 'node:os'
 import { existsSync, statSync } from 'node:fs'
 import { z } from 'zod'
@@ -15,17 +15,8 @@ import {
 import { getUsageSnapshot } from '../../services/usageService'
 import { getAgentActivity } from '../../services/agentActivityService'
 import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
-import type { Settings } from '@shared/types'
+import { broadcastSettings } from '../../services/settingsBroadcast'
 import type { Registrar } from '../register'
-
-/** `workspace` is per-window session state, never shared state — see the same
- * strip in ipc/handlers/settings.ts's broadcast(). */
-function broadcastSettings(next: Settings): void {
-  const shared = { ...next, workspace: null }
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('settings:changed', shared)
-  }
-}
 
 /** Windows build number out of os.release() ("10.0.22621" -> 22621). Xterm's
  * conpty reflow/scrollback heuristics (windowsPty) key off this. */

@@ -4,6 +4,7 @@ import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
 import { getSettings } from './services/settingsService'
 import { clampToAreas } from './overlayPlacement'
+import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 /**
  * The munu overlay: a frameless, transparent, always-on-top, non-focusable
@@ -132,6 +133,8 @@ export function createOverlayWindow(): BrowserWindow {
     }
   })
 
+  const overlayId = overlay.webContents.id
+  registerWindowRole(overlayId, 'overlay')
   applyWindowSecurity(overlay)
   // Start click-through; the renderer enables interaction while hovering munu.
   // Linux/Wayland can't forward mouse-move to a click-through window, so there
@@ -152,6 +155,7 @@ export function createOverlayWindow(): BrowserWindow {
     repinLinux()
   })
   overlay.on('closed', () => {
+    unregisterWindowRole(overlayId)
     overlay = null
   })
   return overlay

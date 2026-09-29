@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { isChannelAllowedForSender } from '@main/ipc/overlayChannels'
+import { isChannelAllowedForRole } from '@main/ipc/overlayChannels'
 
-describe('isChannelAllowedForSender', () => {
-  it('allows any channel for a non-overlay (main window) sender', () => {
-    expect(isChannelAllowedForSender('fs:readFile', false)).toBe(true)
-    expect(isChannelAllowedForSender('git:status', false)).toBe(true)
-    expect(isChannelAllowedForSender('pty:write', false)).toBe(true)
-    expect(isChannelAllowedForSender('munu:report', false)).toBe(true)
+describe('isChannelAllowedForRole', () => {
+  it('allows any ordinary channel for a main window', () => {
+    expect(isChannelAllowedForRole('fs:readFile', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('git:status', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('pty:write', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('munu:report', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('settings:get', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('settings:set', 'main')).toBe(true)
   })
 
-  it('allows the munu:*, settings:get/set, app:getInfo, and activity:get channels for the overlay', () => {
+  it('allows the overlay its munu:*, overlay settings, app:getInfo and activity:get channels', () => {
     const allowed = [
       'munu:answer',
       'munu:focus',
@@ -21,20 +23,42 @@ describe('isChannelAllowedForSender', () => {
       'munu:move',
       'munu:dragStart',
       'munu:dragMove',
-      'settings:get',
-      'settings:set',
+      'overlaySettings:get',
+      'overlaySettings:set',
       'app:getInfo',
       'activity:get'
     ]
     for (const channel of allowed) {
-      expect(isChannelAllowedForSender(channel, true)).toBe(true)
+      expect(isChannelAllowedForRole(channel, 'overlay'), channel).toBe(true)
     }
   })
 
-  it('blocks fs/git/pty/project channels for the overlay', () => {
-    const blocked = ['fs:readFile', 'fs:writeFile', 'git:status', 'pty:write', 'pty:kill', 'project:setActiveRoot', 'munu:report']
+  it('blocks fs/git/pty/project channels, the full settings and munu:report for the overlay', () => {
+    const blocked = [
+      'fs:readFile',
+      'fs:writeFile',
+      'git:status',
+      'pty:write',
+      'pty:kill',
+      'project:setActiveRoot',
+      'munu:report',
+      'settings:get',
+      'settings:set'
+    ]
     for (const channel of blocked) {
-      expect(isChannelAllowedForSender(channel, true)).toBe(false)
+      expect(isChannelAllowedForRole(channel, 'overlay'), channel).toBe(false)
+    }
+  })
+
+  it('never lets a main window call the overlay-only channels', () => {
+    for (const channel of ['munu:answer', 'overlaySettings:get', 'overlaySettings:set']) {
+      expect(isChannelAllowedForRole(channel, 'main'), channel).toBe(false)
+    }
+  })
+
+  it('fails closed for a sender with no registered role', () => {
+    for (const channel of ['fs:readFile', 'settings:get', 'munu:answer', 'app:getInfo', 'pty:write']) {
+      expect(isChannelAllowedForRole(channel, undefined), channel).toBe(false)
     }
   })
 })

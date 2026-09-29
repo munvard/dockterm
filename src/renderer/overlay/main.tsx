@@ -93,7 +93,7 @@ function Overlay() {
   }, [agentPeekUntil])
 
   useEffect(() => {
-    void window.dockterm.invoke('settings:get', undefined).then((r) => {
+    void window.dockterm.invoke('overlaySettings:get', undefined).then((r) => {
       if (r.ok) {
         munuRef.current = r.value.munu
         setSounds(r.value.munu.sounds)
@@ -107,7 +107,7 @@ function Overlay() {
     void window.dockterm.invoke('app:getInfo', undefined).then((r) => {
       if (r.ok) setPlatform(r.value.platform)
     })
-    return window.dockterm.on('settings:changed', (s) => {
+    return window.dockterm.on('overlaySettings:changed', (s) => {
       munuRef.current = s.munu
       setSounds(s.munu.sounds)
       setMunuSize(s.munu.size)
@@ -242,7 +242,7 @@ function Overlay() {
   const writeMunu = (patch: Partial<Settings['munu']>): void => {
     const base = munuRef.current
     if (!base) return
-    void window.dockterm.invoke('settings:set', { munu: { ...base, ...patch } } as never)
+    void window.dockterm.invoke('overlaySettings:set', { munu: patch })
   }
 
   const showApp = (): void => {

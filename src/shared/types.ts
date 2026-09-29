@@ -83,6 +83,13 @@ export type MunuSettings = {
   position: { x: number; y: number } | null
 }
 
+/** The only settings the munu overlay window ever sees or writes. */
+export interface OverlaySettings {
+  munu: MunuSettings
+  agentActivity: { swarm: boolean }
+}
+export type OverlaySettingsPatch = { munu: Partial<MunuSettings> }
+
 export type AccentName = 'violet' | 'blue' | 'teal'
 export type TerminalRenderer = 'auto' | 'dom'
 export type CursorStyle = 'block' | 'underline' | 'bar'

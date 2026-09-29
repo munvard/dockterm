@@ -3,7 +3,7 @@
  * window, and has no business calling fs/git/pty/project channels even
  * though it's an equally "trusted" (app://) renderer — it should only ever
  * reach the handlers its own UI actually invokes. register.ts checks this by
- * webContents id against the live overlay window rather than by adding an
+ * the sender's registered window role (windowRoles.ts) rather than by adding an
  * `allow` option to every handler registration, so every OTHER wave's
  * handler file needs zero changes to get this restriction; a channel a
  * future overlay feature needs is opted in here, in one place.
@@ -11,6 +11,8 @@
  * Split into its own module (no electron import) so the allowlist logic is
  * unit-testable without pulling in the entire handler-registration graph.
  */
+import type { WindowRole } from './windowRoles'
+
 export const OVERLAY_ALLOWED_CHANNELS = new Set<string>([
   'munu:answer',
   'munu:focus',
@@ -22,14 +24,24 @@ export const OVERLAY_ALLOWED_CHANNELS = new Set<string>([
   'munu:move',
   'munu:dragStart',
   'munu:dragMove',
-  'settings:get',
-  'settings:set',
+  'overlaySettings:get',
+  'overlaySettings:set',
   'app:getInfo',
   'activity:get'
 ])
 
-/** Pure decision the registrar enforces: is `channel` reachable from this
- * sender? */
-export function isChannelAllowedForSender(channel: string, senderIsOverlay: boolean): boolean {
-  return !senderIsOverlay || OVERLAY_ALLOWED_CHANNELS.has(channel)
+/** Channels only the overlay may call (a main window has no use for them, and
+ * `munu:answer` in particular must never be reachable from a terminal window). */
+export const OVERLAY_ONLY_CHANNELS = new Set<string>([
+  'munu:answer',
+  'overlaySettings:get',
+  'overlaySettings:set'
+])
+
+/** Pure decision the registrar enforces: may a sender with this role call
+ * `channel`? An unknown sender (`undefined`) can call nothing. */
+export function isChannelAllowedForRole(channel: string, role: WindowRole | undefined): boolean {
+  if (role === 'overlay') return OVERLAY_ALLOWED_CHANNELS.has(channel)
+  if (role === 'main') return !OVERLAY_ONLY_CHANNELS.has(channel)
+  return false
 }

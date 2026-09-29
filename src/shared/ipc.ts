@@ -30,6 +30,8 @@ import type {
   ProjectInfoData,
   MunuGlobal,
   MunuAnswerAction,
+  OverlaySettings,
+  OverlaySettingsPatch,
   UsageSnapshot,
   AgentActivity,
   SessionHistory,
@@ -227,6 +229,9 @@ export interface InvokeChannels {
 
   'settings:get': (req: void) => Result<Settings>
   'settings:set': (req: SettingsPatch) => Result<Settings>
+  /** Overlay only: the munu / swarm subset of the settings. */
+  'overlaySettings:get': (req: void) => Result<OverlaySettings>
+  'overlaySettings:set': (req: OverlaySettingsPatch) => Result<OverlaySettings>
 
   'project:openDialog': (req: void) => Result<OpenDialogResult>
   'project:open': (req: PathReq) => Result<ProjectInfo>
@@ -354,6 +359,8 @@ export interface EventChannels {
   'pty:data': PtyDataEvent
   'pty:exit': PtyExitEvent
   'settings:changed': Settings
+  /** main → overlay only: the munu / swarm subset. */
+  'overlaySettings:changed': OverlaySettings
   'fs:watch': WatchBatch
   /** main → overlay window: the global munu state. */
   'munu:state': MunuGlobal
@@ -470,7 +477,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:getBounds',
   'munu:move',
   'munu:dragStart',
-  'munu:dragMove'
+  'munu:dragMove',
+  'overlaySettings:get',
+  'overlaySettings:set'
 ]
 
 /** Runtime allowlist mirrored from `EventChannels`. */
@@ -478,6 +487,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'pty:data',
   'pty:exit',
   'settings:changed',
+  'overlaySettings:changed',
   'fs:watch',
   'munu:state',
   'munu:reveal',

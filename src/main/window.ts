@@ -8,6 +8,7 @@ import { clearActiveRoot } from './services/activeRoot'
 import { getSettings } from './services/settingsService'
 import { dropWindowMunu } from './services/munuService'
 import { destroyOverlay, getOverlay } from './overlayWindow'
+import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 const openWindows = new Set<number>()
 let primaryId: number | null = null
@@ -61,6 +62,7 @@ export function createWindow(): BrowserWindow {
   })
 
   const id = win.webContents.id
+  registerWindowRole(id, 'main')
   openWindows.add(id)
   if (primaryId === null) primaryId = id
 
@@ -81,6 +83,7 @@ export function createWindow(): BrowserWindow {
   win.webContents.on('render-process-gone', () => cleanupWindowResources(id))
 
   win.on('closed', () => {
+    unregisterWindowRole(id)
     openWindows.delete(id)
     cleanupWindowResources(id)
     if (primaryId === id) {
