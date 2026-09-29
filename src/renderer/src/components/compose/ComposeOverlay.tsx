@@ -5,6 +5,7 @@ import { useComposeStore } from '../../state/useComposeStore'
 import { paneWriters } from '../../state/paneWriters'
 import { sendPrompt } from '../../state/sendPrompt'
 import { wrapBracketedPaste } from '../terminal/terminalSelection'
+import { k } from '../../hooks/keys'
 
 /**
  * A roomy editor for long prompts. Claude Code's own input box can't be
@@ -95,7 +96,7 @@ export function ComposeOverlay(): React.ReactElement | null {
           className="compose__editor"
           value={draft}
           spellCheck={false}
-          placeholder="Write a long prompt here — no cramped input box. ⌘⏎ to send, Esc to close."
+          placeholder={`Write a long prompt here — no cramped input box. ${k('⌘⏎', 'Ctrl+⏎')} to send, Esc to close.`}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

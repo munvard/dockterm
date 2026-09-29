@@ -10,7 +10,7 @@ import { TopBar } from './TopBar'
 import { Dock } from './Dock'
 import { Divider } from './Divider'
 import { TabStrip } from '../terminal/TabStrip'
-import { PaneTree, refocusIfTerminal } from '../terminal/PaneTree'
+import { PaneTree } from '../terminal/PaneTree'
 import { MiniTerminal } from '../terminal/MiniTerminal'
 import { HistoryRail } from '../history/HistoryRail'
 import { HistoryFloating } from '../history/HistoryFloating'
@@ -20,11 +20,10 @@ import { ComposeOverlay } from '../compose/ComposeOverlay'
 import { FilePreviewCard } from '../terminal/FilePreviewCard'
 import { ChangesOverlay } from '../changes/ChangesOverlay'
 import { useChangesStore } from '../../state/useChangesStore'
-import { useComposeStore } from '../../state/useComposeStore'
 import { useDialogStore } from '../../state/useDialogStore'
-import { confirmCloseLeaves } from '../terminal/closeGuard'
 import { gcTerminals } from '../terminal/terminalPool'
 import { readingWidthToMax } from '../terminal/comfortPresets'
+import { k } from '../../hooks/keys'
 
 // Lazily loaded so Monaco (the editor) isn't part of the startup bundle.
 const EditorPane = lazy(() => import('../editor/EditorPane').then((m) => ({ default: m.EditorPane })))
@@ -145,77 +144,8 @@ export function Shell() {
     return () => window.removeEventListener('focus', onFocus)
   }, [])
 
-  // Terminal shortcuts (capture phase so they win over the focused xterm).
-  useEffect(() => {
-    if (!projectPath) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return
-      const ws = useWorkspaceStore.getState()
-      if (e.key === 't') {
-        e.preventDefault()
-        e.stopPropagation()
-        ws.open(projectPath)
-      } else if (e.key === 'w') {
-        e.preventDefault()
-        e.stopPropagation()
-        const tab = ws.tabs.find((tb) => tb.id === ws.activeId)
-        const leafId = tab?.focusedLeafId
-        if (leafId) {
-          void confirmCloseLeaves([leafId]).then((proceed) => {
-            if (proceed) ws.closeFocused()
-          })
-        } else {
-          ws.closeFocused()
-        }
-      } else if (e.key === 'd') {
-        e.preventDefault()
-        e.stopPropagation()
-        ws.splitFocused('row')
-      } else if (e.key === 'n') {
-        e.preventDefault()
-        e.stopPropagation()
-        void window.dockterm.invoke('window:new', undefined)
-      } else if (e.key === '.') {
-        e.preventDefault()
-        e.stopPropagation()
-        useAppStore.getState().toggleZen()
-      } else if (e.key === 'r') {
-        e.preventDefault()
-        e.stopPropagation()
-        const tab = ws.tabs.find((tb) => tb.id === ws.activeId)
-        const leafId = tab?.focusedLeafId
-        const fallback = useAppStore.getState().settings?.chat.defaultMode ?? 'terminal'
-        if (leafId) {
-          ws.togglePaneView(leafId, fallback)
-          refocusIfTerminal(leafId) // back to the terminal → give it the keyboard
-        }
-      } else if (e.key >= '1' && e.key <= '9') {
-        const tab = ws.tabs[Number(e.key) - 1]
-        if (tab) {
-          e.preventDefault()
-          e.stopPropagation()
-          ws.setActive(tab.id)
-        }
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [projectPath])
-
-  // ⌘⇧⏎ opens the Compose editor for long prompts (capture phase so it wins over
-  // the focused xterm). ⌘⏎ / Esc are handled inside the overlay.
-  useEffect(() => {
-    if (!composeEnabled) return
-    const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key === 'Enter') {
-        e.preventDefault()
-        e.stopPropagation()
-        useComposeStore.getState().openCompose()
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [composeEnabled])
+  // All keyboard shortcuts (new tab/window, close, split, zen, chat toggle,
+  // compose…) are bound once in the single registry: see useShortcuts.ts.
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -299,9 +229,9 @@ export function Shell() {
           <button
             className="zen-exit"
             onClick={() => useAppStore.getState().setZen(false)}
-            title="Exit zen (⌘.)"
+            title={`Exit zen (${k('⌘.', 'Ctrl+Shift+.')})`}
           >
-            <Minimize2 size={13} /> Exit zen · ⌘.
+            <Minimize2 size={13} /> Exit zen · {k('⌘.', 'Ctrl+Shift+.')}
           </button>
         </div>
       ) : (

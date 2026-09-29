@@ -6,6 +6,7 @@ import { paneWriters } from '../../state/paneWriters'
 import { firstLeaf, allLeaves } from '../../state/layout'
 import { launchCommand } from './launcherCommands'
 import { confirmCloseLeaves } from './closeGuard'
+import { k } from '../../hooks/keys'
 import claudeIcon from '../../assets/claudecode.svg'
 
 /** Send a command into the focused terminal pane of the active tab. */
@@ -112,7 +113,7 @@ export function TabStrip() {
       </div>
       <button
         className="tabstrip__add"
-        data-tip="New terminal (⌘T)"
+        data-tip={`New terminal (${k('⌘T', 'Ctrl+Shift+T')})`}
         aria-label="New terminal"
         onClick={() => projectPath && open(projectPath)}
       >
