@@ -4,7 +4,7 @@ import { createMainWindow, isPrimaryWindow } from './window'
 import { registerAppSchemePrivileges, serveAppProtocol } from './protocol'
 import { applyGlobalSecurity } from './security'
 import { registerIpc } from './ipc/register'
-import { killAllPtys } from './services/ptyService'
+import { flushPtyHost, killAllPtys, warmPtyHost } from './services/ptyService'
 import { stopAllWatchers } from './services/watcherService'
 import { setupMenubar, teardownMenubar } from './services/menubarService'
 import { setupAppMenu } from './services/appMenu'
@@ -108,6 +108,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
       applyGlobalSecurity()
       serveAppProtocol()
       registerIpc()
+      warmPtyHost()
       createMainWindow()
       setupAppMenu()
       setupMenubar()
@@ -136,11 +137,13 @@ if (process.argv.includes('conpty_console_list_agent')) {
 
     app.on('before-quit', () => {
       killAllPtys()
+      flushPtyHost()
       stopAllWatchers()
     })
 
     app.on('window-all-closed', () => {
       killAllPtys()
+      flushPtyHost()
       stopAllWatchers()
       if (process.platform !== 'darwin') app.quit()
     })

@@ -1,6 +1,7 @@
 import os from 'node:os'
 import { existsSync } from 'node:fs'
-import { spawn, type IPty } from 'node-pty'
+import { Worker } from 'node:worker_threads'
+import { spawn } from 'node-pty'
 import type { BrowserWindow } from 'electron'
 import { detectShell } from './shellDetect'
 import { integrationFor } from './shellIntegration'
@@ -8,10 +9,12 @@ import { getSettings } from './settingsService'
 import { ensureUtf8Locale } from './ptyLocale'
 import { PtyFlow } from './ptyFlow'
 import { PTY } from '@shared/constants'
+import { PtyHost, type PtyLike } from './ptyHost'
+import ptyHostWorkerPath from './ptyHostWorker?modulePath'
 
 interface Session {
   id: string
-  pty: IPty
+  pty: PtyLike
   flow: PtyFlow
   flushTimer: ReturnType<typeof setTimeout> | null
   win: BrowserWindow
@@ -21,6 +24,35 @@ interface Session {
 
 const sessions = new Map<string, Session>()
 let counter = 0
+
+// Windows only: ptys live in a worker (see PtyHost). Elsewhere spawning is quick.
+let host: PtyHost | null = null
+function ptyHost(): PtyHost | null {
+  if (process.platform !== 'win32') return null
+  host ??= new PtyHost(() => {
+    const w = new Worker(ptyHostWorkerPath)
+    return {
+      postMessage: (m) => w.postMessage(m),
+      onMessage: (cb) => w.on('message', cb),
+      onDeath: (cb) => {
+        w.on('error', cb)
+        w.on('exit', cb)
+      },
+      terminate: () => void w.terminate()
+    }
+  })
+  return host
+}
+
+/** Boot the pty host early (Windows), so the first terminal doesn't wait for it. */
+export function warmPtyHost(): void {
+  ptyHost()?.warm()
+}
+
+/** At quit: give the pty host a moment to deliver the kills (Windows). */
+export function flushPtyHost(): void {
+  host?.flush(1000)
+}
 
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo
@@ -75,7 +107,7 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
     }
   }
 
-  const pty = spawn(shell.file, shellArgs, {
+  const spawnOpts = {
     name: 'xterm-256color',
     cols: clamp(args.cols, PTY.MIN_COLS, PTY.MAX_COLS),
     rows: clamp(args.rows, PTY.MIN_ROWS, PTY.MAX_ROWS),
@@ -87,7 +119,8 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
     // relaunches the Electron binary itself, so a second DockTerm window opens
     // on every close. useConptyDll keeps the process list inside the native addon.
     ...(process.platform === 'win32' ? { useConptyDll: true } : {})
-  })
+  }
+  const pty: PtyLike = ptyHost()?.spawn(shell.file, shellArgs, spawnOpts) ?? spawn(shell.file, shellArgs, spawnOpts)
 
   const id = `pty-${++counter}`
   const session: Session = {
