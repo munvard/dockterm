@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { sendComposedWith, IMAGE_TIMEOUT_MS, type SendDeps } from '../../src/renderer/src/state/composedSend'
+import { sendComposedWith, IMAGE_TIMEOUT_MS, CLEAR_TRIES, type SendDeps } from '../../src/renderer/src/state/composedSend'
 import type { Attachment } from '../../src/renderer/src/components/chat/composerText'
 
 const img = (path: string): Attachment => ({ id: path, kind: 'image', path, name: path })
 const doc = (path: string): Attachment => ({ id: path, kind: 'file', path, name: path })
 
 function harness(
-  opts: { bracketed?: boolean; markersAfterMs?: number | null; markers?: number; claude?: () => boolean; trace?: boolean } = {}
+  opts: { bracketed?: boolean; markersAfterMs?: number | null; markers?: number; claude?: () => boolean; trace?: boolean; input?: () => string | null; onWrite?: (text: string) => void } = {}
 ) {
   const log: string[] = []
   let clock = 0
@@ -15,7 +15,9 @@ function harness(
   const warnings: string[] = []
   const deps: SendDeps = {
     bracketedPaste: () => opts.bracketed ?? true,
+    claudeInput: () => (opts.input ? opts.input() : null),
     write: (_id, text) => {
+      opts.onWrite?.(text)
       log.push(`write:${JSON.stringify(text)}`)
       pasted = true
       pasteAt = clock
@@ -89,6 +91,7 @@ describe('sendComposedWith', () => {
       bracketedPaste: () => true,
       write: () => ((pasted = true), true),
       visibleText: () => (pasted ? '[Image #1] [Image #2]' : '[Image #1]'),
+      claudeInput: () => null,
       sendPrompt: async (_i, t) => (log.push(t), true),
       isClaude: async () => true,
       sleep: async (ms) => void (clock += ms),
@@ -212,6 +215,7 @@ describe('sendComposedWith image confirmation with a scrolled marker (sol-A 6)',
       write: () => ((pasted = true), true),
       // before: #1 #2 on screen; after: #1 scrolled off, #2 #3 on screen (still 2 markers)
       visibleText: () => (pasted ? '[Image #2] [Image #3]' : '[Image #1] [Image #2]'),
+      claudeInput: () => null,
       sendPrompt: async () => true,
       isClaude: async () => true,
       sleep: async (ms) => void (clock += ms),
@@ -221,5 +225,45 @@ describe('sendComposedWith image confirmation with a scrolled marker (sol-A 6)',
     await sendComposedWith(deps, 'l', { ...base, text: 'x', attachments: [img('/a.png')] })
     expect(warnings).toEqual([])
     expect(clock).toBeLessThan(IMAGE_TIMEOUT_MS)
+  })
+})
+
+describe('sendComposedWith clears leftover text in Claude first (F3)', () => {
+  it('sends nothing but Ctrl+U until the box is empty, then the prompt', async () => {
+    let box: string | null = 'markdown table.'
+    const h = harness({
+      input: () => box,
+      onWrite: (t) => {
+        if (t === '\x15') box = ''
+      }
+    })
+    expect(await sendComposedWith(h.deps, 'l', { ...base, text: 'Reply with exactly: hi', attachments: [] })).toBe(true)
+    expect(h.log).toEqual(['write:"\\u0015"', 'prompt:"Reply with exactly: hi"'])
+  })
+
+  it('a wrapped draft needs several Ctrl+U presses', async () => {
+    let lines = 3
+    const h = harness({
+      input: () => (lines > 0 ? 'x\n'.repeat(lines).trim() : ''),
+      onWrite: () => void lines--
+    })
+    expect(await sendComposedWith(h.deps, 'l', { ...base, text: 'go', attachments: [] })).toBe(true)
+    expect(h.log.filter((l) => l === 'write:"\\u0015"')).toHaveLength(3)
+  })
+
+  it('does not send, and warns, when the box will not clear (5 tries)', async () => {
+    const h = harness({ input: () => 'stuck' })
+    expect(await sendComposedWith(h.deps, 'l', { ...base, text: 'go', attachments: [] })).toBe(false)
+    expect(h.log.filter((l) => l === 'write:"\\u0015"')).toHaveLength(CLEAR_TRIES)
+    expect(h.log.some((l) => l.startsWith('prompt:'))).toBe(false)
+    expect(h.warnings).toHaveLength(1)
+  })
+
+  it('an empty box or no box on screen sends without any Ctrl+U', async () => {
+    for (const input of [() => '', () => null]) {
+      const h = harness({ input })
+      expect(await sendComposedWith(h.deps, 'l', { ...base, text: 'go', attachments: [] })).toBe(true)
+      expect(h.log).toEqual(['prompt:"go"'])
+    }
   })
 })
