@@ -17,6 +17,7 @@ import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
 import { bundledConptyBuild } from './conptyBuild'
+import { RESTORE_BANNER, restoreScrollTail } from './restoreBanner'
 import {
   handleImagePasteEvent,
   pasteImageFromSystemClipboard,
@@ -619,7 +620,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     const requestedCols = term.cols
     const requestedRows = term.rows
     void restoredReady
-      .then(() => {
+      .then(async () => {
         // Restore prior scrollback (read-only history) once, before the fresh
         // shell starts — the live process can't be resurrected.
         if (persistEnabled && opts.persist) {
@@ -627,11 +628,10 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           if (saved) {
             restored.delete(id)
             term.write(saved)
-            // Two lines so each fits 80 columns.
-            term.write(
-              '\r\n\x1b[90m──── session restored · running programs did not survive the restart ────\x1b[0m\r\n' +
-                '\x1b[90m     run claude --resume to continue\x1b[0m\r\n'
-            )
+            // Wait until xterm has parsed it, so the cursor row is known.
+            await new Promise<void>((resolve) => term.write(RESTORE_BANNER, resolve))
+            const tail = restoreScrollTail(currentPlatform(), term.rows, term.buffer.active.cursorY)
+            if (tail) await new Promise<void>((resolve) => term.write(tail, resolve))
           }
         }
         return window.dockterm.invoke('pty:create', {
