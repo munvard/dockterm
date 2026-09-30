@@ -13,6 +13,10 @@ function paint(theme: Theme): void {
   const root = document.documentElement
   for (const [k, v] of Object.entries(theme.ui)) root.style.setProperty(`--${k}`, v)
   root.dataset.appearance = theme.appearance
+  // Windows draws its caption buttons over our own bar: match them to the theme.
+  if (typeof window !== 'undefined' && window.dockterm && /^#[0-9a-f]{6}$/i.test(theme.ui.panel ?? '')) {
+    void window.dockterm.invoke('window:setTitleBarOverlay', { color: theme.ui.panel, symbolColor: theme.ui.text })
+  }
 }
 
 interface ThemeStore {

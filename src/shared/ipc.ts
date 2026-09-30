@@ -346,6 +346,8 @@ export interface InvokeChannels {
   /** `path`: open a new window straight onto that project. */
   'window:new': (req: { path?: string } | void) => Result<void>
   'window:isPrimary': (req: void) => Result<boolean>
+  /** Windows only: recolour the caption buttons to match the theme (no-op elsewhere). */
+  'window:setTitleBarOverlay': (req: { color: string; symbolColor: string }) => Result<void>
   'app:recover': (req: { hard: boolean }) => Result<void>
   'ui:setZoom': (req: { factor: number }) => Result<{ zoom: number }>
 
@@ -492,6 +494,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'update:skip',
   'window:new',
   'window:isPrimary',
+  'window:setTitleBarOverlay',
   'app:recover',
   'ui:setZoom',
   'munu:report',

@@ -10,6 +10,7 @@ import { getSettings, setLastProjectPath } from './services/settingsService'
 import { getWindowProject } from './services/windowNamespace'
 import { dropWindowMunu } from './services/munuService'
 import { destroyOverlay, getOverlay } from './overlayWindow'
+import { chromeOptions } from './titleBar'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 const openWindows = new Set<number>()
@@ -44,16 +45,9 @@ export function createWindow(): BrowserWindow {
     backgroundColor: isMac ? '#00000000' : '#1e1e1d',
     title: 'DockTerm',
     autoHideMenuBar: true,
-    // macOS: hide the OS title bar (content runs to the top edge) but keep the
-    // inset traffic-light buttons, and add native frosted-glass vibrancy.
-    ...(isMac
-      ? {
-          titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 14, y: 13 },
-          vibrancy: 'under-window' as const,
-          visualEffectState: 'active' as const
-        }
-      : {}),
+    // macOS: hidden-inset title bar + vibrancy. Windows: hidden title bar with the
+    // caption buttons overlaid on DockTerm's own app bar. See titleBar.ts.
+    ...chromeOptions(process.platform),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

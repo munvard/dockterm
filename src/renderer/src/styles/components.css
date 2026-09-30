@@ -831,6 +831,11 @@
 :root[data-platform='darwin'] .topbar {
   padding-left: 82px;
 }
+/* Windows: the native caption buttons (min / max / close, 3 x 46px) are drawn over the
+   right end of this bar (titleBarOverlay), so leave room for them. */
+:root[data-platform='win32'] .topbar {
+  padding-right: 146px;
+}
 /* Let the window vibrancy show through translucent chrome (terminals/editor stay opaque). */
 :root[data-platform='darwin'] body,
 :root[data-platform='darwin'] .app {

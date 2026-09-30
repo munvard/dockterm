@@ -1,4 +1,4 @@
-import { app, shell, clipboard } from 'electron'
+import { app, shell, clipboard, BrowserWindow } from 'electron'
 import os from 'node:os'
 import { existsSync, statSync } from 'node:fs'
 import { z } from 'zod'
@@ -17,6 +17,7 @@ import { getAgentActivity } from '../../services/agentActivityService'
 import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
 import { paneKey } from '../../services/windowNamespace'
 import { broadcastSettings } from '../../services/settingsBroadcast'
+import { HEX_COLOR, TITLEBAR_HEIGHT } from '../../titleBar'
 import type { Registrar } from '../register'
 
 /** Windows build number out of os.release() ("10.0.22621" -> 22621). Xterm's
@@ -80,6 +81,23 @@ export function registerAppHandlers(reg: Registrar): void {
           req.sinceRevision
         )
       )
+  )
+
+  reg(
+    'window:setTitleBarOverlay',
+    z.object({ color: z.string().regex(HEX_COLOR), symbolColor: z.string().regex(HEX_COLOR) }),
+    (req, event) => {
+      if (process.platform !== 'win32') return ok(undefined)
+      const win = BrowserWindow.fromWebContents(event.sender)
+      try {
+        if (win && !win.isDestroyed()) {
+          win.setTitleBarOverlay({ color: req.color, symbolColor: req.symbolColor, height: TITLEBAR_HEIGHT })
+        }
+      } catch {
+        // a window created without the overlay (e.g. the munu overlay) has nothing to recolour
+      }
+      return ok(undefined)
+    }
   )
 
   reg('update:check', z.void(), async () => {
