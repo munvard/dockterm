@@ -2,7 +2,8 @@ import type { AskInfo } from '@shared/types'
 
 export type ClaudeState = 'idle' | 'working' | 'asking'
 
-const SPINNERS = new Set(['·', '✢', '✳', '✶', '✻', '✽'])
+// Claude's frames; one of its frame sets draws * in place of ✳.
+const SPINNERS = new Set(['·', '✢', '✳', '✶', '✻', '✽', '*'])
 // Box-drawing characters Claude uses around its permission prompt.
 const BOX = /[│┃┆┇┊┋╎╏─━┄┅┈┉╌╍╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬]/g
 
@@ -10,7 +11,10 @@ const BOX = /[│┃┆┇┊┋╎╏─━┄┅┈┉╌╍╭╮╰╯┌┐
 function hasTokenCounterLine(text: string): boolean {
   return text.split('\n').some((line) => {
     const first = line[0]
-    return !!first && SPINNERS.has(first) && line[1] === ' ' && line.includes('…')
+    // Any whitespace after the frame: Windows draws a no-break space. A * frame must also
+    // show the "(12s · …)" counter, so a markdown bullet ending in … never counts.
+    if (!first || !SPINNERS.has(first) || !/\s/.test(line[1] ?? '') || !line.includes('…')) return false
+    return first !== '*' || /…\s*\(/.test(line)
   })
 }
 

@@ -10,6 +10,7 @@ import { DEFAULT_MONO } from './terminalTheme'
 import { parseOsc7 } from './osc7'
 import { resolveTermKey } from './terminalKeys'
 import { classify, parseAsk } from './claudeStatus'
+import { createStatusHold } from './statusHold'
 import { findPathLinks, columnForStringIndex, type CellSpan } from './pathLinks'
 import { useThemeStore } from '../../state/useThemeStore'
 import { useComposeStore } from '../../state/useComposeStore'
@@ -530,13 +531,16 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     }
     return out
   }
+  const holdStatus = createStatusHold()
   const fireStatus = (): void => {
     if (statusTimer) clearTimeout(statusTimer)
     if (statusMaxTimer) clearTimeout(statusMaxTimer)
     statusTimer = undefined
     statusMaxTimer = undefined
     const text = readBufferText()
-    const state = classify(text)
+    const { state, recheckIn } = holdStatus(classify(text), Date.now())
+    // A held idle reading: look again once the hold is over, even if no bytes arrive.
+    if (recheckIn !== undefined && !disposed) statusTimer = setTimeout(fireStatus, recheckIn)
     p.opts.onStatus?.(state, state === 'asking' ? parseAsk(text) : null)
   }
   // Debounce on a short quiet gap (so we read the *settled* menu, not a
