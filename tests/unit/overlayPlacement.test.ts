@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clampToAreas } from '@main/overlayPlacement'
+import { clampToAreas, frameInCanvas, sameRect } from '@main/overlayPlacement'
 
 const area = { x: 0, y: 0, width: 1000, height: 800 }
 
@@ -20,5 +20,24 @@ describe('clampToAreas', () => {
       x: 1800,
       y: 100
     })
+  })
+})
+
+describe('overlay canvas (Windows)', () => {
+  const canvas = { x: 1920, y: 0, width: 2560, height: 1400 }
+
+  it('maps munu into the canvas window coordinates', () => {
+    expect(frameInCanvas({ x: 2000, y: 300, width: 380, height: 260 }, canvas)).toEqual({
+      x: 80,
+      y: 300,
+      width: 380,
+      height: 260
+    })
+  })
+
+  it('only treats an identical work area as the same canvas', () => {
+    expect(sameRect(null, canvas)).toBe(false)
+    expect(sameRect({ ...canvas }, canvas)).toBe(true)
+    expect(sameRect({ ...canvas, height: 1360 }, canvas)).toBe(false)
   })
 })

@@ -388,6 +388,8 @@ export interface EventChannels {
   'munu:state': MunuGlobal
   /** main → overlay: reveal (slide down) or hide (tuck into the notch). */
   'munu:reveal': boolean
+  /** Windows: munu's rect inside the fixed overlay canvas (window coordinates). */
+  'munu:frame': { x: number; y: number; width: number; height: number }
   /** main → the window owning an asking pane: key chunks to write into the PTY
    * one at a time, paced, so the TUI registers each as a separate keypress. */
   'munu:doAnswer': { leafId: string; action: MunuAnswerAction }
@@ -521,6 +523,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'fs:watch',
   'munu:state',
   'munu:reveal',
+  'munu:frame',
   'munu:doAnswer',
   'munu:doFocus',
   'update:available',

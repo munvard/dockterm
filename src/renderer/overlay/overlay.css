@@ -19,6 +19,9 @@
   padding-top: 6px;
   font-family: var(--font-ui);
 }
+.ov--framed {
+  position: absolute;
+}
 .ov--darwin {
   padding-top: 34px;
 }

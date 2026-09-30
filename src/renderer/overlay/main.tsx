@@ -64,6 +64,9 @@ function Overlay() {
 
   useEffect(() => window.dockterm.on('munu:state', setG), [])
   useEffect(() => window.dockterm.on('munu:reveal', setRevealed), [])
+  // Windows: the window is a fixed canvas and munu is drawn at this rect in it.
+  const [frame, setFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  useEffect(() => window.dockterm.on('munu:frame', setFrame), [])
   useEffect(() => window.dockterm.on('activity:changed', setActivity), [])
   useEffect(() => {
     void window.dockterm.invoke('activity:get', undefined).then((r) => {
@@ -302,7 +305,17 @@ function Overlay() {
   const shown = pinned || revealed || (popupOpen && !showCard) || agentPeekActive
 
   return (
-    <div className={`ov ov--${platform}${shown ? ' ov--revealed' : ' ov--hidden'}`}>
+    <div
+      className={`ov ov--${platform}${shown ? ' ov--revealed' : ' ov--hidden'}${frame ? ' ov--framed' : ''}`}
+      style={
+        frame
+          ? { left: frame.x, top: frame.y, width: frame.width, height: frame.height }
+          : // Until the first frame arrives on Windows, munu's spot in the canvas is unknown.
+            platform === 'win32' || platform === ''
+            ? { visibility: 'hidden' }
+            : undefined
+      }
+    >
       <div
         ref={islandRef}
         className={`island island--${g.state}${showCard ? ' island--card' : ''}${pinned ? ' island--pinned' : ''}`}

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
 import { getSettings } from './services/settingsService'
-import { clampToAreas } from './overlayPlacement'
+import { clampToAreas, frameInCanvas, sameRect, type Box } from './overlayPlacement'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 /**
@@ -22,6 +22,42 @@ const H = 260
 const isLinux = process.platform === 'linux'
 
 /**
+ * Windows only: the overlay window is a fixed, click-through canvas over the work
+ * area of munu's display, and munu is drawn inside it at `box` (sent to the
+ * renderer as `munu:frame`). Resizing a transparent window on Windows shows the
+ * old picture at the new origin for one frame, so munu jumped sideways whenever
+ * its popup opened or closed. With a canvas the window is only moved when munu
+ * crosses to another display. Elsewhere `box` is simply the window's bounds.
+ */
+const useCanvas = process.platform === 'win32'
+let box: Box = { x: 0, y: 0, width: W, height: H }
+let canvas: Box | null = null
+
+/** munu's current screen rect (the virtual box on Windows, the window elsewhere). */
+function currentBox(): Box {
+  if (useCanvas || !overlay || overlay.isDestroyed()) return { ...box }
+  const b = overlay.getBounds()
+  return { x: b.x, y: b.y, width: b.width, height: b.height }
+}
+
+/** Put munu at `next`. `moveOnly` keeps the native size (a drag step). */
+function applyBox(next: Box, moveOnly = false): void {
+  if (!overlay || overlay.isDestroyed()) return
+  box = next
+  if (!useCanvas) {
+    if (moveOnly) overlay.setPosition(next.x, next.y)
+    else overlay.setBounds(next)
+    return
+  }
+  const area = screen.getDisplayMatching(next).workArea
+  if (!sameRect(canvas, area)) {
+    canvas = { x: area.x, y: area.y, width: area.width, height: area.height }
+    overlay.setBounds(canvas)
+  }
+  overlay.webContents.send('munu:frame', frameInCanvas(next, canvas as Box))
+}
+
+/**
  * Re-apply placement a few times after a short beat — Linux only.
  *
  * On X11, window managers frequently move a frameless, transparent,
@@ -38,7 +74,7 @@ function repinLinux(): void {
   for (const delay of [60, 200, 500]) {
     setTimeout(() => {
       if (!overlay || overlay.isDestroyed()) return
-      const b = overlay.getBounds()
+      const b = currentBox()
       placeOverlay(b.width, b.height)
     }, delay)
   }
@@ -70,12 +106,12 @@ function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center
     let bx = m.position.x
     let by = m.position.y
     if (anchor === 'center') {
-      const cur = overlay.getBounds()
+      const cur = currentBox()
       bx = Math.round(cur.x + cur.width / 2 - w / 2)
       by = cur.y
     }
     const { x, y } = clampToAreas({ x: bx, y: by, width: w, height: h }, areas)
-    overlay.setBounds({ x, y, width: w, height: h })
+    applyBox({ x, y, width: w, height: h })
   } else {
     // Resting munu tucks at the very top (over the notch). Height is already
     // clamped to the work area, so even a tall card's footer stays above the dock.
@@ -86,8 +122,9 @@ function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center
     // common case). Linux desktop panels vary widely and are often docked at
     // the TOP of the screen, so bounds.y there would place munu under/behind
     // the panel — use workArea.y instead so it rests just below it.
-    const y = isLinux ? d.workArea.y : d.bounds.y
-    overlay.setBounds({ x, y, width: w, height: h })
+    // The Windows canvas covers the work area, so munu rests at its top.
+    const y = isLinux || useCanvas ? d.workArea.y : d.bounds.y
+    applyBox({ x, y, width: w, height: h })
   }
 }
 
@@ -157,6 +194,7 @@ export function createOverlayWindow(): BrowserWindow {
   overlay.on('closed', () => {
     unregisterWindowRole(overlayId)
     overlay = null
+    canvas = null
   })
   return overlay
 }
@@ -196,6 +234,7 @@ export function reassertOverlayLevel(): void {
 export function destroyOverlay(): void {
   if (overlay && !overlay.isDestroyed()) overlay.destroy()
   overlay = null
+  canvas = null
 }
 
 export function setOverlayInteractive(interactive: boolean): void {
@@ -220,7 +259,7 @@ export function setOverlayFocusable(focusable: boolean): void {
 /** Re-apply placement (call on display change or when pin/position settings change). */
 export function repositionOverlay(): void {
   if (!overlay || overlay.isDestroyed()) return
-  const b = overlay.getBounds()
+  const b = currentBox()
   placeOverlay(b.width, b.height)
 }
 
@@ -234,17 +273,16 @@ export function resizeOverlay(width: number, height: number, expanded = false): 
 /** Current screen bounds, or null if the overlay isn't up. */
 export function getOverlayBounds(): { x: number; y: number; width: number; height: number } | null {
   if (!overlay || overlay.isDestroyed()) return null
-  const b = overlay.getBounds()
-  return { x: b.x, y: b.y, width: b.width, height: b.height }
+  return currentBox()
 }
 
 /** Move to an absolute screen position, clamped to stay on a display. */
 export function moveOverlay(x: number, y: number): void {
   if (!overlay || overlay.isDestroyed()) return
-  const b = overlay.getBounds()
+  const b = currentBox()
   const areas = screen.getAllDisplays().map((d) => d.workArea)
   const p = clampToAreas({ x, y, width: b.width, height: b.height }, areas)
-  overlay.setPosition(p.x, p.y)
+  applyBox({ x: p.x, y: p.y, width: b.width, height: b.height }, true)
 }
 
 // Drag origin captured synchronously in main when a pinned-munu drag begins, so a
@@ -258,7 +296,7 @@ let dragOrigin: { sx: number; sy: number; wx: number; wy: number } | null = null
  * position at this instant. `sx`/`sy` are the pointer's screen coordinates. */
 export function beginOverlayDrag(sx: number, sy: number): void {
   if (!overlay || overlay.isDestroyed()) return
-  const b = overlay.getBounds()
+  const b = currentBox()
   dragOrigin = { sx, sy, wx: b.x, wy: b.y }
 }
 

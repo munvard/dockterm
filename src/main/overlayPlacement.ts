@@ -37,3 +37,14 @@ export function clampToAreas(box: Box, areas: Area[]): { x: number; y: number } 
   const y = Math.round(Math.min(Math.max(box.y, best.y), Math.max(best.y, maxY)))
   return { x, y }
 }
+
+/** True when two rects are identical. */
+export function sameRect(a: Area | null, b: Area): boolean {
+  return !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+/** Where `box` (screen coordinates) sits inside `canvas`, in the canvas window's
+ * own coordinates. */
+export function frameInCanvas(box: Box, canvas: Area): Box {
+  return { x: box.x - canvas.x, y: box.y - canvas.y, width: box.width, height: box.height }
+}
