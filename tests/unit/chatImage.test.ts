@@ -114,7 +114,8 @@ describe('writeImage / sweepOldImages', () => {
 })
 
 describe('temp image dir safety', () => {
-  it('creates the dir private (0700) and tightens a loose one we own', () => {
+  // NTFS has no POSIX permission bits: statSync().mode there is 0o666 or 0o777, whatever chmod asks for.
+  it.skipIf(process.platform === 'win32')('creates the dir private (0700) and tightens a loose one we own', () => {
     const dir = join(tmp(), 'dockterm-images')
     writeImage(dir, new Uint8Array([1]), 'image/png')
     expect(statSync(dir).mode & 0o777).toBe(0o700)

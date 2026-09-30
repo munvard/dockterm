@@ -104,7 +104,8 @@ describe('createSkill (jail safety)', () => {
   it('creates a skill normally when there is no symlink involved', () => {
     const projectRoot = realpathSync(mkdtempSync(join(tmpdir(), 'dt-jail-normal-')))
     const rel = createSkill(projectRoot, 'my new skill', 'skill', 'blank')
-    expect(rel).toBe(join('.claude', 'skills', 'my-new-skill', 'SKILL.md'))
+    // Relative paths from this service always use '/', on every OS (toRel).
+    expect(rel).toBe('.claude/skills/my-new-skill/SKILL.md')
     rmSync(projectRoot, { recursive: true, force: true })
   })
 })

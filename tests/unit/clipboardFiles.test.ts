@@ -7,11 +7,18 @@ import {
 } from '../../src/main/services/clipboardFilesCore'
 
 describe('parseUriList', () => {
-  it('decodes file URLs, skips comments and non-file lines', () => {
+  // These URLs are POSIX paths; on Windows fileURLToPath rejects a URL with no drive letter,
+  // so the win32 twin below covers the same behaviour with drive paths.
+  const posixOnly = process.platform === 'win32'
+  it.skipIf(posixOnly)('decodes file URLs, skips comments and non-file lines', () => {
     const text = '# comment\r\nfile:///home/me/My%20Doc.png\r\nhttps://x.y/z\r\nfile:///tmp/a.txt\n'
     expect(parseUriList(text)).toEqual(['/home/me/My Doc.png', '/tmp/a.txt'])
   })
-  it('handles the gnome copied-files layout', () => {
+  it.skipIf(!posixOnly)('decodes file URLs with drive letters on Windows', () => {
+    const text = '# comment\r\nfile:///C:/Users/me/My%20Doc.png\r\nhttps://x.y/z\r\nfile:///D:/tmp/a.txt\n'
+    expect(parseUriList(text)).toEqual(['C:\\Users\\me\\My Doc.png', 'D:\\tmp\\a.txt'])
+  })
+  it.skipIf(posixOnly)('handles the gnome copied-files layout', () => {
     expect(parseUriList('copy\nfile:///tmp/a.txt\nfile:///tmp/b.txt')).toEqual(['/tmp/a.txt', '/tmp/b.txt'])
   })
   it('returns empty for plain text', () => {

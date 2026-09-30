@@ -73,13 +73,56 @@ const run = (args: string[]): void => {
 }
 const markerPath = (name: string): string => join(sideDir, name)
 
+const WIN = process.platform === 'win32'
+const fwd = (p: string): string => p.replace(/\\/g, '/')
+
+/** Windows has no `#!/bin/sh` for git to run a driver through (git hands the
+ * command to its own sh, which mangles backslash paths), so the driver is a node
+ * script, run as `"node" "script"` with forward slashes. Same behaviour as the
+ * sh scripts below; POSIX keeps those. */
+function nodeCommand(name: string, body: string): string {
+  const js = join(sideDir, name.replace(/\.sh$/, '.cjs'))
+  writeFileSync(js, body)
+  return `"${fwd(process.execPath)}" "${fwd(js)}"`
+}
+
+/** A driver as a value inside a git config FILE: on Windows the quotes need escaping. */
+const cfgFileValue = (cmd: string): string => (WIN ? `"${cmd.replace(/"/g, '\\"')}"` : cmd)
+
 /** A script that appends to a marker file, then behaves like `cat` (or, for a
  * textconv / external diff, prints the file it was given). */
 function makeScript(name: string, marker: string): string {
+  if (WIN) {
+    return nodeCommand(
+      name,
+      `const fs = require('fs')
+fs.appendFileSync(${JSON.stringify(marker)}, 'ran\\n')
+const a = process.argv[2]
+if (a && fs.existsSync(a) && fs.statSync(a).isFile()) process.stdout.write(fs.readFileSync(a))
+else process.stdin.pipe(process.stdout)
+`
+    )
+  }
   const path = join(sideDir, name)
   writeFileSync(path, `#!/bin/sh\necho ran >> "${marker}"\nif [ -n "$1" ] && [ -f "$1" ]; then cat "$1"; else cat; fi\n`)
   chmodSync(path, 0o755)
   return path
+}
+
+/** A core.fsmonitor hook that records that it ran and reports no changes. */
+function makeFsmonitorHook(marker: string): string {
+  if (WIN) {
+    return nodeCommand(
+      'fsm.sh',
+      `require('fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n')
+process.stdout.write('\\0')
+`
+    )
+  }
+  const hook = join(sideDir, 'fsm.sh')
+  writeFileSync(hook, `#!/bin/sh\necho ran >> "${marker}"\nprintf '\\0'\n`)
+  chmodSync(hook, 0o755)
+  return hook
 }
 
 /** Same size, different content, mtime moved forward: git's stat check no longer
@@ -281,7 +324,7 @@ describe('hostile repo, through the real service', () => {
 
     it('finds a driver defined through include.path', async () => {
       const script = makeScript('f3.sh', markerPath('inc-marker'))
-      writeFileSync(join(dir, '.git', 'extra.cfg'), `[filter "inc"]\n\tclean = ${script}\n`)
+      writeFileSync(join(dir, '.git', 'extra.cfg'), `[filter "inc"]\n\tclean = ${cfgFileValue(script)}\n`)
       run(['config', 'include.path', 'extra.cfg'])
       expect(await readOnlyHardening(dir)).toContain('filter.inc.clean=')
     })
@@ -331,10 +374,7 @@ describe('hostile repo, through the real service', () => {
       writeFileSync(join(dir, 'a.txt'), 'one\n')
       run(['add', '-A'])
       execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'i'], { cwd: dir, stdio: 'ignore' })
-      const hook = join(sideDir, 'fsm.sh')
-      writeFileSync(hook, `#!/bin/sh\necho ran >> "${markerPath('fsm-marker')}"\nprintf '\\0'\n`)
-      chmodSync(hook, 0o755)
-      run(['config', 'core.fsmonitor', hook])
+      run(['config', 'core.fsmonitor', makeFsmonitorHook(markerPath('fsm-marker'))])
       execFileSync('git', ['status', '--porcelain'], { cwd: dir, stdio: 'ignore' })
       expect(existsSync(markerPath('fsm-marker'))).toBe(true)
       rmSync(markerPath('fsm-marker'), { force: true })
