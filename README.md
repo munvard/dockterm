@@ -39,7 +39,7 @@
 
 <p align="center"><b>Watch the 54-second tour</b> (sound on)</p>
 
-VIDEO_URL
+https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3
 
 ---
 
