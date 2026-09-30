@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readPlanTier } from '@main/services/usagePlanTier'
 import {
-  readPlanTier,
   parseUsageLine,
   parseResetClock,
   parseLimitLine,
@@ -12,7 +12,7 @@ import {
   computeWindow,
   prettyModel,
   type UsageRecord
-} from '@main/services/usageService'
+} from '@main/services/usageCore'
 
 const line = (o: unknown): string => JSON.stringify(o)
 
@@ -290,32 +290,32 @@ describe('readPlanTier cache (Codex 15)', () => {
     return join(dir, '.credentials.json')
   }
 
-  it('sees a plan change in the credentials fallback file (size changes)', () => {
+  it('sees a plan change in the credentials fallback file (size changes)', async () => {
     const p = setup()
     writeFileSync(p, creds('default_claude_max_5x'))
-    expect(readPlanTier()).toBe('default_claude_max_5x')
+    expect(await readPlanTier()).toBe('default_claude_max_5x')
     writeFileSync(p, creds('default_claude_max_20x'))
-    expect(readPlanTier()).toBe('default_claude_max_20x')
+    expect(await readPlanTier()).toBe('default_claude_max_20x')
   })
 
-  it('sees a change that keeps the size but moves the mtime', () => {
+  it('sees a change that keeps the size but moves the mtime', async () => {
     const p = setup()
     writeFileSync(p, creds('default_claude_max_5x'))
     utimesSync(p, new Date(2026, 0, 1), new Date(2026, 0, 1))
-    expect(readPlanTier()).toBe('default_claude_max_5x')
+    expect(await readPlanTier()).toBe('default_claude_max_5x')
     writeFileSync(p, creds('default_claude_max_9x'))
     utimesSync(p, new Date(2026, 0, 2), new Date(2026, 0, 2))
-    expect(readPlanTier()).toBe('default_claude_max_9x')
+    expect(await readPlanTier()).toBe('default_claude_max_9x')
   })
 
-  it('still caches while neither file changes', () => {
+  it('still caches while neither file changes', async () => {
     const p = setup()
     writeFileSync(p, creds('default_claude_max_5x'))
     utimesSync(p, new Date(2026, 0, 1), new Date(2026, 0, 1))
-    expect(readPlanTier()).toBe('default_claude_max_5x')
+    expect(await readPlanTier()).toBe('default_claude_max_5x')
     // Same size, same mtime: the cache key is unchanged, so no re-read happens.
     writeFileSync(p, creds('default_claude_max_9x'))
     utimesSync(p, new Date(2026, 0, 1), new Date(2026, 0, 1))
-    expect(readPlanTier()).toBe('default_claude_max_5x')
+    expect(await readPlanTier()).toBe('default_claude_max_5x')
   })
 })

@@ -1,10 +1,13 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
-import { readFileSync, statSync } from 'node:fs'
-import { readdir, stat, open } from 'node:fs/promises'
+import { Worker } from 'node:worker_threads'
 import { getSettings } from './settingsService'
-import { claudeConfigDir, claudeJsonPath } from './claudeConfigDir'
-import type { UsageSnapshot, UsageTotals, UsageBucket, UsageWindow } from '@shared/types'
+import { claudeConfigDir } from './claudeConfigDir'
+import { readPlanTier } from './usagePlanTier'
+import { UsageScanner, type ScanReply, type ScanRequest } from './usageScanner'
+import { PLAN, budgetsForTier, buildSnapshot, type PlanBudgets } from './usageCore'
+import type { UsageSnapshot } from '@shared/types'
+import usageWorkerPath from './usageWorker?modulePath'
 
 /**
  * Live, tokens-only view of local Claude Code usage.
@@ -13,560 +16,102 @@ import type { UsageSnapshot, UsageTotals, UsageBucket, UsageWindow } from '@shar
  * `~/.claude/projects/<slug>/*.jsonl`. Every assistant line carries
  * `message.usage` (input / output / cache-create / cache-read tokens), the
  * model, a timestamp, and the project `cwd`. Because DockTerm runs Claude in its
- * own terminals these files grow live, so we tail the appended bytes on a short
- * interval, keep a rolling set of lightweight records, and broadcast an
- * aggregated snapshot to the renderer. Read-only; only token counts are read,
- * never message content.
+ * own terminals these files grow live, so a worker thread (usageWorker.ts) tails
+ * the appended bytes on a short interval and returns an aggregated snapshot,
+ * which is broadcast to the renderer. The main process never reads or parses a
+ * transcript. Read-only; only token counts are read, never message content.
  */
 
 const PROJECTS_DIR = join(claudeConfigDir(), 'projects')
-const WINDOW_DAYS = 30
-const KEEP_DAYS = 35
-const DAY_MS = 86_400_000
 const POLL_MS = 5_000
-
-export interface UsageRecord {
-  /** `${message.id}:${requestId}` — for de-duping a line seen across scans. */
-  id: string
-  ts: number
-  model: string
-  /** project key (the real cwd path), or 'unknown'. */
-  project: string
-  projectLabel: string
-  input: number
-  output: number
-  cacheCreate: number
-  cacheRead: number
-}
-
-interface RawLine {
-  type?: string
-  timestamp?: string
-  cwd?: string
-  requestId?: string
-  message?: {
-    id?: string
-    model?: string
-    usage?: {
-      input_tokens?: number
-      output_tokens?: number
-      cache_creation_input_tokens?: number
-      cache_read_input_tokens?: number
-    }
-  }
-}
-
-function num(x: unknown): number {
-  const n = Number(x)
-  return Number.isFinite(n) ? n : 0
-}
-
-/** Friendly model bucket (groups versions): Opus / Sonnet / Haiku / other. */
-export function prettyModel(id: string): string {
-  const m = id.toLowerCase()
-  if (m.includes('opus')) return 'Opus'
-  if (m.includes('sonnet')) return 'Sonnet'
-  if (m.includes('haiku')) return 'Haiku'
-  return id.replace(/^claude-/, '') || 'unknown'
-}
-
-/** Parse one JSONL line into a usage record, or null if it isn't an assistant
- * message carrying token usage. Pure (no I/O) so it's unit-testable. */
-export function parseUsageLine(line: string): UsageRecord | null {
-  const s = line.trim()
-  if (!s) return null
-  let o: RawLine
-  try {
-    o = JSON.parse(s) as RawLine
-  } catch {
-    return null
-  }
-  if (!o || o.type !== 'assistant') return null
-  const u = o.message?.usage
-  if (!u || typeof u !== 'object') return null
-  const cwd = typeof o.cwd === 'string' ? o.cwd : ''
-  const projectLabel = cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd) : 'unknown'
-  const ts = Date.parse(o.timestamp ?? '')
-  return {
-    id: `${o.message?.id ?? ''}:${o.requestId ?? ''}`,
-    ts: Number.isFinite(ts) ? ts : 0,
-    model: prettyModel(typeof o.message?.model === 'string' ? o.message.model : 'unknown'),
-    project: cwd || 'unknown',
-    projectLabel,
-    input: num(u.input_tokens),
-    output: num(u.output_tokens),
-    cacheCreate: num(u.cache_creation_input_tokens),
-    cacheRead: num(u.cache_read_input_tokens)
-  }
-}
-
-/** A locally-observed rate-limit (429) hit from a Claude Code transcript. */
-export interface LimitRecord {
-  /** When the limit was hit (ms). */
-  ts: number
-  /** Absolute ms when the window resets (parsed from the human reset clock). */
-  resetAt: number
-  /** Only the 5-hour "session" limit is ever surfaced in transcripts. */
-  kind: 'session'
-}
-
-/**
- * Parse a "resets 7:40am" / "resets 3pm" clock time out of a 429 message into an
- * absolute ms timestamp — the next occurrence of that wall-clock at or after
- * `fromMs`. Local timezone is the user's timezone (DockTerm runs on their
- * machine), which matches the tz the message is rendered in. Pure / testable.
- */
-export function parseResetClock(text: string, fromMs: number): number | null {
-  const m = text.match(/resets?\s+(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i)
-  if (!m) return null
-  let hour = parseInt(m[1], 10)
-  const min = m[2] ? parseInt(m[2], 10) : 0
-  if (hour === 12) hour = 0
-  if (m[3].toLowerCase() === 'pm') hour += 12
-  const d = new Date(fromMs)
-  d.setHours(hour, min, 0, 0)
-  let t = d.getTime()
-  if (t <= fromMs) t += 86_400_000 // the reset is always in the future of the hit
-  return t
-}
-
-/**
- * Parse a 429 "you've hit your session limit" transcript line into a LimitRecord,
- * or null if the line isn't a rate-limit error. Pure / testable.
- */
-export function parseLimitLine(line: string, now = Date.now()): LimitRecord | null {
-  const s = line.trim()
-  if (!s || s.indexOf('rate_limit') === -1) return null // cheap reject
-  let o: { error?: string; apiErrorStatus?: number; timestamp?: string; message?: { content?: unknown } }
-  try {
-    o = JSON.parse(s)
-  } catch {
-    return null
-  }
-  if (o.error !== 'rate_limit' && o.apiErrorStatus !== 429) return null
-  let text = ''
-  const content = o.message?.content
-  if (Array.isArray(content)) {
-    for (const c of content) {
-      if (c && typeof c === 'object' && typeof (c as { text?: unknown }).text === 'string') {
-        text += (c as { text: string }).text
-      }
-    }
-  }
-  if (!/limit/i.test(text)) return null
-  const parsedTs = Date.parse(o.timestamp ?? '')
-  const ts = Number.isFinite(parsedTs) ? parsedTs : now
-  const resetAt = parseResetClock(text, ts)
-  if (resetAt == null) return null
-  return { ts, resetAt, kind: 'session' }
-}
-
-function emptyTotals(): UsageTotals {
-  return {
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheCreateTokens: 0,
-    cacheReadTokens: 0,
-    totalTokens: 0,
-    messages: 0
-  }
-}
-
-function add(t: UsageTotals, r: UsageRecord): void {
-  t.inputTokens += r.input
-  t.outputTokens += r.output
-  t.cacheCreateTokens += r.cacheCreate
-  t.cacheReadTokens += r.cacheRead
-  t.totalTokens += r.input + r.output + r.cacheCreate + r.cacheRead
-  t.messages += 1
-}
-
-function startOfDay(ms: number): number {
-  const d = new Date(ms)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
-}
-function dateKey(ms: number): string {
-  const d = new Date(ms)
-  return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
-}
-function dayLabel(ms: number): string {
-  const d = new Date(ms)
-  return `${`${d.getMonth() + 1}`.padStart(2, '0')}/${`${d.getDate()}`.padStart(2, '0')}`
-}
-
-/* ----------------------------- limit budgets ----------------------------- */
-
-// Cost-weighted token units. Cache reads are ~free and barely count toward usage
-// limits; output is the most expensive. Weighting like this makes the local
-// estimate track Claude's own accounting — raw token totals are dominated by
-// cache reads (often 10–100× the real input), which is what made the old
-// estimate wildly wrong (97% "left" when /status said 45% used).
-const WEIGHTS = { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
-
-function weighted(r: UsageRecord): number {
-  return (
-    r.input * WEIGHTS.input +
-    r.output * WEIGHTS.output +
-    r.cacheCreate * WEIGHTS.cacheWrite +
-    r.cacheRead * WEIGHTS.cacheRead
-  )
-}
-
-/**
- * Estimate the real 5-hour budget for THIS user/machine from an observed 429: at
- * the moment the limit was hit, the weighted usage in the preceding 5-hour window
- * equals 100% of the limit. Clamp to a sane band around the plan default so a
- * fluke can't wildly distort the bar. Pure / testable.
- */
-export function calibrate5hLimit(
-  records: UsageRecord[],
-  hits: LimitRecord[],
-  fallback: number
-): number {
-  if (hits.length === 0) return fallback
-  const hit = hits[hits.length - 1]
-  const windowMs = 5 * 3_600_000
-  let used = 0
-  for (const r of records) {
-    if (r.ts > 0 && r.ts <= hit.ts && r.ts > hit.ts - windowMs) used += weighted(r)
-  }
-  if (used <= 0) return fallback
-  return Math.min(fallback * 4, Math.max(fallback / 4, used))
-}
-
-export interface PlanBudgets {
-  limit5h: number
-  limitWeek: number
-}
-
-// Weighted-unit budgets per plan, calibrated against Claude Code's own /status
-// ("Approximate, based on local sessions on this machine"): a Max 5x user's
-// 5-hour window measured ~43.7M weighted at 45% used → ~97M, and ~176M weekly at
-// 14% → ~1.26B. Pro is 1/5 of Max 5x; Max 20x is 4× it (20x ÷ 5x) — Anthropic's
-// own plan ratios. These are estimates; /status remains the source of truth.
-const PLAN: Record<'pro' | 'max5x' | 'max20x', PlanBudgets> = {
-  pro: { limit5h: 19_400_000, limitWeek: 251_000_000 },
-  max5x: { limit5h: 97_000_000, limitWeek: 1_257_000_000 },
-  max20x: { limit5h: 388_000_000, limitWeek: 5_028_000_000 }
-}
-
-/** Map a Claude rate-limit tier string to a budget bracket. */
-function budgetsForTier(tier: string | null): PlanBudgets {
-  const t = (tier ?? '').toLowerCase()
-  if (t.includes('20x')) return PLAN.max20x
-  if (t.includes('5x') || t.includes('max')) return PLAN.max5x
-  return PLAN.pro // pro / free / unknown — the conservative default
-}
-
-// readPlanTier used to re-read and re-parse two JSON config files on every
-// broadcast() call (every scan tick that saw new bytes, i.e. roughly every 5s
-// while Claude is active) even though the rate-limit tier almost never
-// changes. Cached by (mtime, size) of BOTH files it can read: the tier may come
-// from the credentials fallback, so a login or plan change there must invalidate
-// it too.
-let planTierCache: { key: string; tier: string | null } | null = null
-
-function fileSignature(p: string): string {
-  try {
-    const st = statSync(p)
-    return `${st.mtimeMs}:${st.size}`
-  } catch {
-    return 'missing'
-  }
-}
-
-/** The user's Claude plan tier, read from local config (null if not found). */
-export function readPlanTier(): string | null {
-  const path = claudeJsonPath()
-  const credsPath = join(claudeConfigDir(), '.credentials.json')
-  const key = `${fileSignature(path)}|${fileSignature(credsPath)}`
-  if (planTierCache && planTierCache.key === key) return planTierCache.tier
-  const tryJson = (p: string): Record<string, unknown> | null => {
-    try {
-      return JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>
-    } catch {
-      return null
-    }
-  }
-  const cfg = tryJson(path)
-  const acct = cfg?.oauthAccount as
-    | { organizationRateLimitTier?: string; userRateLimitTier?: string }
-    | undefined
-  let tier = acct?.userRateLimitTier ?? acct?.organizationRateLimitTier ?? null
-  if (!tier) {
-    const creds = tryJson(credsPath)
-    const oauth = creds?.claudeAiOauth as { rateLimitTier?: string } | undefined
-    tier = oauth?.rateLimitTier ?? null
-  }
-  planTierCache = { key, tier }
-  return tier
-}
+/** First scan waits until the window is on screen, so startup is never delayed by it. */
+const FIRST_SCAN_DELAY_MS = 1_500
 
 /** Resolve the budgets to use now: the user's chosen plan, or auto-detected. */
-function currentBudgets(): PlanBudgets {
+async function currentBudgets(): Promise<PlanBudgets> {
   const sel = getSettings().usage.plan
   if (sel !== 'auto' && sel in PLAN) return PLAN[sel as 'pro' | 'max5x' | 'max20x']
-  return budgetsForTier(readPlanTier())
-}
-
-/**
- * Model one rolling usage window the way Claude's limits behave: group activity
- * into fixed blocks that anchor at the first message and run for `windowMs`, with
- * a fresh block after a gap longer than the window. The current block's reset is
- * `anchor + windowMs` (a real time, not a guess). `used` is in cost-weighted
- * units and `limit` is the plan budget, so `percentUsed = used / limit` tracks
- * Claude's own /status (which is itself "based on local sessions"). Pure /
- * unit-testable.
- */
-export function computeWindow(
-  records: UsageRecord[],
-  now: number,
-  windowMs: number,
-  limit: number,
-  resetOverride: number | null = null,
-  auto = true
-): UsageWindow {
-  const sorted = records.filter((r) => r.ts > 0).sort((a, b) => a.ts - b.ts)
-  interface Block {
-    anchor: number
-    lastTs: number
-    used: number
-  }
-  const blocks: Block[] = []
-  let cur: Block | null = null
-  for (const r of sorted) {
-    if (!cur || r.ts - cur.anchor >= windowMs || r.ts - cur.lastTs >= windowMs) {
-      // Anchor at the first message of the block (NOT floored to the hour) so the
-      // reset (anchor + windowMs) matches Claude's minute-precise reset times.
-      cur = { anchor: r.ts, lastTs: r.ts, used: 0 }
-      blocks.push(cur)
-    }
-    cur.used += weighted(r)
-    cur.lastTs = r.ts
-  }
-  const last = blocks[blocks.length - 1]
-  const active = !!last && now < last.anchor + windowMs
-  const used = active ? last!.used : 0
-  // Prefer a real, observed reset time when one is still in the future.
-  const computedReset = active ? last!.anchor + windowMs : null
-  const resetAt = resetOverride && resetOverride > now ? resetOverride : computedReset
-  const safeLimit = Math.max(1, limit)
-  const percentUsed = Math.min(100, Math.max(0, Math.round((used / safeLimit) * 100)))
-  return {
-    windowMs,
-    used,
-    limit: safeLimit,
-    percentUsed,
-    percentLeft: 100 - percentUsed,
-    resetAt,
-    auto
-  }
-}
-
-/** Build the aggregated snapshot from raw records relative to `now`. Pure. */
-export function buildSnapshot(
-  records: UsageRecord[],
-  now: number,
-  budgets: PlanBudgets = PLAN.max5x,
-  limitHits: LimitRecord[] = []
-): UsageSnapshot {
-  const today = emptyTotals()
-  const last5h = emptyTotals()
-  const last7d = emptyTotals()
-  const last30d = emptyTotals()
-  const allTime = emptyTotals()
-  const startToday = startOfDay(now)
-  const fiveHAgo = now - 5 * 3_600_000
-  const sevenDAgo = now - 7 * DAY_MS
-  const thirtyDAgo = now - WINDOW_DAYS * DAY_MS
-
-  const dailyMap = new Map<string, UsageTotals>()
-  const modelMap = new Map<string, UsageTotals>()
-  const projMap = new Map<string, { label: string; t: UsageTotals }>()
-
-  for (const r of records) {
-    add(allTime, r)
-    if (r.ts >= startToday) add(today, r)
-    if (r.ts >= fiveHAgo) add(last5h, r)
-    if (r.ts >= sevenDAgo) add(last7d, r)
-    if (r.ts >= thirtyDAgo) {
-      add(last30d, r)
-      const dk = dateKey(r.ts)
-      let dt = dailyMap.get(dk)
-      if (!dt) {
-        dt = emptyTotals()
-        dailyMap.set(dk, dt)
-      }
-      add(dt, r)
-      let mt = modelMap.get(r.model)
-      if (!mt) {
-        mt = emptyTotals()
-        modelMap.set(r.model, mt)
-      }
-      add(mt, r)
-      let pe = projMap.get(r.project)
-      if (!pe) {
-        pe = { label: r.projectLabel, t: emptyTotals() }
-        projMap.set(r.project, pe)
-      }
-      add(pe.t, r)
-    }
-  }
-
-  const daily: UsageBucket[] = []
-  for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
-    const dayMs = startToday - i * DAY_MS
-    const dk = dateKey(dayMs)
-    daily.push({ key: dk, label: dayLabel(dayMs), ...(dailyMap.get(dk) ?? emptyTotals()) })
-  }
-
-  const byModel: UsageBucket[] = [...modelMap.entries()]
-    .map(([key, t]) => ({ key, label: key, ...t }))
-    .sort((a, b) => b.totalTokens - a.totalTokens)
-
-  const byProject: UsageBucket[] = [...projMap.entries()]
-    .map(([key, v]) => ({ key, label: v.label, ...v.t }))
-    .sort((a, b) => b.totalTokens - a.totalTokens)
-    .slice(0, 8)
-
-  // Calibrate the 5h budget from observed 429s; pin the real reset when the
-  // newest hit's reset is still in the future.
-  const limit5h = calibrate5hLimit(records, limitHits, budgets.limit5h)
-  const futureReset =
-    limitHits
-      .map((h) => h.resetAt)
-      .filter((t) => t > now)
-      .sort((a, b) => b - a)[0] ?? null
-
-  return {
-    updatedAt: now,
-    fiveHour: computeWindow(records, now, 5 * 3_600_000, limit5h, futureReset),
-    weekly: computeWindow(records, now, 7 * DAY_MS, budgets.limitWeek, null),
-    today,
-    last5h,
-    last7d,
-    last30d,
-    allTime,
-    daily,
-    byModel,
-    byProject,
-    empty: records.length === 0
-  }
+  return budgetsForTier(await readPlanTier())
 }
 
 /* --------------------------- live file scanning --------------------------- */
 
-let records: UsageRecord[] = []
-let limitHits: LimitRecord[] = []
-const seen = new Set<string>()
-const seenLimits = new Set<string>()
-const offsets = new Map<string, number>()
 let started = false
 let timer: ReturnType<typeof setInterval> | null = null
-let scanning: Promise<boolean> | null = null
+let firstScanTimer: ReturnType<typeof setTimeout> | null = null
+let worker: Worker | null = null
+let workerFailed = false
+let fallback: UsageScanner | null = null
+let reqId = 0
+const pending = new Map<number, (r: ScanReply) => void>()
+let scanning: Promise<ScanReply> | null = null
+let lastSnapshot: UsageSnapshot | null = null
 
-async function readSlice(path: string, start: number, end: number): Promise<string> {
-  const len = end - start
-  if (len <= 0) return ''
-  const fh = await open(path, 'r')
+function stopWorker(): void {
+  const w = worker
+  worker = null
+  if (w) void w.terminate()
+  for (const done of pending.values()) done({ id: -1, changed: false, snapshot: lastSnapshot ?? buildSnapshot([], Date.now()) })
+  pending.clear()
+}
+
+function ensureWorker(): Worker | null {
+  if (worker) return worker
+  if (workerFailed) return null
   try {
-    const buf = Buffer.alloc(len)
-    await fh.read(buf, 0, len, start)
-    return buf.toString('utf8')
-  } finally {
-    await fh.close()
-  }
-}
-
-async function listTranscripts(): Promise<string[]> {
-  let dirs: string[]
-  try {
-    dirs = await readdir(PROJECTS_DIR)
-  } catch {
-    return [] // no ~/.claude/projects yet
-  }
-  const out: string[] = []
-  for (const d of dirs) {
-    const dir = join(PROJECTS_DIR, d)
-    try {
-      const files = await readdir(dir)
-      for (const f of files) if (f.endsWith('.jsonl')) out.push(join(dir, f))
-    } catch {
-      // not a directory / unreadable — skip
-    }
-  }
-  return out
-}
-
-/** Tail any new bytes from changed transcripts into `records`. Returns true if
- * anything new was added. */
-async function scanOnce(): Promise<boolean> {
-  const files = await listTranscripts()
-  const cutoff = Date.now() - KEEP_DAYS * DAY_MS
-  let changed = false
-  for (const path of files) {
-    let size: number
-    let mtime: number
-    try {
-      const st = await stat(path)
-      size = st.size
-      mtime = st.mtimeMs
-    } catch {
-      continue
-    }
-    const prev = offsets.get(path) ?? 0
-    // Never-read file that's older than our retention window — skip its history.
-    if (prev === 0 && mtime < cutoff) {
-      offsets.set(path, size)
-      continue
-    }
-    if (size < prev) offsets.set(path, 0) // rotated / truncated → re-read
-    const start = offsets.get(path) ?? 0
-    if (size <= start) continue
-    let text: string
-    try {
-      text = await readSlice(path, start, size)
-    } catch {
-      continue
-    }
-    const lastNl = text.lastIndexOf('\n')
-    if (lastNl < 0) continue // no complete line appended yet
-    const complete = text.slice(0, lastNl)
-    offsets.set(path, start + Buffer.byteLength(complete, 'utf8') + 1)
-    for (const line of complete.split('\n')) {
-      const rec = parseUsageLine(line)
-      if (rec) {
-        if (rec.id === ':' || !seen.has(rec.id)) {
-          if (rec.id !== ':') seen.add(rec.id)
-          records.push(rec)
-          changed = true
-        }
-      }
-      const lim = parseLimitLine(line)
-      if (lim) {
-        const key = `${lim.ts}:${lim.resetAt}`
-        if (!seenLimits.has(key)) {
-          seenLimits.add(key)
-          limitHits.push(lim)
-          changed = true
-        }
-      }
-    }
-  }
-  if (changed) {
-    const keep = Date.now() - KEEP_DAYS * DAY_MS
-    records = records.filter((r) => r.ts >= keep || r.ts === 0)
-    limitHits = limitHits.filter((h) => h.ts >= keep)
-  }
-  return changed
-}
-
-function scan(): Promise<boolean> {
-  if (!scanning) {
-    scanning = scanOnce().finally(() => {
-      scanning = null
+    const w = new Worker(usageWorkerPath, { workerData: { projectsDir: PROJECTS_DIR } })
+    w.on('message', (r: ScanReply) => {
+      const done = pending.get(r.id)
+      pending.delete(r.id)
+      done?.(r)
     })
+    // A worker that cannot load or dies falls back to scanning in-process, so the
+    // usage panel keeps working (at the old cost) instead of going blank.
+    w.on('error', () => {
+      workerFailed = true
+      stopWorker()
+    })
+    w.on('exit', () => {
+      if (worker === w) {
+        workerFailed = true
+        stopWorker()
+      }
+    })
+    worker = w
+    return w
+  } catch {
+    workerFailed = true
+    return null
+  }
+}
+
+async function scanOnce(): Promise<ScanReply> {
+  const budgets = await currentBudgets()
+  const w = ensureWorker()
+  if (w) {
+    const id = ++reqId
+    const reply = await new Promise<ScanReply>((resolve) => {
+      pending.set(id, resolve)
+      w.postMessage({ id, budgets } satisfies ScanRequest)
+    })
+    if (reply.id !== -1) return reply
+    // the worker died while this request was waiting: fall through to in-process
+  }
+  fallback ??= new UsageScanner(PROJECTS_DIR)
+  const changed = await fallback.scan()
+  return { id: 0, changed, snapshot: fallback.snapshot(Date.now(), budgets) }
+}
+
+function scan(): Promise<ScanReply> {
+  if (!scanning) {
+    scanning = scanOnce()
+      .then((r) => {
+        lastSnapshot = r.snapshot
+        return r
+      })
+      .finally(() => {
+        scanning = null
+      })
   }
   return scanning
 }
@@ -576,10 +121,7 @@ function emptySnapshot(): UsageSnapshot {
   return buildSnapshot([], Date.now())
 }
 
-function broadcast(): void {
-  const snap = getSettings().usage.enabled
-    ? buildSnapshot(records, Date.now(), currentBudgets(), limitHits)
-    : emptySnapshot()
+function broadcast(snap: UsageSnapshot): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('usage:changed', snap)
   }
@@ -589,27 +131,48 @@ function broadcast(): void {
  * an empty snapshot (and reads nothing) when the user has turned Usage off. */
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
   if (!getSettings().usage.enabled) return emptySnapshot()
-  await scan()
-  return buildSnapshot(records, Date.now(), currentBudgets(), limitHits)
+  return (await scan()).snapshot
 }
 
-/** Start tailing transcripts: once shortly after launch, then every few seconds.
- * Skips entirely while Usage is disabled, so nothing is read from disk. */
+function whenWindowShown(run: () => void): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win || win.isDestroyed() || win.isVisible()) {
+    firstScanTimer = setTimeout(run, FIRST_SCAN_DELAY_MS)
+    return
+  }
+  let done = false
+  const go = (): void => {
+    if (done) return
+    done = true
+    firstScanTimer = setTimeout(run, FIRST_SCAN_DELAY_MS)
+  }
+  win.once('ready-to-show', go)
+  firstScanTimer = setTimeout(go, 8_000) // never wait forever for a window that does not show
+}
+
+/** Start tailing transcripts: first once the window has shown, then every few
+ * seconds. Skips entirely while Usage is disabled, so nothing is read from disk. */
 export function startUsageWatcher(): void {
   if (started) return
   started = true
   const tick = (): void => {
     if (!getSettings().usage.enabled) return
-    void scan().then((c) => {
-      if (c) broadcast()
+    void scan().then((r) => {
+      if (r.changed) broadcast(r.snapshot)
     })
   }
-  tick()
-  timer = setInterval(tick, POLL_MS)
+  whenWindowShown(() => {
+    if (!started) return
+    tick()
+    timer = setInterval(tick, POLL_MS)
+  })
 }
 
 export function stopUsageWatcher(): void {
+  if (firstScanTimer) clearTimeout(firstScanTimer)
+  firstScanTimer = null
   if (timer) clearInterval(timer)
   timer = null
+  stopWorker()
   started = false
 }
