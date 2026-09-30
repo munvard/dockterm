@@ -114,7 +114,8 @@ describe('rename: case-only changes (Codex 10)', () => {
     expect(readdirSync(root)).toEqual(['FOO.txt'])
   })
 
-  it('still refuses a different existing file that differs only by case', async () => {
+  // On a case-sensitive filesystem (Linux) foo.txt is simply a different, free name.
+  it.skipIf(process.platform === 'linux')('still refuses a different existing file that differs only by case', async () => {
     await createFile(root, 'Foo.txt')
     await createFile(root, 'other.txt')
     await expect(rename(root, 'other.txt', 'foo.txt')).rejects.toThrow(/already exists|ENOENT/)

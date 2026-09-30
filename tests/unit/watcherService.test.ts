@@ -92,7 +92,8 @@ describe('git metadata watch targets (Codex 14)', () => {
   })
 
   it('resolves the real git dir of a linked worktree, whose .git is a file', async () => {
-    const base = realpathSync(mkdtempSync(join(tmpdir(), 'dockterm-wt-')))
+    // .native expands Windows 8.3 short names (C:\Users\RUNNER~1), as git does.
+    const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'dockterm-wt-')))
     try {
       const main = join(base, 'main')
       const wt = join(base, 'wt')
