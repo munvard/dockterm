@@ -2,18 +2,24 @@ import { classify } from './claudeStatus'
 
 const RULE = /^\s*[╭╰]?[─━]{8,}[╮╯]?\s*$/
 
+/** Tallest input box we look for: Claude grows the box as a draft wraps. */
+const MAX_BOX_ROWS = 40
+
 /**
- * Claude Code's idle input box: a horizontal rule, the `❯ ` (or `> `) prompt
- * line, another rule (older versions draw a `╭──╮ │ > │ ╰──╯` box). Neither
- * classify() state matches it, because an idle Claude prints no spinner and no
- * menu. A shell prompt, even a `❯` one, is never fenced by two rules.
+ * Claude Code's input box: a horizontal rule, the `❯ ` (or `> `) prompt line,
+ * the draft's wrapped rows, another rule (older versions draw a `╭──╮ │ > │ ╰──╯`
+ * box). Neither classify() state matches it, because an idle Claude prints no
+ * spinner and no menu. A shell prompt, even a `❯` one, is never fenced by two rules.
  */
 export function hasClaudeInputBox(text: string): boolean {
   const lines = text.split('\n')
   for (let i = 1; i < lines.length - 1; i++) {
-    if (!RULE.test(lines[i - 1]) || !RULE.test(lines[i + 1])) continue
+    if (!RULE.test(lines[i - 1])) continue
     const body = lines[i].replace(/^\s*[│┃]?\s*/, '')
-    if (body.startsWith('❯') || body.startsWith('>')) return true
+    if (!body.startsWith('❯') && !body.startsWith('>')) continue
+    for (let j = i + 1; j < lines.length && j <= i + MAX_BOX_ROWS; j++) {
+      if (RULE.test(lines[j])) return true
+    }
   }
   return false
 }

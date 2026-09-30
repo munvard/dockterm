@@ -37,6 +37,27 @@ describe('idle Claude on Windows (I3)', () => {
     expect(claudeOnScreen(IDLE_CLAUDE)).toBe(true)
   })
 
+  it('recognises a box whose draft wraps onto several rows (Windows, 2026-09-30: Send failed on a 2-row prompt)', () => {
+    const wrapped = [
+      '* Churned for 3s · done 20:49',
+      '',
+      RULE,
+      '❯\u00a0can u please for testing show some choosing decision question. and also do some writings(temporary write',
+      '  reading',
+      RULE,
+      '  ◆ Sonnet 5.5 high | ctx 61K | 5h 33% ok',
+      '  ⏵⏵ auto mode on (shift+tab to cycle)'
+    ].join('\n')
+    expect(hasClaudeInputBox(wrapped)).toBe(true)
+    expect(claudeOnScreen(wrapped)).toBe(true)
+    const tall = [RULE, '❯ line 1', ...Array.from({ length: 12 }, (_, i) => `  line ${i + 2}`), RULE].join('\n')
+    expect(hasClaudeInputBox(tall)).toBe(true)
+  })
+
+  it('two rules with ordinary text between them are not a Claude box', () => {
+    expect(hasClaudeInputBox([RULE, 'PS C:\\proj> ls', 'file.txt', RULE].join('\n'))).toBe(false)
+  })
+
   it('does not mistake a shell prompt for Claude, even a fancy one', () => {
     expect(hasClaudeInputBox(POWERSHELL)).toBe(false)
     expect(hasClaudeInputBox(STARSHIP)).toBe(false)
