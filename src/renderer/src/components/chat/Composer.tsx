@@ -70,6 +70,7 @@ export function Composer({
   leafId,
   disabled,
   noClaude = false,
+  starting = false,
   onSentPicker
 }: {
   leafId: string
@@ -77,6 +78,8 @@ export function Composer({
   /** Claude isn't running in this pane — the pty would run the text as a SHELL
    * command, so input is off and the placeholder says so. */
   noClaude?: boolean
+  /** Claude was launched a moment ago and has not drawn its box yet. */
+  starting?: boolean
   onSentPicker: () => void
 }): React.ReactElement {
   const text = useComposeStore((s) => s.drafts[leafId] ?? '')
@@ -448,10 +451,13 @@ export function Composer({
             value={text}
             rows={2}
             spellCheck={false}
-            disabled={disabled}
+            // Never `disabled`: the box stays editable so typing is not lost or misrouted;
+            // only Send is blocked while Claude is not ready.
             placeholder={
               noClaude
-                ? `Claude isn’t running in this terminal. Press ${k('⌘R', 'Ctrl+Shift+R')} to use the terminal`
+                ? starting
+                  ? 'Starting Claude…'
+                  : `Claude isn’t running in this terminal. Press ${k('⌘R', 'Ctrl+Shift+R')} to use the terminal`
                 : disabled
                   ? 'Answer Claude above to continue…'
                   : `Message Claude…  ${k('⏎ send · ⇧⏎ newline', 'Enter send · Shift+Enter newline')} · / commands · @ files`
@@ -486,7 +492,7 @@ export function Composer({
             disabled={disabled}
             onClick={() => void pickAndAttach(leafId).then(() => taRef.current?.focus())}
           >
-            <Paperclip size={13} />
+            <Paperclip size={16} />
           </button>
           {composerPlatform() !== 'darwin' && (
             // Windows and Linux dialogs cannot pick files and folders together.
@@ -496,7 +502,7 @@ export function Composer({
               disabled={disabled}
               onClick={() => void pickAndAttach(leafId, true).then(() => taRef.current?.focus())}
             >
-              <FolderPlus size={13} />
+              <FolderPlus size={16} />
             </button>
           )}
           <span className="composer__slot composer__slot--voice" data-composer-slot="voice">
@@ -528,7 +534,7 @@ export function Composer({
                 else void voice.start()
               }}
             >
-              <Mic size={13} />
+              <Mic size={16} />
             </button>
           </span>
           <button
@@ -536,14 +542,14 @@ export function Composer({
             title="Interrupt Claude (Esc)"
             onClick={() => paneWriters.write(leafId, ESC)}
           >
-            <Square size={13} />
+            <Square size={16} />
           </button>
           <button
             className="iconbtn iconbtn--sm"
             title={`Open the big editor (${k('⌘⇧⏎', 'Ctrl+Shift+⏎')})`}
             onClick={() => useComposeStore.getState().openCompose()}
           >
-            <Maximize2 size={13} />
+            <Maximize2 size={16} />
           </button>
           <button className="btn btn--primary btn--sm" disabled={!canSend} onClick={() => void send()}>
             <CornerDownLeft size={13} /> Send

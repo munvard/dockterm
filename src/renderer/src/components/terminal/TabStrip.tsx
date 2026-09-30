@@ -5,6 +5,7 @@ import { useAppStore } from '../../state/useAppStore'
 import { paneWriters } from '../../state/paneWriters'
 import { firstLeaf, allLeaves } from '../../state/layout'
 import { launchCommand } from './launcherCommands'
+import { markClaudeLaunch } from '../../state/launchTracker'
 import { confirmCloseLeaves } from './closeGuard'
 import { k } from '../../hooks/keys'
 import claudeIcon from '../../assets/claudecode.svg'
@@ -13,7 +14,10 @@ import claudeIcon from '../../assets/claudecode.svg'
 function runInFocusedPane(cmd: string): void {
   const { tabs, activeId } = useWorkspaceStore.getState()
   const tab = tabs.find((t) => t.id === activeId)
-  if (tab) paneWriters.write(tab.focusedLeafId, cmd)
+  if (tab) {
+    paneWriters.write(tab.focusedLeafId, cmd)
+    if (cmd.startsWith('claude')) markClaudeLaunch(tab.focusedLeafId)
+  }
 }
 
 const GRID_PRESETS: { label: string; rows: number; cols: number }[] = [

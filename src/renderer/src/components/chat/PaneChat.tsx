@@ -3,17 +3,24 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { useReadingStore } from '../../state/useReadingStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
-import { getPaneSample, paneVisibleText } from '../terminal/terminalPool'
+import { getPaneSample, paneVisibleText, setPaneChatView } from '../terminal/terminalPool'
 import { paneClaudeActive, paneClaudeForeground } from '../terminal/paneClaudeActive'
 import { ConversationList, conversationDepKey, useStickyScroll } from '../reading/ConversationList'
 import { AskCard } from './AskCard'
 import { Composer } from './Composer'
 import { attachPaths, dropHasAttachable, leafRoot, pathsFromDrop } from './composerActions'
 import { useToastStore } from '../../state/useToastStore'
+import { useComposeStore } from '../../state/useComposeStore'
+import { clearClaudeInput, paneClaudeInput } from '../../state/sendComposed'
+import { isSending, markClaudeLaunch, recentlyLaunched } from '../../state/launchTracker'
+import { StrayNotice } from './StrayNotice'
+import { parseModelLine, projectName } from './welcome'
+import { k } from '../../hooks/keys'
 
 const POLL_MS = 700 // chat mode is the primary surface — faster than the side panel
 const IDLE_POLL_MS = 2500 // a chat pane on a BACKGROUND tab: keep fresh, stay cheap
 const TAIL_MS = 300 // local buffer read, no IPC
+const STARTING_POLL_MS = 300 // right after Start Claude: notice Claude the moment it draws
 const TAIL_LINES = 8
 
 /**
@@ -45,8 +52,32 @@ export function PaneChat({
   const [claudeHere, setClaudeHere] = useState(true)
   // Strict: Claude is the FOREGROUND program right now. Gates everything the composer types.
   const [claudeFg, setClaudeFg] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [stray, setStray] = useState<string | null>(null)
+  const [model, setModel] = useState<string | null>(null)
+  const [headPad, setHeadPad] = useState(0)
+  const strayPrev = useRef<string | null>(null)
+  const headRef = useRef<HTMLDivElement | null>(null)
   const inFlight = useRef(false)
   const [dropOver, setDropOver] = useState(false)
+
+  // The terminal is hidden behind this view: it must not hold the keyboard.
+  useEffect(() => {
+    setPaneChatView(leafId, true)
+    return () => setPaneChatView(leafId, false)
+  }, [leafId])
+
+  // Keep the header status clear of the floating pane controls (top right).
+  useEffect(() => {
+    const bar = headRef.current?.closest('.pane')?.querySelector<HTMLElement>('.pane__controls')
+    if (!bar) return
+    const measure = (): void => setHeadPad(bar.offsetWidth + 14)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [])
 
   const messages = conv?.messages ?? []
   const { ref: bodyRef, contentRef, atBottom, onScroll, jumpToLatest } = useStickyScroll(
@@ -85,16 +116,61 @@ export function PaneChat({
     let stop = false
     const check = (): void => {
       void paneClaudeForeground(leafId).then((fg) => {
-        if (!stop) setClaudeFg(fg)
+        if (stop) return
+        setClaudeFg(fg)
+        setStarting(!fg && recentlyLaunched(leafId))
+        if (!fg) {
+          strayPrev.current = null
+          setStray(null)
+          return
+        }
+        const screen = paneVisibleText(leafId)
+        const parsed = parseModelLine(screen)
+        if (parsed) setModel((cur) => cur ?? parsed)
+        // Text left in Claude's own box: show it only once it has been there for two
+        // polls, and never while this app is itself typing into it.
+        const box = isSending(leafId) ? null : paneClaudeInput(leafId)
+        if (box && box.trim()) {
+          if (strayPrev.current === box) setStray(box)
+          else strayPrev.current = box
+        } else {
+          strayPrev.current = null
+          setStray(null)
+        }
       })
     }
     check()
-    const iv = setInterval(check, active ? POLL_MS : IDLE_POLL_MS)
+    const iv = setInterval(check, starting ? STARTING_POLL_MS : active ? POLL_MS : IDLE_POLL_MS)
     return () => {
       stop = true
       clearInterval(iv)
     }
-  }, [leafId, active])
+  }, [leafId, active, starting])
+
+  const moveStray = (): void => {
+    const text = stray
+    if (!text) return
+    void clearClaudeInput(leafId).then((ok) => {
+      if (!ok) {
+        useToastStore.getState().push('Claude’s input box would not clear. Clear it in the terminal.', 'warning')
+        return
+      }
+      const store = useComposeStore.getState()
+      const draft = store.drafts[leafId] ?? ''
+      store.setDraftFor(leafId, draft ? `${text}\n${draft}` : text)
+      strayPrev.current = null
+      setStray(null)
+    })
+  }
+  const clearStray = (): void => {
+    void clearClaudeInput(leafId).then((ok) => {
+      if (!ok) useToastStore.getState().push('Claude’s input box would not clear. Clear it in the terminal.', 'warning')
+      else {
+        strayPrev.current = null
+        setStray(null)
+      }
+    })
+  }
 
   // Live raw tail of the hidden terminal while Claude works.
   useEffect(() => {
@@ -154,7 +230,7 @@ export function PaneChat({
         else void attachPaths(leafId, paths)
       }}
     >
-      <div className="panechat__head">
+      <div className="panechat__head" ref={headRef} style={{ paddingRight: headPad || undefined }}>
         <span className="panechat__status">
           {state === 'working' && <Loader2 size={12} className="spin" />}
           {state === 'working' ? `working · ${elapsed}s` : state === 'asking' ? 'needs you' : 'ready'}
@@ -164,13 +240,23 @@ export function PaneChat({
       </div>
 
       <div className="panechat__body" ref={bodyRef} onScroll={onScroll}>
-        {nothingHere ? (
+        {nothingHere && starting ? (
+          <div className="panechat__empty">
+            <p>
+              <Loader2 size={13} className="spin" /> Starting Claude…
+            </p>
+          </div>
+        ) : nothingHere ? (
           <div className="panechat__empty">
             <p>This terminal isn’t running Claude yet.</p>
             <div className="panechat__empty-actions">
               <button
                 className="btn btn--primary btn--sm"
-                onClick={() => paneWriters.write(leafId, 'claude\r')}
+                onClick={() => {
+                  markClaudeLaunch(leafId)
+                  setStarting(true)
+                  paneWriters.write(leafId, 'claude\r')
+                }}
               >
                 Start Claude
               </button>
@@ -181,6 +267,18 @@ export function PaneChat({
           </div>
         ) : (
           <div ref={contentRef}>
+            {messages.length === 0 && state !== 'working' && !(ask && state === 'asking') && (
+              <div className="panechat__welcome">
+                <div className="panechat__welcome-project">{projectName(cwd) || 'Claude'}</div>
+                {model && <div className="panechat__welcome-model">{model}</div>}
+                <ul className="panechat__welcome-hints">
+                  <li>Enter to send</li>
+                  <li>/ for commands</li>
+                  <li>@ for files</li>
+                  <li>{k('⌘R', 'Ctrl+Shift+R')} for the terminal</li>
+                </ul>
+              </div>
+            )}
             <ConversationList messages={messages} />
             {ask && state === 'asking' && <AskCard ask={ask} leafId={leafId} />}
             {state === 'working' && (
@@ -204,10 +302,12 @@ export function PaneChat({
       {/* Gate on `claudeFg` (fail closed): without it a prompt is written straight to a
           shell or another program, where backticks / $() / ; / a leading `git` would
           EXECUTE in the project. Send checks again right before every write. */}
+      {stray && <StrayNotice onMove={moveStray} onClear={clearStray} />}
       <Composer
         leafId={leafId}
         disabled={state === 'asking' || !claudeFg}
         noClaude={!claudeFg}
+        starting={starting}
         onSentPicker={onShowTerminal}
       />
     </div>

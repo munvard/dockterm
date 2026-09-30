@@ -105,6 +105,20 @@ export function focusPaneTerminal(leafId: string): void {
   pool.get(leafId)?.focus()
 }
 
+/** Panes whose terminal is hidden behind chat view. Their xterm must never hold
+ * the keyboard: keystrokes typed while the composer was busy would otherwise go
+ * into Claude's own input box, invisibly. */
+const chatHidden = new Set<string>()
+
+/** Chat view opened (true) or closed (false) for a pane: blur the hidden xterm on
+ * open, and let it take focus again on close. */
+export function setPaneChatView(leafId: string, on: boolean): void {
+  if (on) {
+    chatHidden.add(leafId)
+    pool.get(leafId)?.term.blur()
+  } else chatHidden.delete(leafId)
+}
+
 /** Which screen buffer a pane is on. Claude Code's fullscreen TUI renders on the
  * `alternate` buffer (like vim/less) — there's no xterm scrollback to seek, and it
  * owns scrolling itself. A shell (or Claude's classic renderer) is on `normal`,
@@ -648,7 +662,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         }
         pending.length = 0
         input.flush()
-        term.focus()
+        p.focus()
       })
   }
 
@@ -669,7 +683,9 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   p.findNext = (q) => search.findNext(q)
   p.findPrevious = (q) => search.findPrevious(q)
   p.clearSearch = () => search.clearDecorations()
-  p.focus = () => term.focus()
+  p.focus = () => {
+    if (!chatHidden.has(id)) term.focus()
+  }
   p.serialize = () => {
     try {
       // The live process is what's running, not a picture of it: replaying a
