@@ -37,6 +37,10 @@
 </p>
 <p align="center"><sub>One calm window — your real <code>claude</code> sessions front and center, with files, diffs, Git, MCP and usage on demand. A project per pane.</sub></p>
 
+<p align="center"><b>Watch the 54-second tour</b> (sound on)</p>
+
+https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3
+
 ---
 
 - 🔔 **munu** — a notch mascot (or pin it anywhere) that reads Claude's state and surfaces permission prompts, even over a fullscreen app on another desktop. Pick your face: munu, nvurd, guru, or adanana.
