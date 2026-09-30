@@ -11,6 +11,9 @@ describe('classify', () => {
   it('detects asking from a numbered prompt menu', () => {
     expect(classify('Do you want to proceed?\n❯ 1. Yes\n  2. No')).toBe('asking')
   })
+  it('detects asking when ❯ is followed by a no-break space (Windows)', () => {
+    expect(classify('Do you want to proceed?\n❯\u00a01. Yes\n  2. No')).toBe('asking')
+  })
   it('detects asking inside a box-drawing border', () => {
     expect(classify('│ ❯ 1. Yes │\n│   2. No  │')).toBe('asking')
   })

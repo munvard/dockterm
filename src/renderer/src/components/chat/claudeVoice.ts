@@ -94,7 +94,8 @@ export interface InputBox {
 }
 
 const RULE = /^─{3,}$/
-const PROMPT_ROW = /^❯(?: (.*))?$/
+// Claude on Windows draws a no-break space (U+00A0) after ❯, so any whitespace counts.
+const PROMPT_ROW = /^❯(?:\s(.*))?$/
 const MENU_ROW = /^\d+[.)]\s/
 // Plain text has lost the placeholder's dim colour, so it is recognised by its shape.
 const PLACEHOLDER = /^Try ["“][^"”]*["”]$/
@@ -123,7 +124,7 @@ export function parseInputBox(visible: string): InputBox | null {
     }
     if (end === -1) return null
     const parts = [first[1] ?? '']
-    for (let j = i + 2; j < end; j++) parts.push(rows[j].replace(/^ {1,2}/, ''))
+    for (let j = i + 2; j < end; j++) parts.push(rows[j].replace(/^[ \u00a0]{1,2}/, ''))
     const lineCount = end - (i + 1)
     const joined = parts
       .map((p) => p.trim())

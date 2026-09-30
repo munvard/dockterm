@@ -161,3 +161,19 @@ describe('parseInputBox level meter', () => {
     expect(parseInputBox(screen(['❯ hello wor ▃▅']))).toEqual({ text: 'hello wor', lineCount: 1 })
   })
 })
+
+describe('Windows: Claude draws a no-break space (U+00A0) after ❯ (code points 276f a0, 2026-09-30)', () => {
+  const NB = '\u00a0'
+  it('reads the text, drops the level meter, and still sees an empty box', () => {
+    expect(parseInputBox(screen([`❯${NB}Hi, how are you doing?`]))).toEqual({ text: 'Hi, how are you doing?', lineCount: 1 })
+    expect(parseInputBox(screen([`❯${NB}Hi, how are▁`]))).toEqual({ text: 'Hi, how are', lineCount: 1 })
+    expect(parseInputBox(screen([`❯${NB}▁`]))).toEqual({ text: '', lineCount: 1 })
+    expect(parseInputBox(screen([`❯${NB}`]))).toEqual({ text: '', lineCount: 1 })
+  })
+  it('wrapped rows indented with no-break spaces are joined', () => {
+    expect(parseInputBox(screen([`❯${NB}first part`, `${NB}${NB}second part`]))).toEqual({
+      text: 'first part second part',
+      lineCount: 2
+    })
+  })
+})

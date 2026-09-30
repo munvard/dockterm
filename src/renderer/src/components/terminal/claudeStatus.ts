@@ -18,7 +18,8 @@ function hasTokenCounterLine(text: string): boolean {
 function hasUserPrompt(text: string): boolean {
   return text.split('\n').some((line) => {
     const t = line.replace(/^[\s│┃|>]*/, '')
-    return t.startsWith('❯ ') && /\d/.test(t[2] ?? '')
+    // ❯ is followed by a no-break space on Windows
+    return /^❯\s\d/.test(t)
   })
 }
 

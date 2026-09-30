@@ -263,6 +263,25 @@ describe('VoiceMachine', () => {
     expect(e.writes.some((w) => w.includes('\x15'))).toBe(false)
   })
 
+  it('Windows, 2026-09-30 (real debug log): ❯ + no-break space rows give the transcript to the composer', () => {
+    const NB = '\u00a0'
+    const e = make()
+    e.m.start()
+    e.set(screen([`❯${NB}▁`], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen([`❯${NB}Hi, how are▁`], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.m.getSnapshot().interim).toBe('Hi, how are')
+    e.m.stop()
+    e.set(screen([`❯${NB}Hi, how are you doing?`], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen([`❯${NB}Hi, how are you doing?`]))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.transcripts).toEqual(['Hi, how are you doing?'])
+    expect(e.m.getSnapshot().phase).toBe('idle')
+    expect(e.writes.at(-1)).toBe('\x15\x15\x15')
+  })
+
   const NO_AUDIO =
     'No audio detected from microphone. Check that the correct input device is selected and that Claude Code has microphone access.'
 

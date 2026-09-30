@@ -44,7 +44,7 @@ function boxText(body: string[]): string {
   const parts = body.map((raw, idx) => {
     let s = raw.replace(/\s*[│┃]\s*$/, '').replace(/^\s*[│┃]/, '')
     if (idx === 0) s = s.replace(/^\s*(?:❯|>)\s?/, '')
-    else s = s.replace(/^ {1,2}/, '')
+    else s = s.replace(/^[ \u00a0]{1,2}/, '')
     return s.trimEnd()
   })
   while (parts.length > 0 && parts[parts.length - 1].trim() === '') parts.pop()
