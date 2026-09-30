@@ -48,3 +48,13 @@ export function sameRect(a: Area | null, b: Area): boolean {
 export function frameInCanvas(box: Box, canvas: Area): Box {
   return { x: box.x - canvas.x, y: box.y - canvas.y, width: box.width, height: box.height }
 }
+
+/** True when point `p` lies inside `box` grown by `margin` on every side. */
+export function pointNearBox(p: { x: number; y: number }, box: Box, margin: number): boolean {
+  return (
+    p.x >= box.x - margin &&
+    p.x <= box.x + box.width + margin &&
+    p.y >= box.y - margin &&
+    p.y <= box.y + box.height + margin
+  )
+}

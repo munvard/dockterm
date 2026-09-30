@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { clampToAreas, frameInCanvas, sameRect } from '@main/overlayPlacement'
+import { clampToAreas, frameInCanvas, pointNearBox, sameRect } from '@main/overlayPlacement'
 
 const area = { x: 0, y: 0, width: 1000, height: 800 }
 
@@ -39,5 +39,13 @@ describe('overlay canvas (Windows)', () => {
     expect(sameRect(null, canvas)).toBe(false)
     expect(sameRect({ ...canvas }, canvas)).toBe(true)
     expect(sameRect({ ...canvas, height: 1360 }, canvas)).toBe(false)
+  })
+
+  it('treats the cursor as near munu only inside the box plus the margin', () => {
+    const b = { x: 500, y: 500, width: 200, height: 100 }
+    expect(pointNearBox({ x: 600, y: 550 }, b, 48)).toBe(true)
+    expect(pointNearBox({ x: 740, y: 640 }, b, 48)).toBe(true)
+    expect(pointNearBox({ x: 760, y: 550 }, b, 48)).toBe(false)
+    expect(pointNearBox({ x: 600, y: 420 }, b, 48)).toBe(false)
   })
 })

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
 import { getSettings } from './services/settingsService'
-import { clampToAreas, frameInCanvas, sameRect, type Box } from './overlayPlacement'
+import { clampToAreas, frameInCanvas, pointNearBox, sameRect, type Box } from './overlayPlacement'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 /**
@@ -235,6 +235,33 @@ export function destroyOverlay(): void {
   if (overlay && !overlay.isDestroyed()) overlay.destroy()
   overlay = null
   canvas = null
+  stopGuard()
+}
+
+// Windows canvas safety net: the renderer turns click-through back on when the
+// cursor leaves munu, but a cursor that jumps (SetCursorPos, remote desktop, touch)
+// can skip that mouseleave. On a canvas that covers the whole work area a missed
+// leave would swallow every click on the screen, so while munu is interactive main
+// also checks the cursor and restores click-through once it is well outside munu.
+const GUARD_MS = 150
+const GUARD_MARGIN = 48
+let guard: ReturnType<typeof setInterval> | null = null
+let lastDragAt = 0
+
+function stopGuard(): void {
+  if (guard) clearInterval(guard)
+  guard = null
+}
+
+function startGuard(): void {
+  if (guard) return
+  guard = setInterval(() => {
+    if (!overlay || overlay.isDestroyed()) return stopGuard()
+    if (Date.now() - lastDragAt < 500) return // a drag can run ahead of munu
+    if (pointNearBox(screen.getCursorScreenPoint(), box, GUARD_MARGIN)) return
+    overlay.setIgnoreMouseEvents(true, { forward: true })
+    stopGuard()
+  }, GUARD_MS)
 }
 
 export function setOverlayInteractive(interactive: boolean): void {
@@ -246,6 +273,10 @@ export function setOverlayInteractive(interactive: boolean): void {
     return
   }
   overlay.setIgnoreMouseEvents(!interactive, { forward: true })
+  if (useCanvas) {
+    if (interactive) startGuard()
+    else stopGuard()
+  }
 }
 
 /** Temporarily make the overlay focusable so its text field can receive typing.
@@ -298,10 +329,12 @@ export function beginOverlayDrag(sx: number, sy: number): void {
   if (!overlay || overlay.isDestroyed()) return
   const b = currentBox()
   dragOrigin = { sx, sy, wx: b.x, wy: b.y }
+  lastDragAt = Date.now()
 }
 
 /** Continue a munu drag to the cursor's current screen position. */
 export function dragOverlay(sx: number, sy: number): void {
   if (!dragOrigin) return
+  lastDragAt = Date.now()
   moveOverlay(dragOrigin.wx + (sx - dragOrigin.sx), dragOrigin.wy + (sy - dragOrigin.sy))
 }
