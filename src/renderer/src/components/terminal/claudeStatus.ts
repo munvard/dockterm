@@ -236,6 +236,10 @@ export function parseAsk(text: string): AskInfo | null {
       .filter((l) => !/^do you want to proceed\??$/i.test(l))
       .filter((l) => l.replace(/[.\s·]/g, '').length > 0) // drop dash/dot-only lines
     if (above.length) title = above.slice(-3).join(' · ').slice(0, 200)
+    // An un-numbered dialog (folder trust) puts its question in a paragraph
+    // above a link and a note: show the question itself, up to its "?".
+    const q = unnumbered ? [...above].reverse().find((l) => l.includes('?')) : undefined
+    if (q) title = q.slice(0, q.indexOf('?') + 1).slice(0, 200)
   }
 
   // Binary only when there's a real numbered Yes + No — otherwise we never

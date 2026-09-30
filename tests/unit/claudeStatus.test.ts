@@ -298,7 +298,7 @@ describe('parseAsk: un-numbered menus', () => {
     expect(a.options).toEqual(['No, exit', 'Yes, I trust this folder'])
     expect(a.cursorRow).toBe(0)
     expect(a.numbered).toBe(false)
-    expect(a.title).toContain('Security guide')
+    expect(a.title).toBe('Quick safety check: Is this a project you created or one you trust?')
     expect(a.binary).toBe(true)
   })
   it('follows the cursor when it moves to the second row', () => {
