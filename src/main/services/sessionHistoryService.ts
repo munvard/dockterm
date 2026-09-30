@@ -1,7 +1,8 @@
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { readdir, stat, open } from 'node:fs/promises'
 import { getSettings } from './settingsService'
 import { claudeConfigDir } from './claudeConfigDir'
+import { slugFor, isDirectChild, pickProjectDir, stripTuiPrefix, pickByHits } from './transcriptPaths'
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
 import {
   appendConversation,
@@ -130,7 +131,6 @@ function trimConversation(cache: ConvCache): void {
 
 const norm = (p: string): string => p.replace(/[\\/]+$/, '')
 const enabled = (): boolean => getSettings().sessionHistory.enabled
-const slugFor = (cwd: string): string => cwd.replace(/[^a-zA-Z0-9]/g, '-')
 
 // Two surfaces (the docked Reading panel and a pane's Chat mode) can be bound to
 // the SAME transcript and poll independently, and getSessionHistory/
@@ -224,7 +224,7 @@ async function textTail(path: string): Promise<string> {
 }
 
 function needlesFrom(sample: string[]): string[] {
-  return sample.map((s) => s.toLowerCase().slice(0, 80)).filter((s) => s.length >= 18)
+  return sample.map((s) => stripTuiPrefix(s).toLowerCase().slice(0, 80)).filter((s) => s.length >= 18)
 }
 function countHits(blob: string, needles: string[]): number {
   let n = 0
@@ -236,7 +236,7 @@ function countHits(blob: string, needles: string[]): number {
  * project's own transcripts directory. A sticky pane binding or a hint must
  * never point at another project's transcript. */
 function belongsToProject(path: string, cwd: string): boolean {
-  return dirname(path) === join(PROJECTS_DIR, slugFor(cwd))
+  return isDirectChild(path, join(PROJECTS_DIR, slugFor(cwd)), process.platform)
 }
 
 /** The pane's bound transcript, but only if it belongs to the requested project
@@ -252,7 +252,16 @@ function boundPath(paneKey: string, nc: string): string | undefined {
 
 /** Newest-first transcript paths for a project. */
 async function candidates(cwd: string): Promise<string[]> {
-  const dir = join(PROJECTS_DIR, slugFor(cwd))
+  // Claude names the folder from the cwd it saw ('D--x'); the pane may report
+  // 'd:\x'. On Windows that differs only in case, so look the folder up by name.
+  const slug = slugFor(cwd)
+  let dir = join(PROJECTS_DIR, slug)
+  try {
+    const found = pickProjectDir(await readdir(PROJECTS_DIR), slug, process.platform)
+    if (found) dir = join(PROJECTS_DIR, found)
+  } catch {
+    // fall through to the direct path
+  }
   let entries: { path: string; mt: number }[]
   try {
     entries = []
@@ -280,17 +289,15 @@ async function bestMatch(nc: string, sample: string[], hint: string | null): Pro
   const needles = needlesFrom(sample)
   if (needles.length === 0) return null
   if (hint && belongsToProject(hint, nc) && countHits(await textTail(hint), needles) >= MIN_HITS) return hint
-  let best: string | null = null
-  let bestHits = MIN_HITS - 1
+  const hits: { path: string; n: number }[] = []
+  let top = 0
   for (const path of (await candidates(nc)).slice(0, 8)) {
-    const hits = countHits(await textTail(path), needles)
-    if (hits > bestHits) {
-      bestHits = hits
-      best = path
-    }
-    if (bestHits >= 3) break // strong match (newest wins ties via order)
+    const n = countHits(await textTail(path), needles)
+    hits.push({ path, n })
+    if (n > top) top = n
+    if (top >= 3) break // strong match (newest wins ties via order)
   }
-  return best
+  return pickByHits(hits, MIN_HITS)
 }
 
 function pushPrompt(sess: Sess, r: PromptRec): void {

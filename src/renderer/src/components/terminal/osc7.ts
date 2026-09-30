@@ -30,6 +30,7 @@ export function parseOsc7(payload: string, platform = ''): string | null {
   // Windows drive paths arrive as "/C:/Users/x" → "C:\Users\x".
   if (/^\/[A-Za-z]:/.test(path)) {
     path = path.slice(1).replace(/\//g, '\\')
+    path = path[0].toUpperCase() + path.slice(1)
   }
 
   return path.length > 0 ? path : null

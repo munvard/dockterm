@@ -2,6 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import os from 'node:os'
 import { git, autoGit } from './gitService'
+import { upperDrive } from './transcriptPaths'
 import type { ProjectInfo } from '@shared/types'
 
 export function detectGitRepo(path: string): boolean {
@@ -24,7 +25,10 @@ export async function inspectProject(path: string): Promise<ProjectInfo> {
   }
   const isGitRepo = detectGitRepo(path)
   const branch = isGitRepo ? await getBranch(path) : null
-  return { path, name: basename(path) || path, isGitRepo, branch }
+  // NTFS ignores case, but Claude names its transcript folder from the real
+  // casing ('D--x'); a hand-typed 'd:\x' should not differ from it.
+  const shown = upperDrive(path, process.platform)
+  return { path: shown, name: basename(shown) || shown, isGitRepo, branch }
 }
 
 /** A path is its own dirname only at a filesystem root ('/', 'C:\', …). A
