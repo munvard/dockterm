@@ -627,8 +627,10 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           if (saved) {
             restored.delete(id)
             term.write(saved)
+            // Two lines so each fits 80 columns.
             term.write(
-              '\r\n\x1b[90m──── session restored · processes are not (run claude --resume to continue) ────\x1b[0m\r\n'
+              '\r\n\x1b[90m──── session restored · running programs did not survive the restart ────\x1b[0m\r\n' +
+                '\x1b[90m     run claude --resume to continue\x1b[0m\r\n'
             )
           }
         }

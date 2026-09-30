@@ -142,3 +142,27 @@ describe('plain-text paste shortcut', () => {
     expect(matchShortcut(key({ code: 'KeyV', ctrlKey: true }), 'linux')).toBeNull()
   })
 })
+
+describe('matchShortcut with an empty e.code (F11)', () => {
+  it('falls back to e.key: letters in either case, digits, Enter, Comma, Equal, Minus', () => {
+    const w = { ctrlKey: true, shiftKey: true }
+    expect(matchShortcut(key({ key: 'R', ...w }), 'win')).toEqual({ id: 'toggleChat' })
+    expect(matchShortcut(key({ key: 'r', ...w }), 'win')).toEqual({ id: 'toggleChat' })
+    expect(matchShortcut(key({ key: '3', ...w }), 'win')).toEqual({ id: 'switchTab', tabIndex: 2 })
+    expect(matchShortcut(key({ key: '#', ...w }), 'win')).toEqual({ id: 'switchTab', tabIndex: 2 })
+    expect(matchShortcut(key({ key: 'Enter', ...w }), 'win')).toEqual({ id: 'compose' })
+    expect(matchShortcut(key({ key: ',', ...w }), 'win')).toEqual({ id: 'settings' })
+    expect(matchShortcut(key({ key: '+', ...w }), 'win')).toEqual({ id: 'zoomIn' })
+    expect(matchShortcut(key({ key: '-', ...w }), 'win')).toEqual({ id: 'zoomOut' })
+    expect(matchShortcut(key({ key: 'r', metaKey: true }), 'mac')).toEqual({ id: 'toggleChat' })
+  })
+
+  it('an empty code with an unknown or missing key still passes through', () => {
+    expect(matchShortcut(key({ ctrlKey: true, shiftKey: true }), 'win')).toBeNull()
+    expect(matchShortcut(key({ key: 'F5', ctrlKey: true, shiftKey: true }), 'win')).toBeNull()
+  })
+
+  it('a real e.code always wins over e.key', () => {
+    expect(matchShortcut(key({ code: 'KeyB', key: 'x', ctrlKey: true, shiftKey: true }), 'win')).toEqual({ id: 'panel:files' })
+  })
+})

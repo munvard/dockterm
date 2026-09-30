@@ -60,10 +60,42 @@ export interface MatchResult {
  * can pass plain objects instead of constructing real KeyboardEvents. */
 export interface KeyLike {
   code: string
+  /** Used only when `code` is empty (synthetic events, some IME / remote-desktop input). */
+  key?: string
   metaKey: boolean
   ctrlKey: boolean
   shiftKey: boolean
   altKey: boolean
+}
+
+const SHIFTED_DIGITS: Record<string, string> = {
+  '!': '1', '@': '2', '#': '3', $: '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9', ')': '0'
+}
+
+/** The `code` a key value stands for, for events that arrive with an empty `code`. */
+export function codeFromKey(key: string | undefined): string {
+  if (!key) return ''
+  if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`
+  if (/^[0-9]$/.test(key)) return `Digit${key}`
+  if (key in SHIFTED_DIGITS) return `Digit${SHIFTED_DIGITS[key]}`
+  switch (key) {
+    case 'Enter':
+      return 'Enter'
+    case ',':
+    case '<':
+      return 'Comma'
+    case '.':
+    case '>':
+      return 'Period'
+    case '=':
+    case '+':
+      return 'Equal'
+    case '-':
+    case '_':
+      return 'Minus'
+    default:
+      return ''
+  }
 }
 
 /**
@@ -75,7 +107,8 @@ export interface KeyLike {
  * through untouched — most importantly, plain Ctrl+letter on Windows/Linux
  * always does.
  */
-export function matchShortcut(e: KeyLike, platform: Platform): MatchResult | null {
+export function matchShortcut(input: KeyLike, platform: Platform): MatchResult | null {
+  const e = input.code ? input : { ...input, code: codeFromKey(input.key) }
   const mac = platform === 'mac'
   const cmdOnly = mac && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
   const ctrlShift = !mac && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey
