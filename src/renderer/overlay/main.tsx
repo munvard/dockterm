@@ -310,9 +310,11 @@ function Overlay() {
       style={
         frame
           ? { left: frame.x, top: frame.y, width: frame.width, height: frame.height }
-          : // Until the first frame arrives on Windows, munu's spot in the canvas is unknown.
+          : // Until the first frame arrives on Windows, munu's spot in the canvas is
+            // unknown. Hide it, at the window's starting size: munu's width follows its
+            // container, so measuring it inside the whole canvas would size it too wide.
             platform === 'win32' || platform === ''
-            ? { visibility: 'hidden' }
+            ? { visibility: 'hidden', width: 380, height: 260 }
             : undefined
       }
     >
