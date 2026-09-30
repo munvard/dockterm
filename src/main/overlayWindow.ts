@@ -3,7 +3,17 @@ import { join } from 'node:path'
 import { applyWindowSecurity } from './security'
 import { OVERLAY_URL } from './protocol'
 import { getSettings } from './services/settingsService'
-import { clampToAreas, frameInCanvas, pointNearBox, sameRect, type Box } from './overlayPlacement'
+import {
+  anchorFromSaved,
+  boxAtAnchor,
+  clampToAreas,
+  frameInCanvas,
+  pointNearBox,
+  sameRect,
+  savedFromAnchor,
+  type Box,
+  type MunuAnchor
+} from './overlayPlacement'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
 /**
@@ -80,15 +90,17 @@ function repinLinux(): void {
   }
 }
 
+// Where a pinned munu is anchored (null while unpinned). Every resize keeps this
+// point; only a drag or a new saved position moves it. Clamping is applied per
+// placement and never written back, so opening a card near an edge doesn't drift.
+let anchor: MunuAnchor | null = null
+
 /**
- * Position the overlay at size `w×h`.
- * - `anchor: 'topleft'` (default) pins the window's top-left to the saved
- *   position — used for the initial placement / repositioning.
- * - `anchor: 'center'` keeps munu (which sits at the window's horizontal centre)
- *   visually put while the window grows/shrinks — used when the popup opens or
- *   closes, so a pinned munu no longer jumps sideways.
+ * Position the overlay at size `w×h`. A pinned munu keeps its centre on `anchor`,
+ * so it stays put while its content grows or shrinks; `fromSaved` first re-reads
+ * the anchor from the saved position (startup, display or settings change).
  */
-function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center' = 'topleft'): void {
+function placeOverlay(width: number, height: number, fromSaved = false): void {
   if (!overlay || overlay.isDestroyed()) return
   const m = getSettings().munu
   const areas = screen.getAllDisplays().map((d) => d.workArea)
@@ -103,16 +115,12 @@ function placeOverlay(width: number, height: number, anchor: 'topleft' | 'center
   const w = Math.round(Math.min(Math.max(width, 120), target.width - 16))
   const h = Math.round(Math.min(Math.max(height, 80), target.height - 12))
   if (m.pinned && m.position) {
-    let bx = m.position.x
-    let by = m.position.y
-    if (anchor === 'center') {
-      const cur = currentBox()
-      bx = Math.round(cur.x + cur.width / 2 - w / 2)
-      by = cur.y
-    }
-    const { x, y } = clampToAreas({ x: bx, y: by, width: w, height: h }, areas)
+    if (fromSaved || !anchor) anchor = anchorFromSaved(m.position, W)
+    const b = boxAtAnchor(anchor, w, h)
+    const { x, y } = clampToAreas(b, areas)
     applyBox({ x, y, width: w, height: h })
   } else {
+    anchor = null
     // Resting munu tucks at the very top (over the notch). Height is already
     // clamped to the work area, so even a tall card's footer stays above the dock.
     const d = screen.getPrimaryDisplay()
@@ -291,20 +299,20 @@ export function setOverlayFocusable(focusable: boolean): void {
 export function repositionOverlay(): void {
   if (!overlay || overlay.isDestroyed()) return
   const b = currentBox()
-  placeOverlay(b.width, b.height)
+  placeOverlay(b.width, b.height, true)
 }
 
-/** Resize to fit content. When `expanded` (the popup / ask-card is open) the
- * window grows around munu's centre so a pinned munu stays visually put; at rest
- * it returns to its saved top-left. */
-export function resizeOverlay(width: number, height: number, expanded = false): void {
-  placeOverlay(width, height, expanded ? 'center' : 'topleft')
+/** Resize to fit content, keeping a pinned munu's centre where it is. */
+export function resizeOverlay(width: number, height: number): void {
+  placeOverlay(width, height)
 }
 
-/** Current screen bounds, or null if the overlay isn't up. */
+/** Current screen bounds, or null if the overlay isn't up. For a pinned munu x/y
+ * are the position to save (see anchorFromSaved), not the box's own corner. */
 export function getOverlayBounds(): { x: number; y: number; width: number; height: number } | null {
   if (!overlay || overlay.isDestroyed()) return null
-  return currentBox()
+  const b = currentBox()
+  return anchor ? { ...b, ...savedFromAnchor(anchor, W) } : b
 }
 
 /** Move to an absolute screen position, clamped to stay on a display. */
@@ -314,6 +322,7 @@ export function moveOverlay(x: number, y: number): void {
   const areas = screen.getAllDisplays().map((d) => d.workArea)
   const p = clampToAreas({ x, y, width: b.width, height: b.height }, areas)
   applyBox({ x: p.x, y: p.y, width: b.width, height: b.height }, true)
+  if (anchor) anchor = { cx: p.x + b.width / 2, y: p.y }
 }
 
 // Drag origin captured synchronously in main when a pinned-munu drag begins, so a

@@ -58,3 +58,27 @@ export function pointNearBox(p: { x: number; y: number }, box: Box, margin: numb
     p.y <= box.y + box.height + margin
   )
 }
+
+/** A pinned munu's anchor: the x of its centre and the y of its top. */
+export interface MunuAnchor {
+  cx: number
+  y: number
+}
+
+/** The anchor stored in settings. `munu.position` is the top-left of a box of the
+ * overlay's starting width centred on munu, so it does not depend on how wide
+ * munu's content was when it was saved. */
+export function anchorFromSaved(pos: { x: number; y: number }, startWidth: number): MunuAnchor {
+  return { cx: pos.x + startWidth / 2, y: pos.y }
+}
+
+/** The inverse of anchorFromSaved: the position to store for `a`. */
+export function savedFromAnchor(a: MunuAnchor, startWidth: number): { x: number; y: number } {
+  return { x: Math.round(a.cx - startWidth / 2), y: Math.round(a.y) }
+}
+
+/** munu's box at size `w`×`h` with its centre on the anchor, so a change of width
+ * (size slider, popup, agent swarm) never moves munu sideways. */
+export function boxAtAnchor(a: MunuAnchor, w: number, h: number): Box {
+  return { x: Math.round(a.cx - w / 2), y: Math.round(a.y), width: w, height: h }
+}

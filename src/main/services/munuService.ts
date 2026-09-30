@@ -142,8 +142,8 @@ export function answerMunu(leafId: string, token: string, action: MunuAnswerActi
   return true
 }
 
-export function resizeMunu(width: number, height: number, expanded = false): void {
-  resizeOverlay(width, height, expanded)
+export function resizeMunu(width: number, height: number): void {
+  resizeOverlay(width, height)
 }
 
 export function focusMunu(): void {

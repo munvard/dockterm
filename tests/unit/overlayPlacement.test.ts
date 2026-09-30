@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { clampToAreas, frameInCanvas, pointNearBox, sameRect } from '@main/overlayPlacement'
+import {
+  anchorFromSaved,
+  boxAtAnchor,
+  clampToAreas,
+  frameInCanvas,
+  pointNearBox,
+  sameRect,
+  savedFromAnchor
+} from '@main/overlayPlacement'
 
 const area = { x: 0, y: 0, width: 1000, height: 800 }
 
@@ -47,5 +55,18 @@ describe('overlay canvas (Windows)', () => {
     expect(pointNearBox({ x: 740, y: 640 }, b, 48)).toBe(true)
     expect(pointNearBox({ x: 760, y: 550 }, b, 48)).toBe(false)
     expect(pointNearBox({ x: 600, y: 420 }, b, 48)).toBe(false)
+  })
+})
+
+describe('pinned munu anchor', () => {
+  it('keeps munu centred on the anchor whatever the box width', () => {
+    const a = anchorFromSaved({ x: 500, y: 500 }, 380)
+    expect(a).toEqual({ cx: 690, y: 500 })
+    expect(boxAtAnchor(a, 240, 200)).toEqual({ x: 570, y: 500, width: 240, height: 200 })
+    expect(boxAtAnchor(a, 520, 400)).toEqual({ x: 430, y: 500, width: 520, height: 400 })
+  })
+
+  it('round-trips the saved position', () => {
+    expect(savedFromAnchor(anchorFromSaved({ x: 812, y: 44 }, 380), 380)).toEqual({ x: 812, y: 44 })
   })
 })

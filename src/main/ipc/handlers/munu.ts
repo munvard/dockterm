@@ -65,8 +65,7 @@ export const answerSchema = z.object({
 const interactiveSchema = z.object({ interactive: z.boolean() })
 const resizeSchema = z.object({
   width: z.number().int().min(40).max(4000),
-  height: z.number().int().min(40).max(4000),
-  expanded: z.boolean().optional()
+  height: z.number().int().min(40).max(4000)
 })
 
 export function registerMunuHandlers(reg: Registrar): void {
@@ -97,7 +96,7 @@ export function registerMunuHandlers(reg: Registrar): void {
   })
 
   reg('munu:resize', resizeSchema, (req) => {
-    resizeMunu(req.width, req.height, req.expanded ?? false)
+    resizeMunu(req.width, req.height)
     return ok(undefined)
   })
 
