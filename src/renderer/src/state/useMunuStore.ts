@@ -127,6 +127,7 @@ export const useMunuStore = create<MunuStore>((set, get) => ({
         checked: p.ask?.checked ?? [],
         submitIndex: p.ask?.submitIndex ?? null,
         cursorRow: p.ask?.cursorRow ?? 0,
+        numbered: p.ask?.numbered ?? true,
         visible: focused && p.tabId === activeTabId
       }))
     return { state: get().munuState(), asks, activeTabId }

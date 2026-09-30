@@ -75,6 +75,61 @@ function parseSteps(raw: string[]): { label: string; done: boolean }[] {
  * counts line up. Classifies as Yes/No (one-click), checkbox multi-select, or a
  * plain single-select.
  */
+// A menu row with the cursor on it, in a menu without numbers ("❯ No, exit").
+// Only ❯ and ›: a bare ">" would also match a shell prompt.
+const CURSOR_ROW = /^(\s*)[❯›]\s+(\S.*)$/
+
+type MenuRow = { label: string; desc: string | null; cursor: boolean }
+
+/**
+ * A menu whose rows carry no numbers, like Claude Code 2.1.285's folder-trust
+ * dialog: the ❯ row plus the rows whose text starts in the same column, right
+ * above the footer ("Enter to confirm · Esc to cancel"). Single blank lines
+ * between rows are allowed. Needs at least two rows, so an input prompt ("❯ ")
+ * never counts.
+ */
+function unnumberedMenu(raw: string[]): { rows: MenuRow[]; firstIdx: number } | null {
+  let footer = -1
+  for (let i = raw.length - 1; i >= 0; i--) {
+    if (isFooterLine(cleanLine(raw[i]))) {
+      footer = i
+      break
+    }
+  }
+  if (footer < 0) return null
+  let cur = -1
+  let col = -1
+  for (let i = footer - 1; i >= 0; i--) {
+    const m = raw[i].match(CURSOR_ROW)
+    if (m) {
+      cur = i
+      col = m[0].length - m[2].length
+      break
+    }
+  }
+  if (cur < 0) return null
+  const textCol = (s: string): number => {
+    const m = s.match(CURSOR_ROW)
+    return m ? m[0].length - m[2].length : s.length - s.trimStart().length
+  }
+  const isRow = (i: number): boolean => i >= 0 && i < footer && raw[i].trim() !== '' && textCol(raw[i]) === col
+  const step = (i: number, d: number): number => {
+    if (isRow(i + d)) return i + d
+    if (raw[i + d]?.trim() === '' && isRow(i + 2 * d)) return i + 2 * d
+    return -1
+  }
+  const idx = [cur]
+  for (let i = step(cur, -1); i >= 0; i = step(i, -1)) idx.unshift(i)
+  for (let i = step(cur, 1); i >= 0; i = step(i, 1)) idx.push(i)
+  if (idx.length < 2) return null
+  const rows = idx.map((i) => ({
+    label: cleanLine(raw[i].replace(/^\s*[❯›]\s*/, '')),
+    desc: null,
+    cursor: CURSOR_ROW.test(raw[i])
+  }))
+  return { rows, firstIdx: idx[0] }
+}
+
 export function parseAsk(text: string): AskInfo | null {
   if (classify(text) !== 'asking') return null
 
@@ -93,6 +148,7 @@ export function parseAsk(text: string): AskInfo | null {
     const m = raw[i].replace(BOX, ' ').match(OPTION_RE)
     if (m && cleanLine(m[2])) marks.push({ idx: i, num: parseInt(m[1], 10) })
   }
+  const unnumbered = marks.length ? null : unnumberedMenu(raw)
   let startIdx = marks.length ? marks[0].idx : 0
   for (let k = 1, prev = marks[0]?.num ?? 0; k < marks.length; k++) {
     if (marks[k].num <= prev) startIdx = marks[k].idx
@@ -106,7 +162,7 @@ export function parseAsk(text: string): AskInfo | null {
   // shows stale checkboxes until those lines scroll away. (We also never trust
   // the literal phrase "(multi-select)", which that review screen echoes.)
   let multiSelect = false
-  for (let i = startIdx; i < raw.length; i++) {
+  for (let i = startIdx; !unnumbered && i < raw.length; i++) {
     if (isFooterLine(cleanLine(raw[i].replace(BOX, ' ')))) break
     if (/\[[ xX✓✔·•]\]/.test(raw[i])) {
       multiSelect = true
@@ -118,8 +174,8 @@ export function parseAsk(text: string): AskInfo | null {
   // with any description lines beneath it. Numbered options always count; the
   // un-numbered "Submit" action row counts only for multi-select, where it's a
   // real navigation stop.
-  const rows: { label: string; desc: string | null; cursor: boolean }[] = []
-  for (let i = startIdx; i < raw.length; i++) {
+  const rows: MenuRow[] = unnumbered ? unnumbered.rows : []
+  for (let i = startIdx; !unnumbered && i < raw.length; i++) {
     const stripped = raw[i].replace(BOX, ' ')
     const m = stripped.match(OPTION_RE)
     if (m) {
@@ -144,7 +200,7 @@ export function parseAsk(text: string): AskInfo | null {
     }
   }
 
-  const firstMenuIdx = marks.length ? startIdx : -1
+  const firstMenuIdx = marks.length ? startIdx : (unnumbered?.firstIdx ?? -1)
   const cursorAt = rows.findIndex((r) => r.cursor)
   const cursorRow = cursorAt >= 0 ? cursorAt : 0
 
@@ -198,6 +254,7 @@ export function parseAsk(text: string): AskInfo | null {
     checkable,
     checked,
     submitIndex,
-    cursorRow
+    cursorRow,
+    numbered: !unnumbered
   }
 }

@@ -269,3 +269,48 @@ describe('parseAsk', () => {
     expect(parseAsk('just output')).toBeNull()
   })
 })
+
+// Claude Code 2.1.285's folder-trust dialog, captured from a live Windows pane on
+// 2026-09-30: the options carry NO numbers, so a digit key would not answer it.
+const TRUST = [
+  'PS D:\\dt-build\\testproj2> claude',
+  '─'.repeat(60),
+  ' Accessing workspace:',
+  '',
+  ' D:\\dt-build\\testproj2',
+  '',
+  " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source project, or work from your team). If not, take a moment to review what's in",
+  ' this folder first.',
+  '',
+  " Claude Code'll be able to read, edit, and execute files here.",
+  '',
+  ' Security guide',
+  '',
+  ' ❯ No, exit',
+  '   Yes, I trust this folder',
+  '',
+  ' Enter to confirm · Esc to cancel'
+].join('\n')
+
+describe('parseAsk: un-numbered menus', () => {
+  it('reads the folder-trust options, the cursor row and the question', () => {
+    const a = parseAsk(TRUST)!
+    expect(a.options).toEqual(['No, exit', 'Yes, I trust this folder'])
+    expect(a.cursorRow).toBe(0)
+    expect(a.numbered).toBe(false)
+    expect(a.title).toContain('Security guide')
+    expect(a.binary).toBe(true)
+  })
+  it('follows the cursor when it moves to the second row', () => {
+    const moved = TRUST.replace(' ❯ No, exit', '   No, exit').replace(
+      '   Yes, I trust this folder',
+      ' ❯ Yes, I trust this folder'
+    )
+    const a = parseAsk(moved)!
+    expect(a.options).toEqual(['No, exit', 'Yes, I trust this folder'])
+    expect(a.cursorRow).toBe(1)
+  })
+  it('keeps numbered menus marked as numbered', () => {
+    expect(parseAsk('Do you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel')!.numbered).toBe(true)
+  })
+})

@@ -41,6 +41,9 @@ export interface AskInfo {
   submitIndex: number | null
   /** the row index Claude's menu cursor currently sits on (the ❯ marker) */
   cursorRow: number
+  /** false for a menu whose rows carry no numbers (e.g. the folder-trust
+   * dialog): a digit key does nothing there, so answers walk the cursor. */
+  numbered?: boolean
 }
 /** A pane that is waiting for the user's permission. */
 export interface MunuAsk extends AskInfo {

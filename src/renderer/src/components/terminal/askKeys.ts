@@ -21,10 +21,16 @@ export function isFreeText(label: string): boolean {
   return /^type\b/i.test(label) || /^other$/i.test(label) || /something else$/i.test(label)
 }
 
-/** Keys that choose row `index`. Single-select menus select on the number key for
- * the first nine rows; everything else walks the cursor and presses Enter. */
+/** Number keys work only in a numbered single-select menu, first nine rows. */
+function digitSelects(ask: AskInfo, index: number): boolean {
+  return !ask.multiSelect && ask.numbered !== false && index < 9
+}
+
+/** Keys that choose row `index`. Numbered single-select menus select on the
+ * number key for the first nine rows; everything else walks the cursor and
+ * presses Enter. */
 export function pickKeys(ask: AskInfo, index: number): string[] {
-  if (!ask.multiSelect && index < 9) return [String(index + 1)]
+  if (digitSelects(ask, index)) return [String(index + 1)]
   return [...arrows(ask.cursorRow, index), ENTER]
 }
 
@@ -48,8 +54,9 @@ export function submitKeys(ask: AskInfo, selected: Set<number>): string[] {
 
 /** Keys that answer a free-text row: select it (entering Claude's field), type, Enter. */
 export function textKeys(ask: AskInfo, index: number, text: string): string[] {
-  const select =
-    !ask.multiSelect && index < 9 ? [String(index + 1)] : [...arrows(ask.cursorRow, index), ENTER]
+  const select = digitSelects(ask, index)
+    ? [String(index + 1)]
+    : [...arrows(ask.cursorRow, index), ENTER]
   return [...select, text, ENTER]
 }
 

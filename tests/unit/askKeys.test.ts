@@ -129,3 +129,14 @@ describe('askSig', () => {
     expect(sig1).not.toBe(sig2)
   })
 })
+
+describe('un-numbered menus', () => {
+  it('pick walks the cursor with arrows and Enter instead of a digit', () => {
+    expect(pickKeys(ask({ numbered: false, cursorRow: 0 }), 1)).toEqual([DOWN, ENTER])
+    expect(pickKeys(ask({ numbered: false, cursorRow: 1 }), 1)).toEqual([ENTER])
+  })
+  it('free text selects with arrows too', () => {
+    const a = ask({ numbered: false, options: ['Yes', 'Type something'], cursorRow: 0 })
+    expect(textKeys(a, 1, 'hi')).toEqual([DOWN, ENTER, 'hi', ENTER])
+  })
+})
