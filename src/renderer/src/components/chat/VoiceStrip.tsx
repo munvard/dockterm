@@ -18,7 +18,9 @@ export function VoiceStrip({
 
   if (snapshot.hint !== 'none' && snapshot.phase === 'idle' && snapshot.hint !== 'enable') {
     const text =
-      snapshot.hint === 'no-speech'
+      snapshot.hint === 'claude-error'
+        ? `Claude voice: ${snapshot.message}`
+        : snapshot.hint === 'no-speech'
         ? `No speech captured. See the terminal (${k('⌘R', 'Ctrl+Shift+R')}) for Claude’s message.`
         : `Claude voice did not start. It needs a claude.ai login and microphone permission (Linux also needs SoX). See the terminal (${k('⌘R', 'Ctrl+Shift+R')}) for Claude’s message.`
     return (

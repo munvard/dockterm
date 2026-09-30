@@ -18,3 +18,8 @@ export function recentlyLaunched(leafId: string, now: number = Date.now()): bool
 const sending = new Set<string>()
 export const setSending = (leafId: string, on: boolean): void => void (on ? sending.add(leafId) : sending.delete(leafId))
 export const isSending = (leafId: string): boolean => sending.has(leafId)
+
+/** Panes where the chat mic is recording: Claude's box then holds the level meter and interim words. */
+const voicing = new Set<string>()
+export const setVoiceActive = (leafId: string, on: boolean): void => void (on ? voicing.add(leafId) : voicing.delete(leafId))
+export const isVoiceActive = (leafId: string): boolean => voicing.has(leafId)

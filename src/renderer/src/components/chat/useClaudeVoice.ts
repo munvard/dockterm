@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { setVoiceActive } from '../../state/launchTracker'
 import { paneWriters } from '../../state/paneWriters'
 import { sendPrompt } from '../../state/sendPrompt'
 import { useMunuStore } from '../../state/useMunuStore'
@@ -9,7 +10,7 @@ import { claudeOnScreen } from '../terminal/paneLiveness'
 import { detectVoiceStatus } from './claudeVoice'
 import { VoiceMachine, type StartResult, type VoiceSnapshot } from './voiceMachine'
 
-const IDLE: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none' }
+const IDLE: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none', message: '' }
 
 const START_FAILURES: Partial<Record<StartResult, string>> = {
   asking: 'Answer Claude’s question first, then try voice again.',
@@ -64,13 +65,17 @@ export function useClaudeVoice(leafId: string, onTranscript: (text: string) => v
       },
       claudeHere: (vis) => claudeOnScreen(vis) || detectVoiceStatus(vis) !== 'idle',
       sendCommand: (t) => sendPrompt(leafId, t, () => paneClaudeForeground(leafId)),
-      onSnapshot: setSnapshot,
+      onSnapshot: (s) => {
+        setVoiceActive(leafId, s.phase !== 'idle')
+        setSnapshot(s)
+      },
       onTranscript: (t) => transcriptRef.current(t)
     })
     machine.current = m
     return () => {
       startToken.current++
       m.dispose()
+      setVoiceActive(leafId, false)
       machine.current = null
     }
   }, [leafId])

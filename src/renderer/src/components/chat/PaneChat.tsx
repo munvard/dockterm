@@ -12,7 +12,7 @@ import { attachPaths, dropHasAttachable, leafRoot, pathsFromDrop } from './compo
 import { useToastStore } from '../../state/useToastStore'
 import { useComposeStore } from '../../state/useComposeStore'
 import { clearClaudeInput, paneClaudeInput } from '../../state/sendComposed'
-import { isSending, markClaudeLaunch, recentlyLaunched } from '../../state/launchTracker'
+import { isSending, isVoiceActive, markClaudeLaunch, recentlyLaunched } from '../../state/launchTracker'
 import { StrayNotice } from './StrayNotice'
 import { parseModelLine, projectName } from './welcome'
 import { k } from '../../hooks/keys'
@@ -129,7 +129,7 @@ export function PaneChat({
         if (parsed) setModel((cur) => cur ?? parsed)
         // Text left in Claude's own box: show it only once it has been there for two
         // polls, and never while this app is itself typing into it.
-        const box = isSending(leafId) ? null : paneClaudeInput(leafId)
+        const box = isSending(leafId) || isVoiceActive(leafId) ? null : paneClaudeInput(leafId)
         if (box && box.trim()) {
           if (strayPrev.current === box) setStray(box)
           else strayPrev.current = box

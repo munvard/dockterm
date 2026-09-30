@@ -1,6 +1,6 @@
 import type { ClaudeVoiceSettings } from '@shared/types'
 import type { ClaudeState } from '../terminal/claudeStatus'
-import { clearInputKeys, detectVoiceStatus, parseInputBox, type VoiceStatus } from './claudeVoice'
+import { clearInputKeys, detectVoiceError, detectVoiceStatus, parseInputBox, type VoiceStatus } from './claudeVoice'
 
 /**
  * Drives Claude Code's own voice mode through a pane's PTY. DockTerm records
@@ -27,6 +27,8 @@ export const VOICE_TIMING = {
   PROCESSING_TIMEOUT_MS: 8000,
   /** after a stop with no "processing" ever seen: how long an idle screen must hold. */
   NO_PROCESSING_GRACE_MS: 400,
+  /** an empty result waits this long after the screen went idle, so Claude's error line can appear. */
+  ERROR_GRACE_MS: 300,
   /** once recording, this many idle polls in a row mean Claude ended it by itself. */
   LOST_POLLS: 2,
   /** a never-seen indicator after a stop only counts as "voice is off" for a hold this long. */
@@ -56,8 +58,9 @@ export type VoicePhase = 'idle' | 'starting' | 'recording' | 'finishing'
  *   enable       voice is switched off in Claude's settings: offer to switch it on
  *   not-started  voice is on but Claude showed no indicator (login, mic permission, SoX)
  *   no-speech    Claude recorded but produced no text
+ *   claude-error Claude showed its own voice error (no audio, no login, network): `message` has it
  */
-export type VoiceHint = 'none' | 'enable' | 'not-started' | 'no-speech'
+export type VoiceHint = 'none' | 'enable' | 'not-started' | 'no-speech' | 'claude-error'
 
 export interface VoiceSnapshot {
   phase: VoicePhase
@@ -65,6 +68,8 @@ export interface VoiceSnapshot {
   /** Live text from Claude's input box while listening. */
   interim: string
   hint: VoiceHint
+  /** Claude's own error text when hint is 'claude-error', else ''. */
+  message: string
 }
 
 export type StartResult = 'ok' | 'busy' | 'asking' | 'no-pane' | 'input-not-empty' | 'no-claude'
@@ -86,7 +91,7 @@ export interface VoiceDeps {
   onTranscript: (text: string) => void
 }
 
-const IDLE_SNAPSHOT: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none' }
+const IDLE_SNAPSHOT: VoiceSnapshot = { phase: 'idle', status: 'idle', interim: '', hint: 'none', message: '' }
 
 export class VoiceMachine {
   private snap: VoiceSnapshot = IDLE_SNAPSHOT
@@ -103,6 +108,11 @@ export class VoiceMachine {
   private lastLines = 1
   private lastInterim = ''
   private hint: VoiceHint = 'none'
+  private message = ''
+  /** Claude's voice error from THIS attempt, and the one already on screen when it began. */
+  private claudeError = ''
+  private staleError: string | null = null
+  private idleSince = 0
   private goneCount = 0
   private disposed = false
 
@@ -137,6 +147,10 @@ export class VoiceMachine {
     this.mode = mode
     this.autoSubmit = autoSubmit
     this.hint = 'none'
+    this.message = ''
+    this.claudeError = ''
+    this.staleError = detectVoiceError(this.deps.visibleText())
+    this.idleSince = 0
     this.goneCount = 0
     this.seen = false
     this.stopRequested = false
@@ -206,6 +220,7 @@ export class VoiceMachine {
   dismissHint(): void {
     if (this.hint === 'none') return
     this.hint = 'none'
+    this.message = ''
     this.emit()
   }
 
@@ -277,6 +292,11 @@ export class VoiceMachine {
     const vis = this.deps.visibleText()
     const status = detectVoiceStatus(vis)
     const box = parseInputBox(vis)
+    const error = detectVoiceError(vis)
+    // An error already on screen at the start belongs to an earlier attempt; once it is gone,
+    // the same text showing again is new.
+    if (!error) this.staleError = null
+    else if (error !== this.staleError) this.claudeError = error
     this.lastStatus = status
     if (box) {
       this.lastLines = Math.max(this.lastLines, box.lineCount)
@@ -328,8 +348,14 @@ export class VoiceMachine {
         this.cancel()
         return
       }
+      if (status !== 'idle') this.idleSince = 0
+      else if (!this.idleSince) this.idleSince = now
+      // Nothing came back yet: give Claude's error line a moment to appear before settling.
+      const empty = !box?.text && !this.claudeError
       const settled =
-        status === 'idle' && (this.sawProcessing || waited >= VOICE_TIMING.NO_PROCESSING_GRACE_MS)
+        status === 'idle' &&
+        (this.sawProcessing || waited >= VOICE_TIMING.NO_PROCESSING_GRACE_MS) &&
+        (!empty || now - this.idleSince >= VOICE_TIMING.ERROR_GRACE_MS)
       if (settled || waited >= VOICE_TIMING.PROCESSING_TIMEOUT_MS) {
         this.complete()
         return
@@ -351,9 +377,16 @@ export class VoiceMachine {
     this.clearTimers()
     this.phase = 'idle'
     this.deps.write(CTRL_U_X2)
+    const error = this.claudeError
     this.reset()
-    this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
+    if (error) this.showError(error)
+    else this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
     this.emit()
+  }
+
+  private showError(text: string): void {
+    this.hint = 'claude-error'
+    this.message = text
   }
 
   private complete(): void {
@@ -362,6 +395,7 @@ export class VoiceMachine {
     const hold = this.stoppedAt - this.startedAt
     const neverSeen = !this.seen
     const sawProcessing = this.sawProcessing
+    const error = this.claudeError
     let transcript = ''
     if (neverSeen) {
       // Nothing was ever recorded: take our stray spaces back out of Claude's input.
@@ -377,10 +411,12 @@ export class VoiceMachine {
     }
     this.phase = 'idle'
     this.reset()
-    if (neverSeen && hold >= VOICE_TIMING.MIN_HOLD_FOR_HINT_MS) {
-      this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
-    } else if (transcript) {
+    if (transcript) {
       this.deps.onTranscript(transcript)
+    } else if (error) {
+      this.showError(error)
+    } else if (neverSeen && hold >= VOICE_TIMING.MIN_HOLD_FOR_HINT_MS) {
+      this.hint = this.deps.settings().enabled ? 'not-started' : 'enable'
     } else if (!neverSeen && !submittedByClaude && !sawProcessing) {
       this.hint = 'no-speech'
     }
@@ -395,6 +431,8 @@ export class VoiceMachine {
     this.lastStatus = 'idle'
     this.lastLines = 1
     this.lastInterim = ''
+    this.claudeError = ''
+    this.idleSince = 0
   }
 
   private clearTimers(): void {
@@ -411,14 +449,16 @@ export class VoiceMachine {
       phase: this.phase,
       status: this.phase === 'idle' ? 'idle' : this.lastStatus,
       interim: this.phase === 'idle' ? '' : this.lastInterim,
-      hint: this.hint
+      hint: this.hint,
+      message: this.message
     }
     const prev = this.snap
     if (
       prev.phase === next.phase &&
       prev.status === next.status &&
       prev.interim === next.interim &&
-      prev.hint === next.hint
+      prev.hint === next.hint &&
+      prev.message === next.message
     )
       return
     this.snap = next

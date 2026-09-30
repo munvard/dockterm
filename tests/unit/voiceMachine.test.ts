@@ -254,9 +254,78 @@ describe('VoiceMachine', () => {
     vi.advanceTimersByTime(T.POLL_MS)
     e.set(screen(['❯']))
     vi.advanceTimersByTime(T.POLL_MS)
+    // an empty box waits a moment for a possible error line, then settles
+    expect(e.m.getSnapshot().phase).toBe('finishing')
+    vi.advanceTimersByTime(T.ERROR_GRACE_MS + T.POLL_MS)
     expect(e.m.getSnapshot().phase).toBe('idle')
+    expect(e.m.getSnapshot().hint).toBe('none')
     expect(e.transcripts).toEqual([])
     expect(e.writes.some((w) => w.includes('\x15'))).toBe(false)
+  })
+
+  const NO_AUDIO =
+    'No audio detected from microphone. Check that the correct input device is selected and that Claude Code has microphone access.'
+
+  it('Windows, 2026-09-30: Claude says "No audio detected" after the hold: the strip shows that message', () => {
+    const e = make()
+    e.m.start()
+    e.set(screen(['❯ ▁'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.m.getSnapshot().interim).toBe('')
+    e.m.stop()
+    e.set(screen(['❯'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯'], `      ${NO_AUDIO}`))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: 'claude-error', message: NO_AUDIO })
+    expect(e.transcripts).toEqual([])
+    e.m.dismissHint()
+    expect(e.m.getSnapshot()).toMatchObject({ hint: 'none', message: '' })
+  })
+
+  it('the error line may render one poll after the screen goes idle: it is still caught', () => {
+    const e = make()
+    e.m.start()
+    e.set(screen(['❯ ▁'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.m.stop()
+    e.set(screen(['❯'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯']))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯'], '  No speech detected.'))
+    vi.advanceTimersByTime(T.ERROR_GRACE_MS + T.POLL_MS)
+    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: 'claude-error', message: 'No speech detected.' })
+  })
+
+  it('an error already on screen before the start is not blamed on the new recording', () => {
+    const e = make()
+    e.set(screen(['❯'], `  ${NO_AUDIO}`))
+    e.m.start()
+    e.set(screen(['❯ hello there'], `  ${NO_AUDIO}`))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯ hello there'], '  listening…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.m.stop()
+    e.set(screen(['❯ hello there'], '  Voice: processing…'))
+    vi.advanceTimersByTime(T.POLL_MS)
+    e.set(screen(['❯ hello there']))
+    vi.advanceTimersByTime(T.POLL_MS)
+    expect(e.m.getSnapshot()).toMatchObject({ phase: 'idle', hint: 'none' })
+    expect(e.transcripts).toEqual(['hello there'])
+  })
+
+  it('no indicator, but Claude printed a login error: the strip shows it instead of the generic hint', () => {
+    const e = make()
+    e.state.enabled = true
+    e.m.start()
+    e.set(screen(['❯'], '  Voice mode requires a Claude.ai account. Please run /login to sign in.'))
+    vi.advanceTimersByTime(T.START_TIMEOUT_MS + T.POLL_MS)
+    expect(e.m.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      hint: 'claude-error',
+      message: 'Voice mode requires a Claude.ai account. Please run /login to sign in.'
+    })
   })
 
   it('I3: autoSubmit, 1-2 words: Claude leaves them in its box, so they are taken into the composer and cleared', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   clearInputKeys,
+  detectVoiceError,
   detectVoiceStatus,
   parseInputBox,
   voiceInsertion
@@ -124,5 +125,39 @@ describe('voiceInsertion', () => {
 
   it('an empty transcript inserts nothing', () => {
     expect(voiceInsertion('abc', 1, 1, '  ')).toBe('')
+  })
+})
+
+describe('detectVoiceError (Claude Code 2.1.285 strings)', () => {
+  const NO_AUDIO =
+    'No audio detected from microphone. Check that the correct input device is selected and that Claude Code has microphone access.'
+
+  it('reads the right-aligned error above the input (real Windows capture, 2026-09-30)', () => {
+    expect(detectVoiceError(screen(['❯'], [`${' '.repeat(40)}${NO_AUDIO}`]))).toBe(NO_AUDIO)
+  })
+
+  it('a narrow pane wraps the line: the full message still comes back', () => {
+    expect(detectVoiceError(screen(['❯'], ['No audio detected from microphone. Check that the', 'correct input device…']))).toBe(
+      NO_AUDIO
+    )
+  })
+
+  it('messages with a variable tail return their own row', () => {
+    expect(detectVoiceError(screen(['❯'], ['  Voice stream error: socket closed']))).toBe('Voice stream error: socket closed')
+  })
+
+  it('a conversation line quoting the message, further up, is not an error', () => {
+    expect(detectVoiceError(screen(['❯'], [`⏺ Claude printed "${NO_AUDIO}"`, 'line 2', 'line 3', 'line 4']))).toBeNull()
+  })
+
+  it('nothing to report on a normal screen', () => {
+    expect(detectVoiceError(screen(['❯ hello']))).toBeNull()
+  })
+})
+
+describe('parseInputBox level meter', () => {
+  it('the listening level meter is never text', () => {
+    expect(parseInputBox(screen(['❯ ▁']))).toEqual({ text: '', lineCount: 1 })
+    expect(parseInputBox(screen(['❯ hello wor ▃▅']))).toEqual({ text: 'hello wor', lineCount: 1 })
   })
 })
