@@ -4682,10 +4682,38 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 16px 20px;
-  max-width: var(--reading-max, none);
+  padding: 20px 24px 28px;
+  max-width: var(--chat-max, 860px);
   margin-inline: auto;
   width: 100%;
+}
+/* Chat mode fills a whole pane, unlike the narrow docked reading panel it shares
+   ConversationList with: larger type, more air, the user's turn as a bubble on
+   the right, and the composer lined up with the same centred column. */
+.panechat .composer {
+  padding-inline: max(12px, calc((100% - var(--chat-max, 860px)) / 2 + 12px));
+}
+.panechat .reading__msg { margin: 0 0 22px; }
+.panechat .reading__md { font-size: 15px; line-height: 1.65; }
+.panechat .reading__md code { font-size: 13px; }
+.panechat .reading__md h1,
+.panechat .reading__md h2,
+.panechat .reading__md h3 { font-size: 17px; margin: 16px 0 8px; }
+.panechat .reading__md table { font-size: 13.5px; }
+.panechat .reading__md th,
+.panechat .reading__md td { padding: 6px 10px; }
+.panechat .reading__tool { font-size: 13px; padding: 6px 10px; }
+.panechat .reading__msg--user { display: flex; flex-direction: column; align-items: flex-end; }
+.panechat .reading__msg--user .reading__role { display: none; }
+.panechat .reading__msg--user .reading__text {
+  max-width: 80%;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 14px 14px 4px 14px;
+  padding: 9px 14px;
 }
 .panechat__empty {
   padding: 28px 12px;

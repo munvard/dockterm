@@ -222,7 +222,9 @@ export function Shell() {
   const readingMax = readingWidthToMax(t?.readingWidth ?? 'off')
   const appStyle = {
     '--term-pad': `${t?.padding ?? 8}px`,
-    '--reading-max': readingMax ? `${readingMax}px` : 'none'
+    '--reading-max': readingMax ? `${readingMax}px` : 'none',
+    // Chat mode always reads in a column; the reading-width setting narrows or widens it.
+    '--chat-max': `${readingMax ?? 860}px`
   } as React.CSSProperties
   const termProps = {
     fontFamily: t?.fontFamily ?? undefined,
