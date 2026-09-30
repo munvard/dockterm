@@ -20,6 +20,7 @@ parentPort?.on('message', (m: HostRequest) => {
     try {
       const p = spawn(m.file, m.args, m.opts)
       ptys.set(m.id, p)
+      send({ t: 'spawned', id: m.id, pid: p.pid })
       p.onData((data) => send({ t: 'data', id: m.id, data }))
       p.onExit(({ exitCode }) => {
         ptys.delete(m.id)

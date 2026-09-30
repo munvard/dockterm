@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, realpathSync, existsSync, writeFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, realpathSync, existsSync, writeFileSync, readdirSync, statSync, chmodSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -125,5 +125,25 @@ describe('rename: case-only changes (Codex 10)', () => {
     await createFile(root, 'a.txt')
     await rename(root, 'a.txt', 'a.txt')
     expect(readdirSync(root)).toEqual(['a.txt'])
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('writeFile keeps file permissions', () => {
+  it('keeps an executable script executable after a save', async () => {
+    const p = join(root, 'run.sh')
+    writeFileSync(p, '#!/bin/sh\necho hi\n')
+    chmodSync(p, 0o755)
+    await writeFile(root, 'run.sh', '#!/bin/sh\necho bye\n', null)
+    expect(statSync(p).mode & 0o777).toBe(0o755)
+    expect(readFileSync(p, 'utf8')).toBe('#!/bin/sh\necho bye\n')
+  })
+
+  it('refuses to overwrite a read-only file', async () => {
+    const p = join(root, 'locked.txt')
+    writeFileSync(p, 'keep me')
+    chmodSync(p, 0o444)
+    await expect(writeFile(root, 'locked.txt', 'changed', null)).rejects.toThrow()
+    expect(readFileSync(p, 'utf8')).toBe('keep me')
+    chmodSync(p, 0o644)
   })
 })

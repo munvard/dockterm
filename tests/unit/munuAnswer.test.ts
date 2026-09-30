@@ -30,6 +30,13 @@ describe('one-shot ask tokens', () => {
     expect(t.consume(a.token!, 'leaf1')).toBeNull()
   })
 
+  it('keeps the token when the action is rejected, so the card can still answer', () => {
+    const t = createAskTokens()
+    const [a] = t.sync(1, [ask()])
+    expect(t.consume(a.token!, 'leaf1', () => false)).toBeNull()
+    expect(t.consume(a.token!, 'leaf1', () => true)?.wcId).toBe(1)
+  })
+
   it('does not reissue a token for the same prompt after it was used', () => {
     const t = createAskTokens()
     const [a] = t.sync(1, [ask()])

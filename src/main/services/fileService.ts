@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { constants as fsConstants, promises as fs } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { shell } from 'electron'
 import { resolveInside, isRegularFile } from './pathJail'
@@ -119,13 +119,31 @@ export async function writeFile(
   // file untouched instead of a truncated/corrupted one, since rename onto an
   // existing path is atomic on the same filesystem (always true here — the
   // temp file is a sibling of the target).
+  // The temp file is new, so it would get default permissions: carry the old
+  // mode over (a saved script stays executable), and refuse a read-only file
+  // that an in-place write would also have refused.
+  let mode: number | null = null
+  try {
+    mode = (await fs.stat(abs)).mode & 0o7777
+    await fs.access(abs, fsConstants.W_OK)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  }
   const tmp = `${abs}.dockterm-tmp-${process.pid}-${Date.now()}`
   try {
     await fs.writeFile(tmp, content, 'utf8')
+    if (mode !== null && process.platform !== 'win32') await fs.chmod(tmp, mode)
     await fs.rename(tmp, abs)
   } catch (e) {
     await fs.unlink(tmp).catch(() => {})
-    throw e
+    // Windows refuses to replace a file another program holds open (an editor,
+    // an indexer, antivirus); an in-place write still works there.
+    const code = (e as NodeJS.ErrnoException).code
+    if (process.platform === 'win32' && mode !== null && (code === 'EPERM' || code === 'EBUSY' || code === 'EACCES')) {
+      await fs.writeFile(abs, content, 'utf8')
+    } else {
+      throw e
+    }
   }
   const stat = await fs.stat(abs)
   return { kind: 'ok', mtimeMs: stat.mtimeMs }

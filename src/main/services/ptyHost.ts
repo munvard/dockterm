@@ -25,6 +25,8 @@ class RemotePty implements PtyLike {
   private dataCbs: ((data: string) => void)[] = []
   private exitCbs: ((e: { exitCode: number }) => void)[] = []
   private exited = false
+  /** The shell's process id, once the worker has started it. */
+  pid: number | null = null
 
   constructor(
     private readonly host: PtyHost,
@@ -79,7 +81,11 @@ export class PtyHost {
   private readonly live = new Map<string, RemotePty>()
   private counter = 0
 
-  constructor(private readonly create: () => HostPort) {}
+  constructor(
+    private readonly create: () => HostPort,
+    /** Ends a shell's whole process tree (terminating the worker does not). */
+    private readonly killTree: (pid: number) => void = () => {}
+  ) {}
 
   /** Start the worker ahead of the first pty, so its boot overlaps window loading. */
   warm(): void {
@@ -134,7 +140,8 @@ export class PtyHost {
   private onEvent(e: HostEvent): void {
     const pty = this.live.get(e.id)
     if (!pty) return
-    if (e.t === 'data') pty.emitData(e.data)
+    if (e.t === 'spawned') pty.pid = e.pid
+    else if (e.t === 'data') pty.emitData(e.data)
     else if (e.t === 'exit') pty.emitExit(e.exitCode)
     else {
       pty.emitData(`\x1b[31mFailed to start shell: ${e.message}\x1b[0m\r\n`)
@@ -142,7 +149,8 @@ export class PtyHost {
     }
   }
 
-  /** A dead worker ends its shells; later ptys spawn in-process. */
+  /** A dead worker's shells are killed (terminating a worker leaves its ConPTY
+   * children running, unseen); later ptys spawn in-process. */
   private die(port: HostPort): void {
     if (this.port !== port) return
     this.port = null
@@ -152,6 +160,15 @@ export class PtyHost {
     } catch {
       // already gone
     }
-    for (const pty of [...this.live.values()]) pty.emitExit(-1)
+    for (const pty of [...this.live.values()]) {
+      if (pty.pid !== null) {
+        try {
+          this.killTree(pty.pid)
+        } catch {
+          // best effort: the process may already be gone
+        }
+      }
+      pty.emitExit(-1)
+    }
   }
 }

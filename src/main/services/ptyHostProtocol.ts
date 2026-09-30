@@ -20,6 +20,7 @@ export type HostRequest =
   | { t: 'sync'; flag: Int32Array }
 
 export type HostEvent =
+  | { t: 'spawned'; id: string; pid: number }
   | { t: 'data'; id: string; data: string }
   | { t: 'exit'; id: string; exitCode: number }
   | { t: 'error'; id: string; message: string }

@@ -111,4 +111,22 @@ describe('PtyHost', () => {
     const sync = port.sent.find((m) => m.t === 'sync') as { flag: Int32Array }
     expect(sync.flag).toBeInstanceOf(Int32Array)
   })
+
+  it('kills the shells of a worker that died, so none keep running unseen', () => {
+    const port = fakePort()
+    const killed: number[] = []
+    const host = new PtyHost(() => port, (pid) => killed.push(pid))
+    const a = host.spawn('pwsh.exe', [], opts)!
+    const b = host.spawn('pwsh.exe', [], opts)!
+    const ids = port.sent.map((m) => (m as { id: string }).id)
+    port.emit({ t: 'spawned', id: ids[0], pid: 4242 })
+    port.emit({ t: 'spawned', id: ids[1], pid: 4343 })
+    const exits: number[] = []
+    a.onExit((e) => exits.push(e.exitCode))
+    b.onExit((e) => exits.push(e.exitCode))
+    b.kill()
+    port.die()
+    expect(killed).toEqual([4242])
+    expect(exits).toEqual([-1])
+  })
 })

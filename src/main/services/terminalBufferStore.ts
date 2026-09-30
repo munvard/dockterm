@@ -71,19 +71,38 @@ function isStored(b: unknown): b is StoredBuffer {
   )
 }
 
-/** Entries written before buffers were namespaced (no `ns`) cannot be attributed
- * to a window, so they are ignored rather than handed to whoever asks first. */
-function loadAll(): StoredBuffer[] {
+function readRaw(): unknown[] {
   try {
     const raw = JSON.parse(readFileSync(bufferFile(), 'utf8')) as { buffers?: unknown }
-    return Array.isArray(raw.buffers) ? raw.buffers.filter(isStored) : []
+    return Array.isArray(raw.buffers) ? raw.buffers : []
   } catch {
     return []
   }
 }
 
+function loadAll(): StoredBuffer[] {
+  return readRaw().filter(isStored)
+}
+
+/**
+ * The buffers for window `ns`, plus any saved before buffers were namespaced
+ * (v0.30 and older, no `ns`). Those belonged to the primary window's workspace;
+ * leaf ids are random, so they only ever match the leaves of that restored
+ * workspace, and the next save drops them. Without this an upgrade lost every
+ * terminal's restored scrollback once.
+ */
+export function buffersWithLegacy(raw: unknown[], ns: string): TerminalBuffer[] {
+  const own = buffersFor(raw.filter(isStored), ns)
+  const ids = new Set(own.map((b) => b.leafId))
+  const legacy = raw.filter((b): b is TerminalBuffer => {
+    const o = b as Partial<StoredBuffer> | null
+    return !!o && o.ns === undefined && typeof o.leafId === 'string' && typeof o.data === 'string'
+  })
+  return [...own, ...legacy.filter((b) => !ids.has(b.leafId)).map(({ leafId, data }) => ({ leafId, data }))]
+}
+
 export function loadBuffers(ns: string): TerminalBuffer[] {
-  return buffersFor(loadAll(), ns)
+  return buffersWithLegacy(readRaw(), ns)
 }
 
 export function saveBuffers(ns: string, buffers: TerminalBuffer[]): void {

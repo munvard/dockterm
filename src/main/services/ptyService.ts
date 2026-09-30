@@ -1,6 +1,7 @@
 import os from 'node:os'
 import { existsSync } from 'node:fs'
 import { Worker } from 'node:worker_threads'
+import { execFile } from 'node:child_process'
 import { spawn } from 'node-pty'
 import type { BrowserWindow } from 'electron'
 import { detectShell } from './shellDetect'
@@ -40,6 +41,8 @@ function ptyHost(): PtyHost | null {
       },
       terminate: () => void w.terminate()
     }
+  }, (pid) => {
+    execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => {})
   })
   return host
 }

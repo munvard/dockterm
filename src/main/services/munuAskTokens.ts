@@ -23,7 +23,11 @@ const sigOf = (a: MunuAsk): string => `${a.title ?? ''}${a.options.join('')}`
  */
 export function createAskTokens(): {
   sync: (wcId: number, asks: MunuAsk[]) => MunuAsk[]
-  consume: (token: string, leafId: string) => { wcId: number; ask: MunuAsk } | null
+  consume: (
+    token: string,
+    leafId: string,
+    accept?: (ask: MunuAsk) => boolean
+  ) => { wcId: number; ask: MunuAsk } | null
   dropWindow: (wcId: number) => void
 } {
   const byKey = new Map<string, Entry>()
@@ -59,9 +63,11 @@ export function createAskTokens(): {
       }
       return out
     },
-    consume(token, leafId) {
+    consume(token, leafId, accept) {
       const e = byToken.get(token)
       if (!e || e.used || e.leafId !== leafId) return null
+      // A rejected action leaves the token alive, so the card can still answer.
+      if (accept && !accept(e.ask)) return null
       e.used = true
       return { wcId: e.wcId, ask: e.ask }
     },

@@ -152,10 +152,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => {
       currentProjectPath = cwd
       // A saved workspace only belongs to the project it was saved for. Restoring
       // it regardless used to bleed one project's terminal tabs (and cwds) into a
-      // DIFFERENT project opened later in the same (or a newly-primary) window —
-      // an older persisted file with no projectPath at all is treated the same as
-      // a mismatch (don't restore) rather than "restore regardless".
-      const projectMatches = restored?.projectPath === cwd
+      // DIFFERENT project opened later in the same (or a newly-primary) window.
+      // A save from v0.30 or older has no projectPath; those were only written by
+      // the primary window for the project it reopens at launch, so the first
+      // launch after an upgrade still restores it (the next persist adds the path).
+      const projectMatches =
+        restored?.projectPath === cwd || (restored != null && restored.projectPath === undefined)
       if (isPrimary && projectMatches && restored && Array.isArray(restored.tabs) && restored.tabs.length > 0) {
         try {
           const seenLeafIds = new Set<string>()

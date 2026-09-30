@@ -199,12 +199,27 @@ export function createOverlayWindow(): BrowserWindow {
     reassertOverlayLevel()
     repinLinux()
   })
+  // Resolution, DPI, taskbar or monitor changes move the work areas: re-place
+  // munu (and, on Windows, resize the canvas to the new work area).
+  for (const ev of DISPLAY_EVENTS) screen.on(ev as 'display-added', onDisplayChange)
   overlay.on('closed', () => {
     unregisterWindowRole(overlayId)
+    stopDisplayWatch()
     overlay = null
     canvas = null
   })
   return overlay
+}
+
+const DISPLAY_EVENTS = ['display-added', 'display-removed', 'display-metrics-changed'] as const
+
+function onDisplayChange(): void {
+  canvas = null
+  repositionOverlay()
+}
+
+function stopDisplayWatch(): void {
+  for (const ev of DISPLAY_EVENTS) screen.removeListener(ev as 'display-added', onDisplayChange)
 }
 
 export function getOverlay(): BrowserWindow | null {
@@ -244,6 +259,7 @@ export function destroyOverlay(): void {
   overlay = null
   canvas = null
   stopGuard()
+  stopDisplayWatch()
 }
 
 // Windows canvas safety net: the renderer turns click-through back on when the

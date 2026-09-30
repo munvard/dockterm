@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { capBuffers, mergeBuffers, buffersFor } from '../../src/main/services/terminalBufferStore'
+import { capBuffers, mergeBuffers, buffersFor, buffersWithLegacy } from '../../src/main/services/terminalBufferStore'
 
 const buf = (leafId: string, n: number, ns = '/proj') => ({ ns, leafId, data: 'x'.repeat(n) })
 
@@ -66,5 +66,21 @@ describe('namespaced buffers', () => {
 
   it('the returned entries do not expose the namespace', () => {
     expect(Object.keys(buffersFor([buf('a', 1)], '/proj')[0]).sort()).toEqual(['data', 'leafId'])
+  })
+})
+
+describe('buffersWithLegacy', () => {
+  it('adds pre-namespace buffers after the window\'s own, own entries win', () => {
+    const raw = [
+      { ns: '/p', leafId: 'a', data: 'own' },
+      { leafId: 'a', data: 'old' },
+      { leafId: 'b', data: 'legacy' },
+      { ns: '/q', leafId: 'c', data: 'other window' },
+      { leafId: 3, data: 'bad' }
+    ]
+    expect(buffersWithLegacy(raw, '/p')).toEqual([
+      { leafId: 'a', data: 'own' },
+      { leafId: 'b', data: 'legacy' }
+    ])
   })
 })

@@ -134,8 +134,8 @@ function ownerOfPrimaryAsk(): { wc: Electron.WebContents; ask: MunuAsk } | null 
  * The token must be the one main issued for that pane's CURRENT prompt; it is
  * spent on first use. The owning renderer builds the key presses itself. */
 export function answerMunu(leafId: string, token: string, action: MunuAnswerAction): boolean {
-  const hit = askTokens.consume(token, leafId)
-  if (!hit || !isActionValidFor(hit.ask, action)) return false
+  const hit = askTokens.consume(token, leafId, (ask) => isActionValidFor(ask, action))
+  if (!hit) return false
   const wc = webContents.fromId(hit.wcId)
   if (!wc || wc.isDestroyed()) return false
   wc.send('munu:doAnswer', { leafId, action })
