@@ -3,14 +3,22 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__ — scrolling that feels native, plus fixes
+## 🎯 What's new in v__VER__: chat mode, reading comfort, and a much smoother Windows app
 
-- **Scrolling feels like a normal terminal again.** Claude Code now renders **inline** by default and uses the terminal's own scrollback, so scrolling back through a conversation is smooth and native — no more fullscreen take-over. Prefer the flicker-free fullscreen TUI? Turn it on in **Settings → Terminal → Claude Code fullscreen TUI**.
-- **munu drags reliably.** Fixed the intermittent “sticking” when dragging the pinned munu mascot — it now follows your cursor every time (the drag is tracked in the main process and can no longer flip click-through mid-drag).
-- **The Changes panel stays put.** The floating Changes panel never pops open on its own anymore — it appears only when you click a terminal's Changes button.
-- **Option is no longer Meta on macOS by default.** Option now types characters like `@ { } [ ] | ~ \` on German, French and other layouts. If you used Option+B / Option+F for word jumps in your shell, turn it back on in **Settings → Terminal**.
+- **Chat mode.** Press `⌘R` (`Ctrl Shift R` on Windows and Linux) on any pane to see Claude's session as a clean conversation. Permission prompts become buttons, a timer shows how long Claude has been working, and the composer handles images, files, smart paste, `/` and `@` menus, history and drafts. The real terminal keeps running underneath.
+- **Talk to Claude.** Hold the mic in the chat composer, or click it to toggle, to use Claude Code's own voice mode. If voice can't start, DockTerm shows Claude's reason instead of going silent.
+- **Reading comfort.** A Reading view of the conversation (docked or floating), a warm low-glare Reading theme, line height, letter spacing and padding with one-tap presets, and Zen mode (`⌘.` / `Ctrl Shift .`) that dims the panes you are not using.
+- **Windows, much smoother.**
+  - No more 2 to 3 second freeze at launch: terminals now start in a background worker.
+  - A slow shell start shows a dim "Starting shell…" line instead of an empty pane.
+  - Restored terminal history is no longer overwritten by the new shell after a restart.
+  - The native title bar is gone; the window buttons sit on DockTerm's own bar.
+  - munu no longer flickers when you click it or when it changes size.
+- **Shortcut changes.** The Review panel moved to `⌘E` / `Ctrl Shift E`, because `⌘R` is now chat mode. On Windows and Linux, Settings and zoom now use `Ctrl Shift`, so plain `Ctrl` keys always reach your shell.
+- **Safer.** A security pass across the app: a trust check before reading repo git config that could run commands, stricter symlink handling in the project folder jail, update downloads that fail closed without a valid checksum, masked secrets in MCP commands, and a munu overlay that can reach only the few channels it needs.
+- **A pinned munu may move once.** munu now remembers where its centre is, so it stays put when its size changes. After you update, a pinned munu can sit a little to the side of where you left it; drag it back once.
 
-All local and read-only on your own `~/.claude` files — no API, no telemetry.
+All local and read-only on your own `~/.claude` files. No API, no telemetry.
 
 ---
 

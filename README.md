@@ -118,6 +118,8 @@ By default munu tucks into the notch, slides out on hover, and peeks for a few s
 ## What you get
 
 - **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, and native, instant scrolling. Drag a pane to reorder the grid.
+- **Chat mode:** press `⌘R` / `Ctrl Shift R` on any pane to read Claude's session as a clean conversation, with a working timer, permission prompts as buttons, and a composer for attachments, smart paste, `/` and `@` menus, history and drafts. Hold the mic to talk through Claude's own voice mode. The real terminal keeps running underneath; press the shortcut again to go back.
+- **Reading comfort:** a docked or floating Reading view of the current conversation, a warm low-glare Reading theme, line height, letter spacing and padding controls with one-tap presets, and Zen mode (`⌘.` / `Ctrl Shift .`) that dims the panes you're not using.
 - **Claude workflow helpers** — one-click `claude` / `claude --resume`, a checkpoint rail for the current conversation, and a Send to Claude selection toolbar for turning terminal text into a referenced prompt snippet.
 - **Live agent activity** — a top-bar count pill, Activity panel, and munu swarm show Claude Code subagents as they start, run, and finish, grouped by project and read from local transcripts.
 - **Terminal memory after quit** — DockTerm restores each terminal's visible scrollback after a full app quit, so updating the app does not leave you staring at a blank shell. Use `claude --resume` to continue Claude's actual conversation.
@@ -174,11 +176,15 @@ DockTerm uses the shortcuts you already know from each platform's default termin
 | Close tab | `⌘W` | `Ctrl Shift W` |
 | Command palette | `⌘K` | `Ctrl Shift P` |
 | Open project | `⌘O` | `Ctrl Shift O` |
-| Files / Git / Review panel | `⌘B` / `⌘G` / `⌘R` | `Ctrl Shift B / G / R` |
+| Files / Git / Review panel | `⌘B` / `⌘G` / `⌘E` | `Ctrl Shift B / G / E` |
+| Chat mode for the focused pane | `⌘R` | `Ctrl Shift R` |
+| Zen mode | `⌘.` | `Ctrl Shift .` |
+| Compose a long prompt | `⌘⇧⏎` | `Ctrl Shift Enter` |
+| Split right | `⌘D` | `Ctrl Shift D` |
 | MCP panel | `⌘⇧M` | `Ctrl Shift M` |
 | Mini terminal | `⌘J` | `Ctrl Shift J` |
-| Settings | `⌘,` | `Ctrl ,` |
-| Zoom in / out / reset | `⌘ + / − / 0` | `Ctrl + / − / 0` |
+| Settings | `⌘,` | `Ctrl Shift ,` |
+| Zoom in / out / reset | `⌘ + / − / 0` | `Ctrl Shift + / − / 0` |
 | Scroll to top / bottom | `⌘↑ / ⌘↓` | `Shift PageUp / PageDown` |
 | Summon / hide DockTerm (global) | `⌘⇧\`` | `Ctrl Shift \`` |
 
