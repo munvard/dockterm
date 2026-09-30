@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { RESTORE_BANNER, restoreScrollTail } from '../../src/renderer/src/components/terminal/restoreBanner'
+import { CLEAR_STARTING_HINT, RESTORE_BANNER, STARTING_HINT, restoreScrollTail } from '../../src/renderer/src/components/terminal/restoreBanner'
 
 describe('restore banner', () => {
   it('keeps each banner line within 80 columns', () => {
@@ -21,5 +21,13 @@ describe('restoreScrollTail', () => {
   it('never scrolls more than a screen, and does nothing when the viewport is already empty', () => {
     expect(restoreScrollTail('win32', 24, 40)).toBe('\x1b[24;1H' + '\n'.repeat(24) + '\x1b[H')
     expect(restoreScrollTail('win32', 24, 0)).toBe('')
+  })
+})
+
+describe('starting hint', () => {
+  it('stays on one line and returns the cursor to its start, so ConPTY still sees an empty screen', () => {
+    expect(STARTING_HINT).not.toMatch(/\n/)
+    expect(STARTING_HINT.endsWith('\r')).toBe(true)
+    expect(CLEAR_STARTING_HINT).toBe('\x1b[2K')
   })
 })

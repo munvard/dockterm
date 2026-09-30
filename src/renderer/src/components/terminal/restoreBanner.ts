@@ -18,3 +18,14 @@ export function restoreScrollTail(platform: string, rows: number, cursorY: numbe
   if (platform !== 'win32' || cursorY <= 0) return ''
   return `\x1b[${rows};1H` + '\n'.repeat(Math.min(cursorY, rows)) + '\x1b[H'
 }
+
+/**
+ * Windows only: a dim line shown when the shell is slow to start (Windows can hold a
+ * new console program for seconds right after launch). No newline, and the cursor goes
+ * back to the line start, so the screen still matches the empty one ConPTY assumes.
+ */
+export const STARTING_HINT = '\x1b[90mStarting shell…\x1b[0m\r'
+/** Erases the hint's line just before the shell's first output (the cursor is still on it). */
+export const CLEAR_STARTING_HINT = '\x1b[2K'
+/** How long a shell may take before the hint appears, so a quick start never flashes it. */
+export const STARTING_HINT_DELAY_MS = 600

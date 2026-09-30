@@ -17,7 +17,13 @@ import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
 import { bundledConptyBuild } from './conptyBuild'
-import { RESTORE_BANNER, restoreScrollTail } from './restoreBanner'
+import {
+  CLEAR_STARTING_HINT,
+  RESTORE_BANNER,
+  STARTING_HINT,
+  STARTING_HINT_DELAY_MS,
+  restoreScrollTail
+} from './restoreBanner'
 import {
   handleImagePasteEvent,
   pasteImageFromSystemClipboard,
@@ -556,7 +562,17 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     termPaste: (text) => term.paste(text)
   })
 
+  let hintTimer: ReturnType<typeof setTimeout> | undefined
+  let hintShown = false
   const writeChunk = (data: string): void => {
+    if (hintTimer) {
+      clearTimeout(hintTimer)
+      hintTimer = undefined
+    }
+    if (hintShown) {
+      hintShown = false
+      term.write(CLEAR_STARTING_HINT)
+    }
     term.write(data, () => {
       if (sessionId) {
         void window.dockterm.invoke('pty:ack', {
@@ -633,6 +649,14 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
             const tail = restoreScrollTail(currentPlatform(), term.rows, term.buffer.active.cursorY)
             if (tail) await new Promise<void>((resolve) => term.write(tail, resolve))
           }
+        }
+        if (currentPlatform() === 'win32') {
+          hintTimer = setTimeout(() => {
+            hintTimer = undefined
+            if (disposed) return
+            hintShown = true
+            term.write(STARTING_HINT)
+          }, STARTING_HINT_DELAY_MS)
         }
         return window.dockterm.invoke('pty:create', {
           kind: opts.kind,
@@ -723,6 +747,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   }
   p.dispose = () => {
     disposed = true
+    if (hintTimer) clearTimeout(hintTimer)
     offData()
     offExit()
     dataSub.dispose()
