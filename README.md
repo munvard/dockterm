@@ -13,6 +13,15 @@
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/hd/hero.gif" alt="munu surfacing Claude's permission prompt over a fullscreen movie, answered without leaving the film" width="900">
+</p>
+
+<p align="center">
+  <b>macOS, Windows and Linux.</b> Free, open source (MIT), no account, no telemetry.<br>
+  <a href="#install">Download</a> · <a href="https://munetic.net/dockterm">Website</a> · <a href="../../issues">Report a bug</a>
+</p>
+
+<p align="center">
   <a href="../../releases"><img alt="Download" src="https://img.shields.io/github/v/release/munvard/dockterm?style=for-the-badge&label=Download&labelColor=1e1e1d&color=7c6bff&logo=github&logoColor=white"></a>
   &nbsp;
   <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/munvard/dockterm/total?style=for-the-badge&label=Downloads&labelColor=1e1e1d&color=4ade80&logo=github&logoColor=white"></a>
@@ -194,7 +203,13 @@ DockTerm uses the shortcuts you already know from each platform's default termin
 
 ## Install
 
-Download from [Releases](../../releases):
+**macOS, with Homebrew:**
+
+```bash
+brew install --cask munvard/dockterm/dockterm
+```
+
+**Or download** from [Releases](../../releases):
 
 | System | File |
 |---|---|
