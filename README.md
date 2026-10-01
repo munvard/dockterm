@@ -47,9 +47,11 @@
 <p align="center"><sub>One calm window — your real <code>claude</code> sessions front and center, with files, diffs, Git, MCP and usage on demand. A project per pane.</sub></p>
 
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3">
-    <img src="docs/screenshots/tour-poster.jpg" alt="Watch the 54-second DockTerm tour (sound on)" width="800">
-  </a>
+  <video src="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3" poster="https://raw.githubusercontent.com/munvard/dockterm/main/docs/screenshots/tour-poster.jpg" controls muted playsinline width="800">
+    <a href="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3">
+      <img src="docs/screenshots/tour-poster.jpg" alt="Watch the 54-second DockTerm tour (sound on)" width="800">
+    </a>
+  </video>
   <br>
   <b>▶ Watch the 54-second tour</b> (sound on)
 </p>
