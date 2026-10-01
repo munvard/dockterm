@@ -1,3 +1,5 @@
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)"  srcset="assets/brand/dockterm-logo.svg">
