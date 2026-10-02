@@ -252,8 +252,15 @@ export interface UsageSettings {
 
 /* --------------------------- live agent activity --------------------------- */
 
-/** Lifecycle of a Claude Code sub-agent, inferred from the local transcript. */
-export type AgentPhase = 'running' | 'done' | 'failed'
+/** Lifecycle of a Claude Code sub-agent, inferred from the local transcript.
+ * `idle` is only used by team members that finished a task and wait for the next
+ * message (still alive, but not working). */
+export type AgentPhase = 'running' | 'idle' | 'done' | 'failed'
+
+/** How the agent was started: a normal (foreground) sub-agent, a background agent
+ * (`run_in_background`, keeps working after the tool call returns), or a member of
+ * an agent team (a named in-process teammate). */
+export type AgentKind = 'subagent' | 'background' | 'teammate'
 
 /** One Claude Code sub-agent (spawned via the `Agent`/`Task` tool), reconstructed
  * read-only from the local `~/.claude` session transcripts. The transcript records the spawn
@@ -283,6 +290,21 @@ export interface LiveAgent {
   ok: boolean | null
   /** capped final result text once done (null while running, or if streamOutput off). */
   resultPreview: string | null
+  kind: AgentKind
+  /** the agent's own name (background agents and teammates are often named). */
+  name: string | null
+  /** team the agent belongs to (teammates only). */
+  teamName: string | null
+  /** Claude Code's agent id (the `agent-<id>.jsonl` file stem), when known. */
+  agentId: string | null
+  /** team colour name from Claude Code ('blue', 'orange'…), when known. */
+  color: string | null
+  /** what it is doing right now, e.g. 'Edit agentParse.ts' (from its own transcript). */
+  action: string | null
+  /** tool calls made so far (from its own transcript). */
+  steps: number
+  /** last time its own transcript grew (ms), null when unknown. */
+  lastActiveAt: number | null
 }
 
 /** Aggregated live-agent snapshot broadcast to every window. */

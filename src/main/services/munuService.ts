@@ -1,5 +1,6 @@
 import { BrowserWindow, Notification, powerSaveBlocker, screen, webContents } from 'electron'
-import { aggregate } from '@shared/munu'
+import { aggregateWithAgents } from '@shared/munu'
+import { getActiveAgentCount, onAgentCountChange } from './agentActivityService'
 import { getSettings } from './settingsService'
 import {
   createOverlayWindow,
@@ -96,7 +97,7 @@ function computeGlobal(): MunuGlobal {
     states.push(g.state)
     for (const a of g.asks) asks.push(a)
   }
-  return { state: aggregate(states), asks }
+  return { state: aggregateWithAgents(states, getActiveAgentCount()), asks }
 }
 
 function pushGlobal(): void {
@@ -111,6 +112,9 @@ function pushGlobal(): void {
   applyKeepAwake(global.state)
   maybeNotify(global.state)
 }
+
+// A background agent or team member starting or ending changes munu's state.
+onAgentCountChange(() => pushGlobal())
 
 /** The window + first asking pane (used to route focus). Prefers an ask the
  * user can't currently see — that's the one the overlay surfaces. */

@@ -3057,6 +3057,73 @@
   background: var(--danger-soft);
 }
 
+.agent-card--idle {
+  border-color: var(--border);
+}
+.agent-card--idle .agent-card__rail {
+  background: var(--text-faint);
+}
+.agent-card__status--idle {
+  color: var(--text-faint);
+}
+.agent-card__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.agent-card__role {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kindbadge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--overlay);
+  border: 1px solid var(--border);
+}
+.kindbadge--background {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.kindbadge--teammate {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+.agent-card__action {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-team {
+  margin-top: 10px;
+}
+.agent-team__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--success);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
 @keyframes agent-enter {
   from {
     opacity: 0;

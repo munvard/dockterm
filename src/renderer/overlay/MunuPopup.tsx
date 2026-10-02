@@ -1,7 +1,42 @@
 // src/renderer/overlay/MunuPopup.tsx
-import type { MascotCharacter } from '@shared/types'
+import { useEffect, useState } from 'react'
+import type { LiveAgent, MascotCharacter } from '@shared/types'
 import { Munu } from '@renderer/components/munu/Munu'
 import { CHARACTERS } from '@renderer/components/munu/mascots'
+import { agentTitle, fmtElapsed, isLive, kindLabel } from '@renderer/components/agents/agentVisual'
+
+const AGENT_ROWS = 5
+
+function AgentRows({ agents }: { agents: LiveAgent[] }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const live = agents.filter(isLive)
+  if (live.length === 0) return null
+  const shown = live.slice(0, AGENT_ROWS)
+  return (
+    <div className="mpop__agents">
+      <div className="mpop__label mpop__label--block">
+        Agents <span className="mpop__count">{agents.filter((a) => a.phase === 'running').length} running</span>
+      </div>
+      {shown.map((a) => (
+        <div className={`mpop__agent mpop__agent--${a.phase}`} key={a.id}>
+          <div className="mpop__agent-top">
+            <span className={`kindbadge kindbadge--${a.kind}`}>{kindLabel(a.kind)}</span>
+            <span className="mpop__agent-name">{agentTitle(a)}</span>
+            <span className="mpop__agent-time">
+              {a.phase === 'idle' ? 'idle' : fmtElapsed(now - a.startedAt)}
+            </span>
+          </div>
+          <div className="mpop__agent-line">{a.action ?? a.description}</div>
+        </div>
+      ))}
+      {live.length > shown.length && <div className="mpop__agent-more">+{live.length - shown.length} more</div>}
+    </div>
+  )
+}
 
 const SIZE_MIN = 36
 const SIZE_MAX = 120
@@ -11,6 +46,7 @@ export function MunuPopup({
   size,
   character,
   pinned,
+  agents,
   onSize,
   onCharacter,
   onPin,
@@ -19,6 +55,7 @@ export function MunuPopup({
   size: number
   character: MascotCharacter
   pinned: boolean
+  agents: LiveAgent[]
   onSize: (next: number) => void
   onCharacter: (c: MascotCharacter) => void
   onPin: (next: boolean) => void
@@ -64,6 +101,8 @@ export function MunuPopup({
           </button>
         ))}
       </div>
+
+      <AgentRows agents={agents} />
 
       <div className="mpop__row">
         <span className="mpop__label">

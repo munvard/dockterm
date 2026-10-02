@@ -32,7 +32,11 @@ export function AgentPill() {
   // "here" only.
   const projects = new Set(activity?.agents.map((a) => a.project) ?? [])
   const scope = projects.size > 1 ? ' across all projects' : ''
-  const tip = `${count} agent${count === 1 ? '' : 's'} running${scope} — click for live activity`
+  const running = (activity?.agents ?? []).filter((a) => a.phase === 'running')
+  const bg = running.filter((a) => a.kind === 'background').length
+  const mates = running.filter((a) => a.kind === 'teammate').length
+  const extra = [bg ? `${bg} background` : '', mates ? `${mates} teammate${mates === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')
+  const tip = `${count} agent${count === 1 ? '' : 's'} running${extra ? ` (${extra})` : ''}${scope} — click for live activity`
 
   return (
     <button
@@ -42,7 +46,7 @@ export function AgentPill() {
       onClick={() => toggle('activity')}
     >
       <span className="agent-pill__creature">
-        <Munu state="working" character={creatureFor(lead?.type ?? 'agent')} size={16} />
+        <Munu state="working" character={creatureFor(lead?.name ?? lead?.type ?? 'agent')} size={16} />
       </span>
       <span className="agent-pill__count">{count}</span>
       <span className="agent-pill__pulse" aria-hidden />

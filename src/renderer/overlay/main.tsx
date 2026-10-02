@@ -362,6 +362,7 @@ function Overlay() {
             size={munuSize}
             character={character}
             pinned={pinned}
+            agents={activity?.agents ?? []}
             onSize={(n) => writeMunu({ size: n })}
             onCharacter={(c) => writeMunu({ character: c })}
             onPin={(p) => writeMunu({ pinned: p })}
