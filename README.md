@@ -188,7 +188,7 @@ DockTerm does not replace Claude Code with a chat clone. It watches the real ter
 
 ## Keyboard shortcuts
 
-DockTerm uses the shortcuts you already know from each platform's default terminal, and never steals keys the shell needs (plain `Ctrl C`/`Ctrl W` always go to the shell).
+DockTerm uses the shortcuts you already know from each platform's default terminal, and never steals keys the shell needs (plain `Ctrl C` with nothing selected and `Ctrl W` always go to the shell).
 
 | Action | macOS | Windows / Linux |
 |---|---|---|
@@ -206,6 +206,8 @@ DockTerm uses the shortcuts you already know from each platform's default termin
 | Mini terminal | `⌘J` | `Ctrl Shift J` |
 | Settings | `⌘,` | `Ctrl Shift ,` |
 | Zoom in / out / reset | `⌘ + / − / 0` | `Ctrl Shift + / − / 0` |
+| Copy / paste | `⌘C` / `⌘V` | `Ctrl Shift C` / `Ctrl Shift V` (also `Ctrl Insert` / `Shift Insert`; on Windows, `Ctrl V` and `Ctrl C` with text selected too) |
+| Copy the selection with the mouse | right-click | right-click (on Windows, right-click with nothing selected pastes) |
 | Scroll to top / bottom | `⌘↑ / ⌘↓` | `Shift PageUp / PageDown` |
 | Summon / hide DockTerm (global) | `⌘⇧\`` | `Ctrl Shift \`` |
 
