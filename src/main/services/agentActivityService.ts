@@ -1,7 +1,7 @@
 import { BrowserWindow, Notification, powerSaveBlocker } from 'electron'
 import { join } from 'node:path'
 import { getSettings } from './settingsService'
-import { createAgentTracker } from './agentTracker'
+import { activityKeys, createAgentTracker } from './agentTracker'
 import { claudeConfigDir } from './claudeConfigDir'
 import { createPidOwner, paneWork, processTableReader } from './agentPanes'
 import { ptyProcesses } from './ptyService'
@@ -20,6 +20,7 @@ const RESULT_MAX = 280
 const ACTIVE_POLL_MS = 1_000 // snappy while agents are running
 const WATCH_POLL_MS = 3_000 // sessions are open but nothing is running
 const IDLE_POLL_MS = 8_000 // nothing to follow at all
+const DETAIL_GAP_MS = 3_000 // steps/action of running agents are re-sent at most this often
 
 const tracker = createAgentTracker({
   projectsDir: join(claudeConfigDir(), 'projects'),
@@ -36,7 +37,11 @@ let lastUnattributed = 0
 let lastOutside = 0
 let lastAgentsSent = ''
 let blockerId: number | null = null
-let lastSent = ''
+let lastStructure = ''
+let lastDetail = ''
+let lastSentAt = 0
+/** the newest snapshot built by the watcher: activity:get answers from it */
+let lastSnap: AgentActivity | null = null
 const countListeners = new Set<() => void>()
 
 function enabled(): boolean {
@@ -49,7 +54,12 @@ function emptySnapshot(now = Date.now()): AgentActivity {
 
 async function scanAll(): Promise<void> {
   await tracker.scan()
-  await pidOwner.refresh(tracker.liveSessions().map((s) => s.pid))
+  // Not awaited: on Windows the process-table read is a PowerShell child taking
+  // about a second. Sessions it has not placed yet count as unplaced; when it has
+  // news, the next tick runs at once.
+  void pidOwner.refresh(tracker.liveSessions().map((s) => s.pid)).then((learned) => {
+    if (learned) schedule(0)
+  })
 }
 
 function buildSnapshot(): AgentActivity {
@@ -117,10 +127,17 @@ function noteCount(active: number): void {
   if (prev !== active || agentsChanged) for (const cb of countListeners) cb()
 }
 
-/** Everything a window renders from a snapshot except its timestamp, so an
- * unchanged snapshot is not re-sent (the UI ticks elapsed time itself). */
-function fingerprint(s: AgentActivity): string {
-  return JSON.stringify([s.agents, s.activeCount, s.byProject, s.busyPtys])
+/** Send a snapshot only when something a window renders changed: structure at
+ * once, steps/action of running agents at most every DETAIL_GAP_MS (a later tick
+ * sends what was held back). The UI ticks elapsed time itself. */
+function maybeBroadcast(snap: AgentActivity): void {
+  const { structure, detail } = activityKeys(snap)
+  const now = Date.now()
+  if (structure === lastStructure && (detail === lastDetail || now - lastSentAt < DETAIL_GAP_MS)) return
+  lastStructure = structure
+  lastDetail = detail
+  lastSentAt = now
+  broadcast(snap)
 }
 
 /** A Claude in a pane (or not yet placed) is mid-turn: poll fast so the pane's
@@ -132,6 +149,7 @@ function anyBusySession(): boolean {
 function tick(): void {
   if (!enabled()) {
     lastUnattributed = lastOutside = 0
+    lastSnap = null
     applyKeepAwake(0)
     noteCount(0)
     schedule(IDLE_POLL_MS)
@@ -140,13 +158,10 @@ function tick(): void {
   void scanAll()
     .then(() => {
       const snap = buildSnapshot()
-      const fp = fingerprint(snap)
-      // Send only on a change: a window that (re)loads pulls a fresh snapshot
-      // through activity:get, so nothing relies on a once-a-second resend.
-      if (fp !== lastSent) {
-        lastSent = fp
-        broadcast(snap)
-      }
+      lastSnap = snap
+      // A window that (re)loads pulls the snapshot through activity:get, so
+      // nothing relies on a periodic resend.
+      maybeBroadcast(snap)
       applyKeepAwake(snap.activeCount)
       noteCount(snap.activeCount)
       schedule(
@@ -169,11 +184,14 @@ function schedule(ms: number): void {
   timer = setTimeout(tick, ms)
 }
 
-/** Current snapshot, after ensuring a scan has run (used by the `activity:get` handler). */
+/** The current snapshot (the `activity:get` handler). While the watcher runs this
+ * is the one its last tick built, so a window opening costs no scan. */
 export async function getAgentActivity(): Promise<AgentActivity> {
   if (!enabled()) return emptySnapshot()
+  if (started && lastSnap) return lastSnap
   await scanAll()
-  return buildSnapshot()
+  lastSnap = buildSnapshot()
+  return lastSnap
 }
 
 /** Start following agent activity (idempotent). */

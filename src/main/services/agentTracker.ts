@@ -455,3 +455,21 @@ export function createAgentTracker(paths: TrackerPaths, clock: () => number = Da
 }
 
 export type AgentTracker = ReturnType<typeof createAgentTracker>
+
+/**
+ * What a window renders from a snapshot, split in two. `structure` (which agents,
+ * their phase and result, the counts, the busy panes) is sent at once when it
+ * changes. `detail` (steps and current action of running agents) changes on every
+ * tool call, so it is sent at most every few seconds. `updatedAt` and
+ * `lastActiveAt` are left out: no window shows them.
+ */
+export function activityKeys(s: AgentActivity): { structure: string; detail: string } {
+  const structure = JSON.stringify([
+    s.agents.map((a) => [a.id, a.agentId, a.phase, a.kind, a.type, a.description, a.name, a.teamName, a.color, a.ok, a.endedAt, a.durationMs, a.resultPreview, a.parentMsgId, a.sessionId, a.startedAt]),
+    s.activeCount,
+    s.byProject,
+    s.busyPtys ?? []
+  ])
+  const detail = JSON.stringify(s.agents.map((a) => [a.steps, a.action]))
+  return { structure, detail }
+}

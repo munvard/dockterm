@@ -115,7 +115,8 @@ export function processTableReader(platform: NodeJS.Platform = process.platform)
 /**
  * Caches pid to pane. A Claude process never changes parents, so an answer (pane
  * or none) is kept until the pid leaves the registry; only new pids trigger a
- * process-table read, at most once per `minGapMs`.
+ * process-table read, at most once per `minGapMs`. `refresh` resolves true when it
+ * learned something new; callers need not wait for it (the read is a child process).
  */
 export function createPidOwner(
   readTable: ProcessTableReader,
@@ -127,30 +128,31 @@ export function createPidOwner(
   let lastRead = -Infinity
   let reading: Promise<void> | null = null
 
-  async function refresh(pids: readonly number[]): Promise<void> {
+  async function refresh(pids: readonly number[]): Promise<boolean> {
     const want = new Set(pids)
     for (const p of [...known.keys()]) if (!want.has(p)) known.delete(p)
     const live = ptys()
     const liveIds = new Set(live.map((p) => p.id))
     for (const [p, pty] of known) if (pty && !liveIds.has(pty)) known.delete(p)
     const missing = pids.filter((p) => !known.has(p))
-    if (missing.length === 0 || live.length === 0 || reading || clock() - lastRead < minGapMs) {
-      if (reading) await reading
-      return
-    }
+    if (missing.length === 0 || live.length === 0 || reading || clock() - lastRead < minGapMs) return false
     lastRead = clock()
+    let learned = false
     reading = (async () => {
       try {
         const table = await readTable()
         const byPid = new Map(ptys().map((p) => [p.pid, p.id]))
-        for (const p of missing) if (table.has(p)) known.set(p, ptyForPid(p, table, byPid))
+        // a pid missing from a table read after it registered has exited: not in a pane
+        for (const p of missing) known.set(p, table.has(p) ? ptyForPid(p, table, byPid) : null)
+        learned = true
       } catch {
-        // unknown for now: those sessions count globally until a later read works
+        // unknown for now: those sessions count as unplaced until a later read works
       } finally {
         reading = null
       }
     })()
     await reading
+    return learned
   }
 
   return {

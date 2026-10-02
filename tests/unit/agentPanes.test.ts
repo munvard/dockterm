@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createPidOwner, paneWork, parseProcessTable, ptyForPid } from '../../src/main/services/agentPanes'
 import { parseAgentLine, reduceActivity } from '../../src/main/services/agentParse'
-import type { LiveSession } from '../../src/main/services/agentTracker'
+import { activityKeys, type LiveSession } from '../../src/main/services/agentTracker'
 import { aggregateWithAgents, effectivePaneState } from '../../src/shared/munu'
 import { busyLeaves, useMunuStore } from '@renderer/state/useMunuStore'
 import type { LiveAgent } from '@shared/types'
@@ -67,11 +67,12 @@ describe('createPidOwner', () => {
     let now = 0
     const read = vi.fn(async () => parseProcessTable('100 1\n110 100\n210 1'))
     const own = createPidOwner(read, () => [{ id: 'pty-1', pid: 100 }], 2000, () => now)
-    await own.refresh([110, 210])
+    expect(await own.refresh([110, 210, 777])).toBe(true)
     expect(own.owner(110)).toBe('pty-1')
     expect(own.owner(210)).toBeNull()
+    expect(own.owner(777)).toBeNull() // exited before the read: never re-read for it
     now = 10_000
-    await own.refresh([110, 210])
+    expect(await own.refresh([110, 210, 777])).toBe(false)
     expect(read).toHaveBeenCalledTimes(1)
   })
 
@@ -197,5 +198,29 @@ describe('replay of a real Claude Code 2.1.287 transcript (agent that parks on i
     const snap = reduceActivity(events, ts(5) + 1000)
     expect(snap.agents[0]).toMatchObject({ phase: 'done', ok: true })
     expect(snap.activeCount).toBe(0)
+  })
+})
+
+describe('activity broadcast keys', () => {
+  const snap = (over: Partial<LiveAgent> = {}, busyPtys: string[] = []) => ({
+    updatedAt: 1,
+    activeCount: 1,
+    byProject: [],
+    busyPtys,
+    agents: [{ id: 't1', phase: 'running', steps: 3, action: 'Read a.ts', lastActiveAt: 100, ...over } as unknown as LiveAgent]
+  })
+
+  it('ignores fields no window renders (timestamps, transcript growth)', () => {
+    const a = activityKeys(snap())
+    expect(activityKeys({ ...snap({ lastActiveAt: 999 }), updatedAt: 50 })).toEqual(a)
+  })
+
+  it('puts steps and action in detail, phase and busy panes in structure', () => {
+    const a = activityKeys(snap())
+    const step = activityKeys(snap({ steps: 4, action: 'Edit b.ts' }))
+    expect(step.structure).toBe(a.structure)
+    expect(step.detail).not.toBe(a.detail)
+    expect(activityKeys(snap({ phase: 'done' })).structure).not.toBe(a.structure)
+    expect(activityKeys(snap({}, ['pty-1'])).structure).not.toBe(a.structure)
   })
 })
