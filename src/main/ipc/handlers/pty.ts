@@ -44,13 +44,13 @@ export function registerPtyHandlers(reg: Registrar): void {
   reg('pty:create', createSchema, (req, event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return err('UNKNOWN', 'No window associated with this request')
-    const { sessionId, shell, cwd, cwdFellBack } = createPty({
+    const { sessionId, shell, cwd, cwdFellBack, claudeFlag } = createPty({
       cols: req.cols,
       rows: req.rows,
       cwd: req.cwd,
       win
     })
-    return ok({ sessionId, shell, cwd, cwdFellBack })
+    return ok({ sessionId, shell, cwd, cwdFellBack, claudeFlag })
   })
 
   // write/resize/kill/ack all act on an existing session: reject a request

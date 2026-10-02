@@ -5,8 +5,10 @@ import { execFile } from 'node:child_process'
 import { spawn } from 'node-pty'
 import type { BrowserWindow } from 'electron'
 import { detectShell } from './shellDetect'
-import { integrationFor } from './shellIntegration'
+import { integrationFor, shellKind } from './shellIntegration'
 import { getSettings } from './settingsService'
+import { captureSettingsPath } from './usageCaptureService'
+import { settingsFlagText } from './usageCaptureCore'
 import { ensureUtf8Locale } from './ptyLocale'
 import { PtyFlow } from './ptyFlow'
 import { PTY } from '@shared/constants'
@@ -78,6 +80,9 @@ export interface CreatePtyResult {
    * the home directory instead: the caller should tell the user rather than
    * silently pretending the pane opened where it was asked to. */
   cwdFellBack: boolean
+  /** `--settings "<file>"` for a launcher to add after `claude` in a shell without
+   * the DockTerm `claude` hook; null when the hook adds it, or capture is off. */
+  claudeFlag: string | null
 }
 
 export function createPty(args: CreatePtyArgs): CreatePtyResult {
@@ -108,6 +113,19 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
       shellArgs = integration.args
       Object.assign(env, integration.env)
     }
+  }
+
+  // Real Claude usage: the shells we integrate define a `claude` function that adds
+  // `--settings <DockTerm file>` (it reads DOCKTERM_USAGE_SETTINGS). Other shells get
+  // the flag from the launchers instead (claudeFlag). Off, or capture unavailable
+  // (see captureSettingsPath): Claude is started untouched.
+  delete env.DOCKTERM_USAGE_SETTINGS
+  let claudeFlag: string | null = null
+  const captureFile = settings.usage.captureEnabled ? captureSettingsPath() : null
+  if (captureFile) {
+    env.DOCKTERM_USAGE_SETTINGS = captureFile
+    const hooked = settings.terminal.shellIntegration && shellKind(shell.file) !== 'other'
+    if (!hooked) claudeFlag = settingsFlagText(captureFile, process.platform)
   }
 
   const spawnOpts = {
@@ -149,7 +167,7 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
     disposeSession(id)
   })
 
-  return { sessionId: id, shell: shell.file, cwd, cwdFellBack }
+  return { sessionId: id, shell: shell.file, cwd, cwdFellBack, claudeFlag }
 }
 
 function flushSession(session: Session): void {

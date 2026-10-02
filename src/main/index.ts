@@ -11,6 +11,7 @@ import { setupAppMenu } from './services/appMenu'
 import { syncOverlay } from './services/munuService'
 import { startUpdateChecker } from './services/updateChecker'
 import { startUsageWatcher } from './services/usageService'
+import { startRealUsageWatcher } from './services/usageCaptureService'
 import { startAgentWatcher } from './services/agentActivityService'
 import { startSessionHistoryWatcher } from './services/sessionHistoryService'
 import { setPendingOpen } from './services/pendingOpen'
@@ -115,6 +116,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
       syncOverlay()
       startUpdateChecker()
       startUsageWatcher()
+      startRealUsageWatcher()
       startAgentWatcher()
       startSessionHistoryWatcher()
       cleanupOldChatImages()

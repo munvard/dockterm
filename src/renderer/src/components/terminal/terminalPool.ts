@@ -183,6 +183,15 @@ const pool = new Map<string, PooledTerminal>()
 /** leafId → live pty session id, for the close-confirmation guard. */
 const paneSessions = new Map<string, string>()
 
+/** leafId → `--settings "<file>"` a launcher must add after `claude` (shells without
+ * the DockTerm `claude` hook only), so Claude's real usage can be captured. */
+const paneClaudeFlags = new Map<string, string>()
+
+/** The capture flag for a pane's launcher commands, or null (hooked shell / off). */
+export function paneClaudeFlag(leafId: string): string | null {
+  return paneClaudeFlags.get(leafId) ?? null
+}
+
 /** The pty session id backing a pane (null if not started / disposed). */
 export function paneSessionId(leafId: string): string | null {
   return paneSessions.get(leafId) ?? null
@@ -746,6 +755,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         }
         sessionId = res.value.sessionId
         paneSessions.set(id, res.value.sessionId)
+        if (res.value.claudeFlag) paneClaudeFlags.set(id, res.value.claudeFlag)
         if (res.value.cwdFellBack) p.opts.onCwdFallback?.(res.value.cwd)
         // Catch up a resize that was dropped while spawning (see above).
         if (term.cols !== requestedCols || term.rows !== requestedRows) {
@@ -831,6 +841,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (sessionId) void window.dockterm.invoke('pty:kill', { sessionId })
     sessionId = null
     paneSessions.delete(id)
+    paneClaudeFlags.delete(id)
     term.dispose()
     if (host.parentElement) host.parentElement.removeChild(host)
     // Drop this pane's Claude-state + writer registrations (true close only).

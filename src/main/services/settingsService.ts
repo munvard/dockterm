@@ -35,6 +35,9 @@ const workspaceBase = z
 
 const workspaceSchema = workspaceBase.default(null)
 
+const usageMetric = z.enum(['fiveHour', 'sevenDay', 'context', 'cost'])
+const usageStyle = z.enum(['percent', 'bar', 'ring', 'graph'])
+
 /** Per-section preference schemas. Every leaf has a default so old/partial
  * configs migrate forward by simply filling the gaps. */
 const preference = {
@@ -141,7 +144,32 @@ const preference = {
   usage: z
     .object({
       enabled: z.boolean().default(true),
-      plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto')
+      plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto'),
+      source: z.enum(['claude', 'local']).default('claude'),
+      captureEnabled: z.boolean().default(true),
+      pill: z
+        .object({
+          show: z.array(usageMetric).max(4).default(['fiveHour']),
+          style: usageStyle.default('percent'),
+          showReset: z.boolean().default(true),
+          warnAt: z.number().min(0).max(100).default(75),
+          critAt: z.number().min(0).max(100).default(90)
+        })
+        .default({}),
+      float: z
+        .object({
+          enabled: z.boolean().default(false),
+          x: z.number().finite().nullable().default(null),
+          y: z.number().finite().nullable().default(null),
+          w: z.number().min(120).max(1200).default(260),
+          h: z.number().min(60).max(900).default(120),
+          alwaysOnTop: z.boolean().default(true),
+          opacity: z.number().min(0.3).max(1).default(1),
+          show: z.array(usageMetric).max(4).default(['fiveHour', 'sevenDay']),
+          style: usageStyle.default('percent'),
+          showReset: z.boolean().default(true)
+        })
+        .default({})
     })
     .default({}),
   agentActivity: z

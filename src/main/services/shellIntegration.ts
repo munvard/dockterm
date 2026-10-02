@@ -79,6 +79,23 @@ const ZSHRC = `# DockTerm shell integration (auto-generated)
 _dockterm_osc7() { printf '\\033]7;file://%s%s\\a' "\${HOST}" "\${PWD}"; }
 typeset -ag precmd_functions
 precmd_functions+=(_dockterm_osc7)
+# Real Claude usage: add --settings <DockTerm file> to claude (inert unless DockTerm
+# exports DOCKTERM_USAGE_SETTINGS). Skipped when the user already defines a claude
+# function, and when they pass --settings themselves. 'function claude' (not
+# 'claude()') so an alias claude=... does not break the definition.
+if [ -n "$DOCKTERM_USAGE_SETTINGS" ] && ! (( $+functions[claude] )); then
+  function claude {
+    local a
+    if [ -f "$DOCKTERM_USAGE_SETTINGS" ]; then
+      for a in "$@"; do
+        case "$a" in --settings|--settings=*) command claude "$@"; return $?;; esac
+      done
+      command claude --settings "$DOCKTERM_USAGE_SETTINGS" "$@"
+    else
+      command claude "$@"
+    fi
+  }
+fi
 # Restore ZDOTDIR so the interactive session sees the user's own value.
 [ -n "$DOCKTERM_USER_ZDOTDIR" ] && export ZDOTDIR="$DOCKTERM_USER_ZDOTDIR"
 `
@@ -105,6 +122,23 @@ case "$PROMPT_COMMAND" in
   *_dockterm_osc7*) ;;
   *) PROMPT_COMMAND="_dockterm_osc7\${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
 esac
+# Real Claude usage: add --settings <DockTerm file> to claude (inert unless DockTerm
+# exports DOCKTERM_USAGE_SETTINGS). Skipped when the user already defines a claude
+# function, and when they pass --settings themselves. 'function claude' (not
+# 'claude()') so an alias claude=... does not break the definition.
+if [ -n "$DOCKTERM_USAGE_SETTINGS" ] && ! declare -F claude >/dev/null 2>&1; then
+  function claude {
+    local a
+    if [ -f "$DOCKTERM_USAGE_SETTINGS" ]; then
+      for a in "$@"; do
+        case "$a" in --settings|--settings=*) command claude "$@"; return $?;; esac
+      done
+      command claude --settings "$DOCKTERM_USAGE_SETTINGS" "$@"
+    else
+      command claude "$@"
+    fi
+  }
+fi
 `
 export const PWSH_INIT = `# DockTerm shell integration (auto-generated)
 $global:__dockterm_origPrompt = $function:prompt
@@ -127,6 +161,26 @@ function global:prompt {
   }
   if ($__dockterm_origPrompt) { & $__dockterm_origPrompt } else { "PS $($loc.Path)> " }
 }
+# Real Claude usage: add --settings <DockTerm file> to claude (inert unless DockTerm
+# sets DOCKTERM_USAGE_SETTINGS). Skipped when the user already defines a claude
+# function, and when they pass --settings themselves. Finds the real claude.exe,
+# .cmd or .ps1 by command type, so it never calls itself.
+if ($env:DOCKTERM_USAGE_SETTINGS -and -not (Get-Command claude -CommandType Function -ErrorAction SilentlyContinue)) {
+  function global:claude {
+    $real = Get-Command claude -CommandType Application, ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $real) {
+      Write-Error "The term 'claude' is not recognized as a name of a cmdlet, function, script file, or executable program." -Category ObjectNotFound
+      return
+    }
+    $own = $false
+    foreach ($a in $args) { if ("$a" -eq '--settings' -or "$a" -like '--settings=*') { $own = $true } }
+    if (-not $own -and (Test-Path -LiteralPath $env:DOCKTERM_USAGE_SETTINGS)) {
+      & $real.Source --settings $env:DOCKTERM_USAGE_SETTINGS @args
+    } else {
+      & $real.Source @args
+    }
+  }
+}
 `
 
 /** PWSH_INIT as PowerShell's -EncodedCommand expects it: base64 of UTF-16LE. */
@@ -134,7 +188,8 @@ export function pwshEncodedHook(): string {
   return Buffer.from(PWSH_INIT, 'utf16le').toString('base64')
 }
 
-const FILES: Record<string, string> = {
+/** The integration files by name (written into the integration dir). */
+export const FILES: Record<string, string> = {
   '.zshenv': ZSHENV,
   '.zprofile': ZPROFILE,
   '.zlogin': ZLOGIN,

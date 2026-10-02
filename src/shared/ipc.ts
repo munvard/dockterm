@@ -38,6 +38,7 @@ import type {
   SessionHistory,
   ReadingConversation
 } from './types'
+import type { RealUsage } from './usageReal'
 
 export interface UpdateAvailable {
   latestVersion: string
@@ -85,6 +86,11 @@ export interface CreatePtyRes {
    * home directory instead: the renderer should tell the user, not pretend
    * the pane opened where it was asked to. */
   cwdFellBack: boolean
+  /** `--settings "<DockTerm file>"` that a launcher must add after `claude` for
+   * this shell, so Claude's real usage can be captured. null when the shell has
+   * the DockTerm `claude` hook (it adds the flag itself), or capture is off or
+   * unavailable. */
+  claudeFlag: string | null
 }
 export interface WritePtyReq {
   sessionId: string
@@ -311,6 +317,9 @@ export interface InvokeChannels {
 
   /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
   'usage:get': (req: void) => Result<UsageSnapshot>
+  /** Real Claude usage (5h / 7d percentages and resets) captured from Claude's own
+   * status line, or null when nothing was ever captured. Expired windows are dropped. */
+  'usage:realGet': (req: void) => Result<RealUsage | null>
 
   /** Live Claude Code sub-agent activity from local ~/.claude transcripts. */
   'activity:get': (req: void) => Result<AgentActivity>
@@ -404,6 +413,8 @@ export interface EventChannels {
   'update:error': { message: string }
   /** main → renderer: a fresh usage snapshot (transcripts grew). */
   'usage:changed': UsageSnapshot
+  /** main → renderer: the captured real usage changed (or a window reset). */
+  'usage:real': RealUsage | null
   /** main → every window: a fresh live sub-agent activity snapshot. */
   'activity:changed': AgentActivity
   /** main → every window: updated session prompt list (a new prompt landed). */
@@ -489,6 +500,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'chat:pickFiles',
   'chat:statPaths',
   'usage:get',
+  'usage:realGet',
   'activity:get',
   'session:getHistory',
   'reading:get',
@@ -533,6 +545,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'update:downloaded',
   'update:error',
   'usage:changed',
+  'usage:real',
   'activity:changed',
   'session:changed',
   'menu:action',

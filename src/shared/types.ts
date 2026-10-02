@@ -1,5 +1,7 @@
 /** Domain types shared between main and renderer. Extended per milestone. */
 
+import type { UsagePillConfig, UsageFloatConfig } from './usageReal'
+
 export type PanelId =
   | 'files'
   | 'git'
@@ -248,6 +250,18 @@ export interface UsageSettings {
   enabled: boolean
   /** Plan bracket for the limit estimate; 'auto' detects it from ~/.claude. */
   plan: 'auto' | 'pro' | 'max5x' | 'max20x'
+  /** Where the headline percentages come from: 'claude' = the real numbers Claude
+   * Code reports (captured through its status line), 'local' = the token-based
+   * estimate from transcripts (always labelled as an estimate). */
+  source: 'claude' | 'local'
+  /** Launch Claude in DockTerm panes with `--settings <DockTerm file>` so its status
+   * line JSON (real rate limits) can be captured. Off = Claude is started untouched
+   * and no real numbers arrive. Applies to terminals opened after the change. */
+  captureEnabled: boolean
+  /** The top-bar usage pill. */
+  pill: UsagePillConfig
+  /** The floating usage window. */
+  float: UsageFloatConfig
 }
 
 /* --------------------------- live agent activity --------------------------- */
