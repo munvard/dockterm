@@ -66,7 +66,7 @@
 - ✂️ **Send selection to Claude** — select terminal text and send it into Claude as a referenced snippet, without building a separate chat UI.
 - 📊 **Usage at a glance** — how much of your **5-hour and weekly limits** is left, and exactly **when they reset** — live, in a panel and a top-bar pill.
 - 🔍 **Diff review + safe Git** — see exactly what changed, then stage and commit, without leaving the terminal.
-- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't. Multi-select files, send paths to Claude, or drag real files into other apps.
+- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't. Multi-select files, send paths to Claude, or Alt+drag real files into other apps.
 - 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus. Drag panes to reorder.
 - 🔒 **Local-only** — no accounts, no telemetry; it never calls an AI of its own.
 
@@ -147,7 +147,7 @@ By default munu tucks into the notch, slides out on hover, and peeks for a few s
 - **Usage limits, live** — a Usage panel and a top-bar pill show how much of your rolling **5-hour** and **weekly** windows remain and **when each resets**, calibrated from your own history. Read locally; tokens-only; nothing leaves your machine.
 - **Diff review** — see exactly what changed since your last commit, this session, or a pinned checkpoint, and open a side-by-side diff for any file before you trust it.
 - **Beginner-safe Git** — grouped status, stage/discard, commit, push/pull, branches, with confirmations on the risky actions that show the exact command they'll run.
-- **Files, editor & previews** — file tree, Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path, multi-select with `⌘`/`Ctrl`, and drag the actual files into other apps.
+- **Files, editor & previews** — a virtualized file tree that stays smooth in huge folders: full keyboard navigation (arrows, Home/End, type to jump, `F2` rename, `Delete`), multi-select with `⌘`/`Ctrl`/`Shift`, drag to move files and folders, inline new file and rename, duplicate, reveal the open file, collapse all, sort by name, type, date or size, hidden and ignored toggles, git status badges on files and parent folders, file-type icons, a breadcrumb for the open file, an instant inline filter, a context menu with copy path, copy relative path, open in terminal here and cd here, and each project remembers which folders were open. Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path, and hold `Alt` while dragging to hand the real files to other apps.
 - **MCP, skills & agents** — read-only views of your MCP servers (project, user, claude.ai connectors, and plugin-provided) with secrets masked, plus your skills, slash-commands and subagents; browse and scaffold skills.
 - **A project per pane** — a grid where each pane is a different repo; focus a pane and the side panels follow it, including a live `cd`.
 - **Command palette** — `⌘K` / `Ctrl Shift P` to jump anywhere.

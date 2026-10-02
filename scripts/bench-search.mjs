@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Benchmark for the search engine (index build, Quick Open, content search, event-loop lag).
 //
-//   node --expose-gc scripts/bench-search.mjs --root <dir> [--needle <text>] [--tmp <dir>] [--json]
+//   node --expose-gc scripts/bench-search.mjs --root <dir> [--needle <text>] [--tmp <dir>] [--bundle <dir>] [--json]
 //   node --expose-gc scripts/bench-search.mjs --synthetic <dir> --files 200000
 //
 // It bundles the real engine sources (src/main/search, src/shared/search) with
-// esbuild into --tmp, so the numbers are for the code that ships.
-import { build } from 'esbuild'
+// esbuild into --tmp, so the numbers are for the code that ships. With --bundle <dir>
+// (holding indexCore, indexWorker, contentWorker .cjs) it needs no esbuild or repo checkout.
 import { Worker, MessageChannel } from 'node:worker_threads'
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks'
 import { mkdirSync, writeFileSync, existsSync, readdirSync, mkdtempSync } from 'node:fs'
@@ -91,6 +91,7 @@ mkdirSync(tmp, { recursive: true })
 
 const bundleDir = opt('bundle') ? resolve(opt('bundle')) : tmp
 if (!opt('bundle')) {
+  const { build } = await import('esbuild')
   await build({
     entryPoints: {
       indexCore: join(repo, 'src/main/search/indexCore.ts'),

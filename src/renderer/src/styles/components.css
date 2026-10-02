@@ -1016,96 +1016,6 @@
 }
 
 /* ---------------------------------- Tree --------------------------------- */
-.tree__row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding-right: 8px;
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 13px;
-  white-space: nowrap;
-  user-select: none;
-}
-.tree__row:hover {
-  background: var(--raised);
-  color: var(--text);
-}
-.tree__chev {
-  width: 13px;
-  flex: 0 0 13px;
-  color: var(--text-faint);
-  display: inline-flex;
-}
-.tree__icon {
-  flex: 0 0 14px;
-  color: var(--text-faint);
-}
-.tree__icon--dir {
-  color: var(--accent);
-  opacity: 0.85;
-}
-.tree__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ------------------------------ File search ------------------------------ */
-.tree__search {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.tree__search-icon {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-}
-.tree__search-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-}
-.tree__search-input::placeholder {
-  color: var(--text-faint);
-}
-.tree__search-clear {
-  flex: 0 0 auto;
-  display: inline-flex;
-  border: none;
-  background: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 1px;
-  border-radius: 4px;
-}
-.tree__search-clear:hover {
-  color: var(--text);
-  background: var(--raised);
-}
-.tree__row--result .tree__path {
-  margin-left: auto;
-  padding-left: 10px;
-  color: var(--text-faint);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-}
-.tree__empty {
-  padding: 10px 12px;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
 /* ------------------------------ Context menu ----------------------------- */
 .ctxmenu {
   position: fixed;
@@ -3282,14 +3192,6 @@
 
 /* File-tree multi-select. A selected row gets a calm accent wash + a hairline
    accent edge (not a heavy fill). */
-.tree__row--selected {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-.tree__row--selected:hover {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
 /* The selection action bar — single row, three weights: a quiet count, one
    confident primary, and a pair of restrained tools. */
 .selbar {
