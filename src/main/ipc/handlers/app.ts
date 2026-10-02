@@ -46,6 +46,13 @@ export function registerAppHandlers(reg: Registrar): void {
 
   reg('clipboard:read', z.void(), () => ok(clipboard.readText()))
 
+  // Copy goes through the main process: the renderer's navigator.clipboard needs a
+  // permission and security.ts denies every permission, so it silently failed.
+  reg('clipboard:write', z.object({ text: z.string().max(50_000_000) }), (req) => {
+    clipboard.writeText(req.text)
+    return ok(undefined)
+  })
+
   reg('usage:get', z.void(), async () => ok(await getUsageSnapshot()))
 
   reg('activity:get', z.void(), async () => ok(await getAgentActivity()))
