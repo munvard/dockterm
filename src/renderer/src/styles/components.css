@@ -126,14 +126,22 @@
      The bar is draggable via `.topbar { drag }`; the buttons opt back out via the
      `.topbar button, …` no-drag rule below (in the title-bar section). */
 }
-/* Left group truncates the project name before anything overflows. */
+/* The left group fills the bar (its empty part is the free drag area). Its items
+   never wrap or squeeze: TopBarTools' fit (planTopBar) decides what gives way. */
 .topbar__left {
   min-width: 0;
   flex: 1 1 auto;
 }
+.topbar__left > *,
+.topbar__right > * {
+  flex: 0 0 auto;
+}
+/* While TopBarTools measures, the name shows at its natural width. */
+.topbar[data-fit-measure] .topbar__name {
+  flex-shrink: 0;
+}
 .topbar__right {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   /* No overflow:hidden — it would clip the notes popover (which drops below the
      bar). Overflowing tools are hidden cleanly by TopBarTools' measurement. */
   justify-content: flex-end;
@@ -149,6 +157,7 @@
   display: inline-flex;
 }
 .topbar__overflow .ctxmenu {
+  -webkit-app-region: no-drag;
   position: absolute;
   top: 30px;
   right: 0;
@@ -157,21 +166,17 @@
   color: var(--accent);
 }
 
-/* Narrow window: shorten the changed-chip to just its count and hide the less
-   essential left-side text so the bar keeps fitting. */
-@media (max-width: 820px) {
-  .topbar__name {
-    max-width: 130px;
-  }
-  .chip__word {
-    display: none;
-  }
-}
-@media (max-width: 680px) {
-  .topbar__name,
-  .topbar__branch {
-    display: none;
-  }
+/* What gives way when the bar is short of room, set by planTopBar in order:
+   the changed chip keeps only its count, the name truncates (inline max-width),
+   the branch keeps only its icon, the usage pill drops its countdown, panel icons
+   go into "more", then the name, branch and ahead/behind counts hide. */
+.topbar[data-fit-chip='short'] .chip__word,
+.topbar[data-fit-branch='icon'] .topbar__branch-name,
+.topbar[data-fit-pill='compact'] .usage-pill .uv-reset,
+.topbar[data-fit-name='hidden'] .topbar__name,
+.topbar[data-fit-branch='hidden'] .topbar__branch,
+.topbar[data-fit-sync='hidden'] .topbar__sync {
+  display: none;
 }
 .topbar__project {
   display: inline-flex;
@@ -191,6 +196,8 @@
   background: var(--raised);
 }
 .topbar__name {
+  flex-shrink: 1;
+  min-width: 0;
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -207,6 +214,15 @@
   color: var(--text-dim);
   font-size: 11.5px;
   font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.topbar__branch-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .chip {
+  white-space: nowrap;
 }
 
 /* -------------------------------- Notes ---------------------------------- */
@@ -223,6 +239,7 @@
   z-index: 94;
 }
 .notes__pop {
+  -webkit-app-region: no-drag;
   position: absolute;
   top: 30px;
   right: 0;
@@ -426,6 +443,11 @@
 }
 
 /* --------------------------- Terminal tab strip -------------------------- */
+/* The strip is a title bar too: its empty space (right of the tabs, around the
+   buttons) drags the window, and on macOS a double-click there zooms it. Every
+   control opts out with no-drag. The right padding keeps a free grab area even
+   when the tabs fill the strip (they scroll instead). Rules are scoped to
+   .tabstrip because the editor's .tabs/.tab rules further down share the names. */
 .tabstrip {
   display: flex;
   align-items: stretch;
@@ -433,43 +455,69 @@
   flex: 0 0 auto;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  padding-left: 4px;
+  padding: 0 48px 0 4px;
+  user-select: none;
+  -webkit-app-region: drag;
   /* No overflow:hidden here — it would clip the split-grid dropdown that opens
      below the strip. */
+}
+.tabstrip .tab,
+.tabstrip button,
+.tabstrip input,
+.tabstrip .grid-menu,
+.tabstrip .launcher-menu {
+  -webkit-app-region: no-drag;
 }
 .tabstrip__tabs {
   display: flex;
   align-items: flex-end;
   gap: 2px;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 .tabstrip__tabs::-webkit-scrollbar {
   display: none;
 }
-.tab {
+.tabstrip .tab {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   height: 28px;
   align-self: flex-end;
+  flex: 0 1 auto;
   padding: 0 6px 0 10px;
   max-width: 200px;
   min-width: 84px;
   font-size: 12px;
+  white-space: nowrap;
   color: var(--text-dim);
+  background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 7px 7px 0 0;
+  box-shadow: none;
   cursor: default;
   user-select: none;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.tab:hover {
-  color: var(--text);
-  background: var(--bg);
+/* A short divider between two inactive tabs, like a native tab bar. */
+.tabstrip .tab:not(.tab--active) + .tab:not(.tab--active)::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 7px;
+  width: 1px;
+  height: 14px;
+  background: var(--border);
 }
-.tab--active {
+.tabstrip .tab:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.tabstrip .tab--active,
+.tabstrip .tab--active:hover {
   color: var(--text);
   background: var(--bg);
   border-color: var(--border);
@@ -480,7 +528,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tab__dot {
+.tabstrip .tab__dot {
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
@@ -498,7 +546,7 @@
   padding: 1px 4px;
   outline: none;
 }
-.tab__close {
+.tabstrip .tab__close {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -513,27 +561,39 @@
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-.tab:hover .tab__close,
-.tab--active .tab__close {
+.tabstrip .tab:hover .tab__close,
+.tabstrip .tab--active .tab__close {
   opacity: 1;
 }
-.tab__close:hover {
+.tabstrip .tab__close:hover {
   background: var(--border-strong);
   color: var(--text);
 }
+/* "+" and the grid button: the same 26 px rounded icon buttons as the top bar. */
 .tabstrip__add {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 32px;
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
   border: none;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text-dim);
   cursor: pointer;
+  transition:
+    background 0.12s var(--ease),
+    color 0.12s var(--ease);
 }
 .tabstrip__add:hover {
   color: var(--text);
+  background: var(--raised);
+}
+.tabstrip__grid .tabstrip__add {
+  margin-left: 2px;
 }
 
 /* ----------------------------- Theme picker ------------------------------ */
@@ -791,11 +851,11 @@
 .tabstrip__grid {
   position: relative;
   display: flex;
-  align-items: stretch;
+  align-items: center;
 }
 .grid-menu {
   position: absolute;
-  top: 30px;
+  top: 31px;
   /* Open rightward from the grid icon (into the empty strip space) rather than
      left over the tabs. */
   left: 0;
@@ -858,6 +918,10 @@
 }
 :root[data-platform='darwin'] .topbar {
   padding-left: 82px;
+}
+/* Fullscreen has no traffic lights: give their inset back. */
+:root[data-platform='darwin'][data-fullscreen] .topbar {
+  padding-left: 10px;
 }
 /* Windows: the native caption buttons (min / max / close, 3 x 46px) are drawn over the
    right end of this bar (titleBarOverlay), so leave room for them. */
@@ -2523,7 +2587,6 @@
   gap: 5px;
   height: 24px;
   padding: 0 9px;
-  margin-right: 4px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--raised);
@@ -3492,9 +3555,15 @@
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  margin-left: 4px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
+  margin-left: 6px;
+}
+/* The same short divider as the top bar's, not a full-height rule. */
+.tabstrip__claude::before {
+  content: '';
+  width: 1px;
+  height: 16px;
+  margin-right: 8px;
+  background: var(--border-strong);
 }
 .claude-split {
   display: inline-flex;
@@ -4111,15 +4180,6 @@
 .zen-exit:hover {
   opacity: 1;
   color: var(--text);
-}
-/* Dim panes other than the focused one for a single-focus reading canvas. */
-[data-zen='on'] .pane:not(.pane--focused) {
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-}
-/* A roomier canvas in zen (at least 18px, or the user's larger padding). */
-[data-zen='on'] .terminal {
-  padding: max(var(--term-pad, 8px), 18px);
 }
 
 /* ------------------------------- Reading view ------------------------------ */
