@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Munu } from '@renderer/components/munu/Munu'
+import { motionGovernor } from '@renderer/components/common/motionGovernor'
 import { isFreeText } from '@renderer/components/terminal/askKeys'
 import type {
   AgentActivity,
@@ -506,4 +507,5 @@ function Overlay() {
 }
 
 const container = document.getElementById('overlay-root')
+motionGovernor()
 if (container) createRoot(container).render(<Overlay />)

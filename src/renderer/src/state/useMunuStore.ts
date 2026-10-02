@@ -4,7 +4,7 @@ import type { ClaudeState } from '../components/terminal/claudeStatus'
 import { askSig } from '../components/terminal/askKeys'
 import type { AskInfo, MunuAsk, MunuGlobal } from '@shared/types'
 
-interface PaneStatus {
+export interface PaneStatus {
   state: ClaudeState
   ask: AskInfo | null
   tabId: string
@@ -40,6 +40,14 @@ const timers: Record<string, ReturnType<typeof setTimeout>> = {}
 /** leafId -> the signature + time of the prompt munu just answered. */
 const answeredAt: Record<string, { sig: string; at: number }> = {}
 
+/** True when a re-reported pane status changes nothing anyone can see. */
+export function samePaneStatus(a: PaneStatus | undefined, b: PaneStatus): boolean {
+  if (!a || a.state !== b.state || a.tabId !== b.tabId) return false
+  if (a.ask === b.ask) return true
+  if (!a.ask || !b.ask) return false
+  return JSON.stringify(a.ask) === JSON.stringify(b.ask)
+}
+
 export const useMunuStore = create<MunuStore>((set, get) => ({
   panes: {},
   done: {},
@@ -72,6 +80,9 @@ export const useMunuStore = create<MunuStore>((set, get) => ({
         setTimeout(() => set((s) => ({ done: { ...s.done, [leafId]: false } })), DONE_FLASH_MS)
       }, DONE_DETECT_MS)
     }
+    // The classifier re-reports every ~100-250 ms while output streams; an
+    // identical status must not churn the store (each change re-reports to main).
+    if (samePaneStatus(get().panes[leafId], { state, ask, tabId })) return
     set((s) => ({ panes: { ...s.panes, [leafId]: { state, ask, tabId } } }))
   },
 

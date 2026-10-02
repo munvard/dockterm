@@ -10,27 +10,35 @@ import { actionKeys } from '../terminal/askKeys'
  * from the overlay.
  */
 export function useMunuBridge(): void {
-  const panes = useMunuStore((s) => s.panes)
-  const done = useMunuStore((s) => s.done)
-  const activeId = useWorkspaceStore((s) => s.activeId)
-
   // Report this window's aggregate whenever its state, active tab, or focus
   // changes — focus/active-tab affect whether each ask is currently visible.
+  // Subscribed outside React so a status change never re-renders the App tree,
+  // and an unchanged snapshot is not sent again.
   useEffect(() => {
+    let last = ''
     const report = (): void => {
-      void window.dockterm.invoke(
-        'munu:report',
-        useMunuStore.getState().snapshot(useWorkspaceStore.getState().activeId, document.hasFocus())
-      )
+      const snap = useMunuStore.getState().snapshot(useWorkspaceStore.getState().activeId, document.hasFocus())
+      const key = JSON.stringify(snap)
+      if (key === last) return
+      last = key
+      void window.dockterm.invoke('munu:report', snap)
     }
     report()
+    const offMunu = useMunuStore.subscribe((s, p) => {
+      if (s.panes !== p.panes || s.done !== p.done) report()
+    })
+    const offWs = useWorkspaceStore.subscribe((s, p) => {
+      if (s.activeId !== p.activeId) report()
+    })
     window.addEventListener('focus', report)
     window.addEventListener('blur', report)
     return () => {
+      offMunu()
+      offWs()
       window.removeEventListener('focus', report)
       window.removeEventListener('blur', report)
     }
-  }, [panes, done, activeId])
+  }, [])
 
   // The overlay answered the asking pane's menu. Main only forwards a semantic
   // action it has already checked against a one-shot token; THIS window builds the
