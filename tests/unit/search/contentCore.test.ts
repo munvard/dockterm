@@ -43,6 +43,38 @@ describe('scanFile', () => {
     put('big.txt', Buffer.alloc(CONTENT_CAPS.MAX_FILE_BYTES + 10, 97))
     expect(await scanFile(root, 'big.txt', re('a'), 100)).toEqual({ kind: 'skip', reason: 'large' })
   })
+  it('finds a match in a file bigger than the first read chunk, including one that straddles it', async () => {
+    const filler = 'x'.repeat(99) + '\n'
+    put('mid.txt', filler.repeat(700) + 'tail NEEDLE\n' + filler)
+    const out = await scanFile(root, 'mid.txt', re('needle'), 100)
+    expect(out.kind).toBe('match')
+    if (out.kind === 'match') expect(out.file.matches[0].line).toBe(701)
+    put('edge.txt', 'a\n'.repeat(32766) + 'needle tail')
+    expect((await scanFile(root, 'edge.txt', re('needle'), 100)).kind).toBe('match')
+    put('exact.txt', 'a\n'.repeat(32768))
+    expect((await scanFile(root, 'exact.txt', re('b'), 100)).kind).toBe('none')
+  })
+  it('a binary file bigger than the first chunk is still skipped as binary', async () => {
+    const b = Buffer.alloc(100000, 97)
+    b[10] = 0
+    put('big.dat', b)
+    expect(await scanFile(root, 'big.dat', re('a'), 100)).toEqual({ kind: 'skip', reason: 'binary' })
+  })
+  it('uses the literal prefilter without changing results', async () => {
+    put('hit.txt', 'a needle b\n')
+    put('miss.txt', 'a Needle b\n')
+    const lit = Buffer.from('needle')
+    const strict = re('needle', { caseSensitive: true })
+    expect((await scanFile(root, 'hit.txt', strict, 100, undefined, lit)).kind).toBe('match')
+    expect((await scanFile(root, 'miss.txt', strict, 100, undefined, lit)).kind).toBe('none')
+  })
+  it('matcherFor gives a literal only for case-sensitive plain text', () => {
+    const base = { include: '', exclude: '', includeIgnored: false, wholeWord: false }
+    const lit = (o: object): unknown => (matcherFor({ query: 'Ab', caseSensitive: true, regex: false, ...base, ...o }) as { literal?: Buffer }).literal
+    expect(Buffer.isBuffer(lit({}))).toBe(true)
+    expect(lit({ caseSensitive: false })).toBeUndefined()
+    expect(lit({ regex: true })).toBeUndefined()
+  })
   it('never reads through a symlink', async () => {
     put('real.txt', 'needle')
     symlinkSync(join(root, 'real.txt'), join(root, 'link.txt'))
@@ -60,7 +92,7 @@ describe('ContentScanner', () => {
     put('none.txt', 'nothing')
     const shared = new Int32Array(new SharedArrayBuffer(SHARED.LENGTH * 4))
     const got: ContentFileResult[] = []
-    const sc = new ContentScanner(root, re('needle'), shared, { progress: (f) => got.push(...f) })
+    const sc = new ContentScanner(root, re('needle'), undefined, shared, { progress: (f) => got.push(...f) })
     await sc.scanChunk([...Array.from({ length: 20 }, (_, i) => `f${i}.txt`), 'none.txt'])
     expect(Atomics.load(shared, SHARED.SCANNED)).toBe(21)
     expect(Atomics.load(shared, SHARED.FILES_WITH_MATCH)).toBe(20)
@@ -71,7 +103,7 @@ describe('ContentScanner', () => {
     for (let i = 0; i < 50; i++) put(`f${i}.txt`, 'needle')
     const shared = new Int32Array(new SharedArrayBuffer(SHARED.LENGTH * 4))
     Atomics.store(shared, SHARED.CANCEL, 1)
-    const sc = new ContentScanner(root, re('needle'), shared, { progress: () => undefined })
+    const sc = new ContentScanner(root, re('needle'), undefined, shared, { progress: () => undefined })
     await sc.scanChunk(Array.from({ length: 50 }, (_, i) => `f${i}.txt`))
     expect(Atomics.load(shared, SHARED.SCANNED)).toBe(0)
   })
@@ -80,7 +112,7 @@ describe('ContentScanner', () => {
     Atomics.store(shared, SHARED.STORED, CONTENT_CAPS.MAX_STORED_LINES)
     put('a.txt', 'needle\nneedle')
     const got: ContentFileResult[] = []
-    const sc = new ContentScanner(root, re('needle'), shared, { progress: (f) => got.push(...f) })
+    const sc = new ContentScanner(root, re('needle'), undefined, shared, { progress: (f) => got.push(...f) })
     await sc.scanChunk(['a.txt'])
     expect(got).toHaveLength(0)
     expect(Atomics.load(shared, SHARED.TOTAL_LINES)).toBe(2)

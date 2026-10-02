@@ -75,3 +75,24 @@ describe('PathIndex', () => {
     expect(names(ix, 'a.ts')).toEqual([])
   })
 })
+
+describe('PathIndex scattered-match cutoff', () => {
+  const strong = Array.from({ length: 60 }, (_, i) => `src/co${i}.ts`)
+  const scattered = Array.from({ length: 60 }, (_, i) => `components/very/long/folder/name/number${i}/other.ts`)
+
+  it('keeps the same hits and flags the total as a lower bound once the page is full of strong matches', () => {
+    const full = make([...strong, ...scattered])
+    const small = full.query('co', { includeIgnored: false, kinds: 'files', limit: 20 })
+    expect(small.hits.every((h) => h.relPath.startsWith('src/co'))).toBe(true)
+    expect(small.totalApprox).toBe(true)
+    const noPage = make(strong).query('co', { includeIgnored: false, kinds: 'files', limit: 100 })
+    expect(noPage.totalApprox).toBeUndefined()
+    expect(noPage.total).toBe(60)
+  })
+
+  it('counts scattered matches exactly while the page is not full', () => {
+    const r = make([...strong.slice(0, 3), 'a/c/x/o.ts']).query('co', { includeIgnored: false, kinds: 'files', limit: 100 })
+    expect(r.totalApprox).toBeUndefined()
+    expect(r.total).toBe(4)
+  })
+})

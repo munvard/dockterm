@@ -16,7 +16,7 @@ parent.on('message', (msg: SearchIn) => {
     port.close()
     return
   }
-  const scanner = new ContentScanner(msg.root, matcher.re, shared, {
+  const scanner = new ContentScanner(msg.root, matcher.re, matcher.literal, shared, {
     progress: (files, scanned) => post({ t: 'progress', id: msg.id, files, scanned })
   })
   // Chunks are handled strictly one after another; the feeder holds a small credit window.

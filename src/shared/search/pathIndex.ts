@@ -1,4 +1,4 @@
-import { charMask, parseQuickQuery, scorePath, highlightPositions, type ParsedQuickQuery } from './fuzzy'
+import { SCATTER_MAX, charMask, parseQuickQuery, scoreTokens, slashCount, highlightPositions, type ParsedQuickQuery } from './fuzzy'
 
 /** Entry flags. */
 export const F_DIR = 1
@@ -32,6 +32,8 @@ export interface QuickResults {
   hits: QuickHit[]
   /** Every entry that matched (not just the returned page). */
   total: number
+  /** True when `total` is a lower bound: once the page was full of better matches, scattered ones stopped being counted. */
+  totalApprox?: boolean
   line: number | null
   col: number | null
 }
@@ -47,6 +49,8 @@ export class PathIndex {
   private lower: string[] = []
   private flags = new Uint8Array(1024)
   private masks = new Int32Array(1024)
+  /** Slash count per entry (capped at 255), so scoring never scans a path for its depth. */
+  private depth = new Uint8Array(1024)
   private byPath = new Map<string, number>()
   private count = 0
   private dead = 0
@@ -93,6 +97,9 @@ export class PathIndex {
       const masks2 = new Int32Array(this.masks.length * 2)
       masks2.set(this.masks)
       this.masks = masks2
+      const depth2 = new Uint8Array(this.depth.length * 2)
+      depth2.set(this.depth)
+      this.depth = depth2
     }
     const id = this.count++
     const lower = relPath.toLowerCase()
@@ -100,6 +107,7 @@ export class PathIndex {
     this.lower[id] = lower
     this.flags[id] = flags & ~F_DEAD
     this.masks[id] = charMask(lower)
+    this.depth[id] = Math.min(255, slashCount(relPath))
     this.byPath.set(relPath, id)
     if (flags & F_DIR) this.dirCount++
     else this.fileCount++
@@ -135,6 +143,7 @@ export class PathIndex {
     this.lower = []
     this.flags = new Uint8Array(1024)
     this.masks = new Int32Array(1024)
+    this.depth = new Uint8Array(1024)
     this.byPath.clear()
     this.count = 0
     this.dead = 0
@@ -163,6 +172,7 @@ export class PathIndex {
         this.lower[w] = this.lower[r]
         this.flags[w] = this.flags[r]
         this.masks[w] = this.masks[r]
+        this.depth[w] = this.depth[r]
       }
       this.byPath.set(this.paths[w], w)
       w++
@@ -232,6 +242,8 @@ export class PathIndex {
 
     let qMask = 0
     for (const t of q.tokens) qMask |= charMask(t.replace(/\//g, ''))
+    const scatterCeiling = SCATTER_MAX * q.tokens.length + (recentRank.size > 0 ? 201 : 0)
+    let noScatter = false
     const exts = q.exts.map((e) => `.${e}`)
 
     for (let id = 0; id < this.count; id++) {
@@ -252,17 +264,24 @@ export class PathIndex {
         }
         if (!okExt) continue
       }
+      const orig = this.paths[id]
       let score: number
       if (q.tokens.length === 0) {
         score = 100 - lower.length * 0.06
       } else {
-        score = scorePath(q.tokens, lower, this.paths[id])
-        if (score < 0) continue
+        score = scoreTokens(q.tokens, lower, orig, orig.lastIndexOf('/') + 1, noScatter)
+        if (score === -Infinity) continue
       }
       if (f & F_IGNORED) score -= 40
       if (f & F_DIR) score -= 8
-      if (recentRank.size > 0) score += recentBoost(this.paths[id])
+      if (recentRank.size > 0) score += recentBoost(orig)
+      if (q.tokens.length > 0) {
+        score -= this.depth[id] * 0.8
+        if (score < 0) continue
+      }
       consider(id, score)
+      // A full page whose worst hit beats anything a scattered match can score: stop looking for those.
+      if (!noScatter && q.tokens.length > 0 && floor >= scatterCeiling) noScatter = true
     }
 
     const hits: QuickHit[] = topId.map((id, i) => {
@@ -275,6 +294,6 @@ export class PathIndex {
         positions: q.tokens.length ? highlightPositions(q.tokens, relPath) : []
       }
     })
-    return { hits, total, line: q.line, col: q.col }
+    return { hits, total, ...(noScatter ? { totalApprox: true } : {}), line: q.line, col: q.col }
   }
 }

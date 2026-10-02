@@ -11,20 +11,34 @@ import {
   type MessagePortLike
 } from './protocol'
 
-const READ_CONCURRENCY = 3
+/** Files in flight per worker. Measured: more in flight hides open latency (Windows, network disks); past ~24 the OS is the limit. */
+const READ_CONCURRENCY = 24
+const FIRST_CHUNK = 64 * 1024
 const NOFOLLOW = fsConstants.O_NOFOLLOW ?? 0
 const FLUSH_MS = 80
 const FLUSH_FILES = 30
 const MAX_OUTSTANDING = 4
-const FEED_CHUNK = 200
+const FEED_CHUNK = 400
 
 export type ScanOutcome =
   | { kind: 'none' }
   | { kind: 'skip'; reason: 'binary' | 'large' | 'error' }
   | { kind: 'match'; file: ContentFileResult }
 
-/** Read one file and search it. The file comes from the index (symlinks were never indexed). */
-export async function scanFile(root: string, rel: string, re: RegExp, maxPerFile: number): Promise<ScanOutcome> {
+/**
+ * Read one file and search it. The file comes from the index (symlinks were never indexed).
+ * The first 64 KB is read without a stat call, so a small file costs open, read, close. Only a
+ * bigger file is stat'ed, to enforce the size cap before the rest is read. `literal` is a
+ * case-sensitive plain needle: when the raw bytes do not contain it, no text is decoded at all.
+ */
+export async function scanFile(
+  root: string,
+  rel: string,
+  re: RegExp,
+  maxPerFile: number,
+  scratch?: Buffer,
+  literal?: Buffer
+): Promise<ScanOutcome> {
   if (hasBinaryExtension(rel)) return { kind: 'skip', reason: 'binary' }
   const abs = join(root, rel)
   let handle: import('node:fs/promises').FileHandle | null = null
@@ -37,21 +51,38 @@ export async function scanFile(root: string, rel: string, re: RegExp, maxPerFile
       if (!before.isFile()) return { kind: 'none' }
     }
     handle = await fs.open(abs, fsConstants.O_RDONLY | NOFOLLOW)
-    const st = await handle.stat()
-    if (!st.isFile() || (before && (st.ino !== before.ino || st.dev !== before.dev))) return { kind: 'none' }
-    if (st.size > CONTENT_CAPS.MAX_FILE_BYTES) return { kind: 'skip', reason: 'large' }
-    if (st.size === 0) return { kind: 'none' }
-    const buf = Buffer.allocUnsafe(st.size)
-    let read = 0
-    while (read < st.size) {
-      const { bytesRead } = await handle.read(buf, read, st.size - read, read)
+    const first = scratch && scratch.length >= FIRST_CHUNK ? scratch : Buffer.allocUnsafe(FIRST_CHUNK)
+    let got = 0
+    while (got < FIRST_CHUNK) {
+      const { bytesRead } = await handle.read(first, got, FIRST_CHUNK - got, got)
       if (bytesRead === 0) break
-      read += bytesRead
+      got += bytesRead
     }
-    const bytes = read === st.size ? buf : buf.subarray(0, read)
-    if (looksBinary(bytes)) return { kind: 'skip', reason: 'binary' }
-    const text = bytes.toString('utf8')
-    const res = searchText(text, re, maxPerFile)
+    if (got === 0) return { kind: 'none' }
+    if (looksBinary(first.subarray(0, got))) return { kind: 'skip', reason: 'binary' }
+    let bytes: Buffer = first.subarray(0, got)
+    if (got === FIRST_CHUNK) {
+      const st = await handle.stat()
+      if (!st.isFile() || (before && (st.ino !== before.ino || st.dev !== before.dev))) return { kind: 'none' }
+      if (st.size > CONTENT_CAPS.MAX_FILE_BYTES) return { kind: 'skip', reason: 'large' }
+      if (st.size > got) {
+        const all = Buffer.allocUnsafe(st.size)
+        first.copy(all, 0, 0, got)
+        let read = got
+        while (read < st.size) {
+          const { bytesRead } = await handle.read(all, read, st.size - read, read)
+          if (bytesRead === 0) break
+          read += bytesRead
+        }
+        bytes = read === st.size ? all : all.subarray(0, read)
+        if (looksBinary(bytes)) return { kind: 'skip', reason: 'binary' }
+      }
+    } else if (before) {
+      const st = await handle.stat()
+      if (!st.isFile() || st.ino !== before.ino || st.dev !== before.dev) return { kind: 'none' }
+    }
+    if (literal && bytes.indexOf(literal) < 0) return { kind: 'none' }
+    const res = searchText(bytes.toString('utf8'), re, maxPerFile)
     if (res.totalLines === 0) return { kind: 'none' }
     return { kind: 'match', file: { relPath: rel, matches: res.matches, totalLines: res.totalLines } }
   } catch (e) {
@@ -75,6 +106,7 @@ export class ContentScanner {
   constructor(
     private readonly root: string,
     private readonly re: RegExp,
+    private readonly literal: Buffer | undefined,
     private readonly shared: Int32Array,
     private readonly sink: ScannerSink
   ) {}
@@ -87,14 +119,15 @@ export class ContentScanner {
     let next = 0
     const lanes: Promise<void>[] = []
     const lane = async (): Promise<void> => {
+      const scratch = Buffer.allocUnsafe(FIRST_CHUNK)
       for (;;) {
         if (this.canceled()) return
         const i = next++
         if (i >= files.length) return
-        const out = await scanFile(this.root, files[i], this.re, CONTENT_CAPS.MAX_LINES_PER_FILE)
+        const out = await scanFile(this.root, files[i], this.re, CONTENT_CAPS.MAX_LINES_PER_FILE, scratch, this.literal)
         this.record(out)
         // Let queued port messages (cancel, next chunk) run between files.
-        if ((i & 7) === 7) await new Promise<void>((r) => setImmediate(r))
+        if ((i & 31) === 31) await new Promise<void>((r) => setImmediate(r))
       }
     }
     for (let k = 0; k < READ_CONCURRENCY; k++) lanes.push(lane())
@@ -135,9 +168,12 @@ export class ContentScanner {
 }
 
 /** Build the matcher or explain why not (shared by the worker and by tests). */
-export function matcherFor(opts: ContentOptions): { re: RegExp } | { error: string } {
+export function matcherFor(opts: ContentOptions): { re: RegExp; literal?: Buffer } | { error: string } {
   const m = buildMatcher(opts)
-  return m.ok ? { re: m.re } : { error: m.error }
+  if (!m.ok) return { error: m.error }
+  // Plain, case-sensitive text can be rejected on the raw bytes before any decoding.
+  const literal = !opts.regex && opts.caseSensitive && opts.query.length > 0 ? Buffer.from(opts.query, 'utf8') : undefined
+  return { re: m.re, literal }
 }
 
 /** Feeder side of a port: hands out chunks with a small credit window so memory stays bounded. */

@@ -44,6 +44,8 @@ export function parseQuickQuery(input: string): ParsedQuickQuery {
 }
 
 const SLASH = 47
+/** A scattered whole-path subsequence match (tier d) always scores below this per token. */
+export const SCATTER_MAX = 55
 const SCORE_CHAR = 14
 const SCORE_CONSEC = 18
 
@@ -124,7 +126,8 @@ export function matchToken(
   lower: string,
   orig: string,
   nameStart: number,
-  out?: number[]
+  out?: number[],
+  noScatter = false
 ): number {
   const len = tok.length
   const hasSlash = tok.indexOf('/') >= 0
@@ -153,6 +156,7 @@ export function matchToken(
     return 60 + len * 5 + boundaryBonus(orig, j)
   }
   // d: subsequence of the whole path
+  if (noScatter) return -1
   const pos = subsequence(tok, lower, 0, lower.length)
   if (pos) {
     if (out) out.push(...pos)
@@ -174,6 +178,33 @@ export function charMask(s: string): number {
   return m
 }
 
+/** Token score of a path before the depth penalty (the depth penalty only lowers it). -Infinity = no match. */
+export function scoreTokens(
+  tokens: readonly string[],
+  lower: string,
+  orig: string,
+  nameStart: number,
+  noScatter = false
+): number {
+  let total = 0
+  for (const tok of tokens) {
+    const s = matchToken(tok, lower, orig, nameStart, undefined, noScatter)
+    if (s < 0) return -Infinity
+    total += s
+  }
+  return total - orig.length * 0.06
+}
+
+export function slashCount(orig: string): number {
+  let slashes = 0
+  for (let i = 0; i < orig.length; i++) if (orig.charCodeAt(i) === SLASH) slashes++
+  return slashes
+}
+
+export function depthPenalty(orig: string): number {
+  return slashCount(orig) * 0.8
+}
+
 /** Score of a whole path for a parsed query (sum over tokens, small length penalties). -1 = no match. */
 export function scorePath(
   tokens: readonly string[],
@@ -182,15 +213,17 @@ export function scorePath(
   out?: number[]
 ): number {
   const nameStart = orig.lastIndexOf('/') + 1
+  if (!out) {
+    const raw = scoreTokens(tokens, lower, orig, nameStart)
+    return raw === -Infinity ? -1 : raw - depthPenalty(orig)
+  }
   let total = 0
   for (const tok of tokens) {
     const s = matchToken(tok, lower, orig, nameStart, out)
     if (s < 0) return -1
     total += s
   }
-  let slashes = 0
-  for (let i = 0; i < orig.length; i++) if (orig.charCodeAt(i) === SLASH) slashes++
-  return total - orig.length * 0.06 - slashes * 0.8
+  return total - orig.length * 0.06 - depthPenalty(orig)
 }
 
 /** Matched character positions for display highlighting, deduplicated and sorted. */

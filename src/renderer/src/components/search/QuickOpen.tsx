@@ -47,6 +47,7 @@ function QuickOpenPanel() {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<QuickHit[]>([])
   const [total, setTotal] = useState(0)
+  const [totalApprox, setTotalApprox] = useState(false)
   const [line, setLine] = useState<number | null>(null)
   const [sel, setSel] = useState(0)
   const seq = useRef(0)
@@ -63,6 +64,7 @@ function QuickOpenPanel() {
         if (mine !== seq.current || !r.ok || r.value.stale) return
         setHits(r.value.results.hits)
         setTotal(r.value.results.total)
+        setTotalApprox(r.value.results.totalApprox === true)
         setLine(r.value.results.line)
         setSel((s) => (query === '' ? 0 : Math.min(s, Math.max(0, r.value.results.hits.length - 1))))
       })
@@ -202,7 +204,7 @@ function QuickOpenPanel() {
         <div className="qo__foot">
           <span className="qo__note">
             {indexNote(index, includeIgnored)}
-            {total > hits.length ? ` · ${total.toLocaleString()} matches, showing ${hits.length}` : ''}
+            {total > hits.length ? ` · ${total.toLocaleString()}${totalApprox ? '+' : ''} matches, showing ${hits.length}` : ''}
             {line ? ` · line ${line}` : ''}
           </span>
           <span className="qo__keys">
