@@ -1,7 +1,10 @@
 /** Domain types shared between main and renderer. Extended per milestone. */
 
+import type { UsagePillConfig, UsageFloatConfig } from './usageReal'
+
 export type PanelId =
   | 'files'
+  | 'search'
   | 'git'
   | 'review'
   | 'mcp'
@@ -248,12 +251,34 @@ export interface UsageSettings {
   enabled: boolean
   /** Plan bracket for the limit estimate; 'auto' detects it from ~/.claude. */
   plan: 'auto' | 'pro' | 'max5x' | 'max20x'
+  /** Where the headline percentages come from: 'claude' = the real numbers Claude
+   * Code reports (captured through its status line), 'local' = the token-based
+   * estimate from transcripts (always labelled as an estimate). */
+  source: 'claude' | 'local'
+  /** Launch Claude in DockTerm panes with `--settings <DockTerm file>` so its status
+   * line JSON (real rate limits) can be captured. Off = Claude is started untouched
+   * and no real numbers arrive. Applies to terminals opened after the change. */
+  captureEnabled: boolean
+  /** Also capture for a user who has no status line of their own. That adds one
+   * footer row to Claude and replaces its "? for shortcuts" hint, so it is opt in. */
+  captureWithoutStatusLine: boolean
+  /** The top-bar usage pill. */
+  pill: UsagePillConfig
+  /** The floating usage window. */
+  float: UsageFloatConfig
 }
 
 /* --------------------------- live agent activity --------------------------- */
 
-/** Lifecycle of a Claude Code sub-agent, inferred from the local transcript. */
-export type AgentPhase = 'running' | 'done' | 'failed'
+/** Lifecycle of a Claude Code sub-agent, inferred from the local transcript.
+ * `idle` is only used by team members that finished a task and wait for the next
+ * message (still alive, but not working). */
+export type AgentPhase = 'running' | 'idle' | 'done' | 'failed'
+
+/** How the agent was started: a normal (foreground) sub-agent, a background agent
+ * (`run_in_background`, keeps working after the tool call returns), or a member of
+ * an agent team (a named in-process teammate). */
+export type AgentKind = 'subagent' | 'background' | 'teammate'
 
 /** One Claude Code sub-agent (spawned via the `Agent`/`Task` tool), reconstructed
  * read-only from the local `~/.claude` session transcripts. The transcript records the spawn
@@ -283,6 +308,21 @@ export interface LiveAgent {
   ok: boolean | null
   /** capped final result text once done (null while running, or if streamOutput off). */
   resultPreview: string | null
+  kind: AgentKind
+  /** the agent's own name (background agents and teammates are often named). */
+  name: string | null
+  /** team the agent belongs to (teammates only). */
+  teamName: string | null
+  /** Claude Code's agent id (the `agent-<id>.jsonl` file stem), when known. */
+  agentId: string | null
+  /** team colour name from Claude Code ('blue', 'orange'…), when known. */
+  color: string | null
+  /** what it is doing right now, e.g. 'Edit agentParse.ts' (from its own transcript). */
+  action: string | null
+  /** tool calls made so far (from its own transcript). */
+  steps: number
+  /** last time its own transcript grew (ms), null when unknown. */
+  lastActiveAt: number | null
 }
 
 /** Aggregated live-agent snapshot broadcast to every window. */
@@ -294,6 +334,8 @@ export interface AgentActivity {
   activeCount: number
   /** running counts grouped by project, most-active first. */
   byProject: { project: string; label: string; count: number }[]
+  /** pty ids whose Claude still has work in flight (its turn, or agents it started). */
+  busyPtys?: string[]
 }
 
 export interface AgentActivitySettings {
@@ -336,6 +378,16 @@ export interface RecentProject {
   lastOpenedAt: number
 }
 
+export type FileSortBy = 'name' | 'type' | 'modified' | 'size'
+export interface FilesSettings {
+  sortBy: FileSortBy
+  sortDesc: boolean
+  foldersFirst: boolean
+  showHidden: boolean
+  showIgnored: boolean
+  searchIgnored: boolean
+}
+
 export interface Settings {
   schemaVersion: number
   lastProjectPath: string | null
@@ -351,6 +403,7 @@ export interface Settings {
   sessionHistory: SessionHistorySettings
   reading: ReadingSettings
   chat: ChatSettings
+  files: FilesSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

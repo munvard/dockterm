@@ -1,9 +1,15 @@
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { motionGovernor } from './components/common/motionGovernor'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/components.css'
+import './styles/usage.css'
+import './styles/search.css'
+import './styles/explorer.css'
+
+motionGovernor()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Root container missing')

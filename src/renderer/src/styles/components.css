@@ -680,6 +680,34 @@
   background: var(--accent);
   color: #fff;
 }
+/* A split pane carries its controls in its title bar, never over the terminal. */
+.pane__bar .pane__controls {
+  position: static;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1;
+}
+.pane__bar .pane__controls button {
+  width: 22px;
+  height: 22px;
+}
+/* A single pane's floating controls step aside while the terminal draws under
+   them: always for a full-screen app (it may have a button there), and until
+   hover for plain output. */
+.pane[data-corner='text'] > .pane__controls,
+.pane[data-corner='app'] > .pane__controls {
+  opacity: 0;
+  pointer-events: none;
+}
+.pane[data-corner='text']:hover > .pane__controls {
+  opacity: 1;
+  pointer-events: auto;
+}
 .pane__grip {
   cursor: grab;
 }
@@ -988,96 +1016,6 @@
 }
 
 /* ---------------------------------- Tree --------------------------------- */
-.tree__row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding-right: 8px;
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 13px;
-  white-space: nowrap;
-  user-select: none;
-}
-.tree__row:hover {
-  background: var(--raised);
-  color: var(--text);
-}
-.tree__chev {
-  width: 13px;
-  flex: 0 0 13px;
-  color: var(--text-faint);
-  display: inline-flex;
-}
-.tree__icon {
-  flex: 0 0 14px;
-  color: var(--text-faint);
-}
-.tree__icon--dir {
-  color: var(--accent);
-  opacity: 0.85;
-}
-.tree__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ------------------------------ File search ------------------------------ */
-.tree__search {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.tree__search-icon {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-}
-.tree__search-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 12.5px;
-}
-.tree__search-input::placeholder {
-  color: var(--text-faint);
-}
-.tree__search-clear {
-  flex: 0 0 auto;
-  display: inline-flex;
-  border: none;
-  background: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 1px;
-  border-radius: 4px;
-}
-.tree__search-clear:hover {
-  color: var(--text);
-  background: var(--raised);
-}
-.tree__row--result .tree__path {
-  margin-left: auto;
-  padding-left: 10px;
-  color: var(--text-faint);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-}
-.tree__empty {
-  padding: 10px 12px;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
 /* ------------------------------ Context menu ----------------------------- */
 .ctxmenu {
   position: fixed;
@@ -2618,25 +2556,6 @@
   color: var(--text-faint);
 }
 
-/* Circular remaining-headroom ring (pill + window cards). */
-.usage-ring {
-  position: relative;
-  flex: 0 0 auto;
-}
-.usage-ring__track {
-  stroke: var(--border);
-}
-.usage-ring__center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  line-height: 1.05;
-}
-
 /* Headline rolling-limit card (5-hour / weekly). */
 /* Two compact rows: the exact tokens used in each rolling window. */
 .usage-wins {
@@ -3057,6 +2976,73 @@
   background: var(--danger-soft);
 }
 
+.agent-card--idle {
+  border-color: var(--border);
+}
+.agent-card--idle .agent-card__rail {
+  background: var(--text-faint);
+}
+.agent-card__status--idle {
+  color: var(--text-faint);
+}
+.agent-card__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.agent-card__role {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kindbadge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--overlay);
+  border: 1px solid var(--border);
+}
+.kindbadge--background {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.kindbadge--teammate {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+.agent-card__action {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-team {
+  margin-top: 10px;
+}
+.agent-team__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--success);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
 @keyframes agent-enter {
   from {
     opacity: 0;
@@ -3206,14 +3192,6 @@
 
 /* File-tree multi-select. A selected row gets a calm accent wash + a hairline
    accent edge (not a heavy fill). */
-.tree__row--selected {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-.tree__row--selected:hover {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
 /* The selection action bar — single row, three weights: a quiet count, one
    confident primary, and a pair of restrained tools. */
 .selbar {

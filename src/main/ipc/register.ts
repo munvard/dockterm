@@ -9,12 +9,14 @@ import { registerPtyHandlers } from './handlers/pty'
 import { registerSettingsHandlers } from './handlers/settings'
 import { registerProjectHandlers } from './handlers/project'
 import { registerFsHandlers } from './handlers/fs'
+import { registerSearchHandlers } from './handlers/search'
 import { registerGitHandlers } from './handlers/git'
 import { registerReviewHandlers } from './handlers/review'
 import { registerClaudeHandlers } from './handlers/claude'
 import { registerInfoHandlers } from './handlers/info'
 import { registerMunuHandlers } from './handlers/munu'
 import { registerChatHandlers } from './handlers/chat'
+import { registerUsageFloatHandlers } from './handlers/usageFloat'
 
 /**
  * A registrar binds one channel to one zod schema and one handler. Every call is:
@@ -53,10 +55,12 @@ export function registerIpc(): void {
   registerSettingsHandlers(reg)
   registerProjectHandlers(reg)
   registerFsHandlers(reg)
+  registerSearchHandlers(reg)
   registerGitHandlers(reg)
   registerReviewHandlers(reg)
   registerClaudeHandlers(reg)
   registerInfoHandlers(reg)
   registerMunuHandlers(reg)
   registerChatHandlers(reg)
+  registerUsageFloatHandlers(reg)
 }

@@ -4,17 +4,19 @@ import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { useAppStore } from '../../state/useAppStore'
 import { paneWriters } from '../../state/paneWriters'
 import { firstLeaf, allLeaves } from '../../state/layout'
-import { launchCommand } from './launcherCommands'
+import { launchCommand, type LaunchAction } from './launcherCommands'
+import { paneClaudeFlag } from './terminalPool'
 import { markClaudeLaunch } from '../../state/launchTracker'
 import { confirmCloseLeaves } from './closeGuard'
 import { k } from '../../hooks/keys'
 import claudeIcon from '../../assets/claudecode.svg'
 
 /** Send a command into the focused terminal pane of the active tab. */
-function runInFocusedPane(cmd: string): void {
+function runInFocusedPane(action: LaunchAction): void {
   const { tabs, activeId } = useWorkspaceStore.getState()
   const tab = tabs.find((t) => t.id === activeId)
   if (tab) {
+    const cmd = launchCommand(action, paneClaudeFlag(tab.focusedLeafId))
     paneWriters.write(tab.focusedLeafId, cmd)
     if (cmd.startsWith('claude')) markClaudeLaunch(tab.focusedLeafId)
   }
@@ -157,7 +159,7 @@ export function TabStrip() {
               className="claude-launch claude-launch--primary"
               data-tip="Run claude in this terminal"
               aria-label="Run claude"
-              onClick={() => runInFocusedPane(launchCommand('new'))}
+              onClick={() => runInFocusedPane('new')}
             >
               <img className="claude-launch__icon" src={claudeIcon} alt="" draggable={false} />
               <span>Claude</span>
@@ -178,7 +180,7 @@ export function TabStrip() {
               <button
                 role="menuitem"
                 onClick={() => {
-                  runInFocusedPane(launchCommand('new'))
+                  runInFocusedPane('new')
                   setLauncherOpen(false)
                 }}
               >
@@ -187,7 +189,7 @@ export function TabStrip() {
               <button
                 role="menuitem"
                 onClick={() => {
-                  runInFocusedPane(launchCommand('resume'))
+                  runInFocusedPane('resume')
                   setLauncherOpen(false)
                 }}
               >
@@ -196,7 +198,7 @@ export function TabStrip() {
               <button
                 role="menuitem"
                 onClick={() => {
-                  runInFocusedPane(launchCommand('continue'))
+                  runInFocusedPane('continue')
                   setLauncherOpen(false)
                 }}
               >

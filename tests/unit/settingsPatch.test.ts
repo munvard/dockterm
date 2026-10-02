@@ -100,3 +100,42 @@ describe('mergeSettingsPatch', () => {
     expect(next.notes).toBe('n')
   })
 })
+
+describe('usage settings (real usage capture)', () => {
+  it('defaults: Claude numbers, capture on, pill shows the 5-hour window, float off', () => {
+    const u = DEFAULT_SETTINGS.usage
+    expect(u.source).toBe('claude')
+    expect(u.captureEnabled).toBe(true)
+    expect(u.captureWithoutStatusLine).toBe(false)
+    expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: true, warnAt: 75, critAt: 90 })
+    expect(u.float).toMatchObject({ enabled: false, x: null, y: null, w: 260, h: 120, alwaysOnTop: true, opacity: 1, show: ['fiveHour', 'sevenDay'], style: 'percent', showReset: true })
+  })
+
+  it('an old config without the new leaves is filled with the defaults', () => {
+    const parsed = settingsPatchSchema.parse({ usage: { source: 'local' } })
+    expect(parsed).toEqual({ usage: { source: 'local' } })
+    const next = mergeSettingsPatch(base(), parsed)
+    expect(next.usage.source).toBe('local')
+    expect(next.usage.captureEnabled).toBe(true)
+    expect(next.usage.float.w).toBe(260)
+  })
+
+  it('a partial pill / float patch never resets the sibling fields', () => {
+    const next = mergeSettingsPatch(base(), patch({ usage: { pill: { style: 'ring' }, float: { enabled: true, x: 10, y: 20 } } }))
+    expect(next.usage.pill.style).toBe('ring')
+    expect(next.usage.pill.warnAt).toBe(75)
+    expect(next.usage.float).toMatchObject({ enabled: true, x: 10, y: 20, w: 260, opacity: 1 })
+  })
+
+  it('rejects out-of-range or unknown values', () => {
+    for (const bad of [
+      { usage: { source: 'guess' } },
+      { usage: { pill: { style: 'pie' } } },
+      { usage: { pill: { show: ['tokens'] } } },
+      { usage: { float: { opacity: 0.1 } } },
+      { usage: { float: { w: 10 } } },
+      { usage: { captureEnabled: 'yes' } },
+      { usage: { captureWithoutStatusLine: 1 } }
+    ]) expect(settingsPatchSchema.safeParse(bad).success).toBe(false)
+  })
+})

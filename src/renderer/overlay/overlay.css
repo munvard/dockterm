@@ -509,6 +509,89 @@
   font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: rgba(255, 255, 255, 0.72);
 }
+.swarm__item {
+  display: inline-flex;
+  align-items: center;
+}
+.swarm__team {
+  margin: 0 2px 0 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font: 600 9px/1.2 var(--font-ui, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9be3b0;
+  background: rgba(155, 227, 176, 0.14);
+}
+.kindbadge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a9a9b6;
+  background: rgba(255, 255, 255, 0.07);
+}
+.kindbadge--background {
+  color: #a9b8ff;
+  background: rgba(120, 140, 255, 0.16);
+}
+.kindbadge--teammate {
+  color: #9be3b0;
+  background: rgba(155, 227, 176, 0.14);
+}
+.mpop__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mpop__count {
+  margin-left: 6px;
+  color: #6f6f7c;
+  font-weight: 500;
+}
+.mpop__agent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mpop__agent-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mpop__agent-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mpop__agent-time {
+  flex: 0 0 auto;
+  font: 500 10.5px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #8b8b98;
+}
+.mpop__agent-line {
+  font: 400 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #8b8b98;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mpop__agent--idle .mpop__agent-name {
+  opacity: 0.6;
+}
+.mpop__agent-more {
+  font-size: 10.5px;
+  color: #6f6f7c;
+}
 @keyframes swarm-in {
   from {
     opacity: 0;

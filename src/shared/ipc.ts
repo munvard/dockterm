@@ -38,6 +38,27 @@ import type {
   SessionHistory,
   ReadingConversation
 } from './types'
+import type { RealUsage, UsageFloatConfig, UsageMetric, UsageStyle } from './usageReal'
+import type { UsageSample } from './usageHistory'
+import type { QuickResults } from './search/pathIndex'
+import type { ContentOptions, IndexStatus, SearchEvent } from './search/types'
+
+/** What the floating usage window needs to draw itself (it never sees the full settings). */
+export interface UsageFloatView {
+  float: UsageFloatConfig
+  warnAt: number
+  critAt: number
+  /** Theme id (or 'auto'). */
+  theme: string
+}
+
+export interface UsageFloatPatch {
+  show?: UsageMetric[]
+  style?: UsageStyle
+  showReset?: boolean
+  opacity?: number
+  alwaysOnTop?: boolean
+}
 
 export interface UpdateAvailable {
   latestVersion: string
@@ -66,6 +87,8 @@ export type MenuAction =
   | 'splitRight'
   | 'splitDown'
   | 'settings'
+  | 'quickOpen'
+  | 'findInFiles'
 
 /* ----------------------------------- PTY ---------------------------------- */
 
@@ -85,6 +108,11 @@ export interface CreatePtyRes {
    * home directory instead: the renderer should tell the user, not pretend
    * the pane opened where it was asked to. */
   cwdFellBack: boolean
+  /** `--settings "<DockTerm file>"` that a launcher must add after `claude` for
+   * this shell, so Claude's real usage can be captured. null when the shell has
+   * the DockTerm `claude` hook (it adds the flag itself), or capture is off or
+   * unavailable. */
+  claudeFlag: string | null
 }
 export interface WritePtyReq {
   sessionId: string
@@ -133,6 +161,35 @@ export interface TreeNode {
   name: string
   relPath: string
   type: 'file' | 'dir'
+  /** Present on `fs:readDir` listings only. */
+  size?: number
+  mtimeMs?: number
+  /** In the built-in ignore list (node_modules, dist, .git ...); only listed when asked for. */
+  ignored?: boolean
+}
+
+export interface DirListing {
+  entries: TreeNode[]
+  /** Entries left out because the folder holds more than MAX_TREE_ENTRIES. */
+  more: number
+}
+
+export interface QuickFilesReq {
+  query: string
+  includeIgnored: boolean
+  kinds: 'files' | 'both'
+  limit: number
+  /** Recently opened relPaths, most recent first. */
+  recent: string[]
+  /** One id per caller (Quick Open, explorer filter, mentions): a newer query from the same caller replaces an older one. */
+  owner: number
+}
+
+export interface QuickFilesRes {
+  /** True when a newer query from the same owner overtook this one. */
+  stale: boolean
+  results: QuickResults
+  index: IndexStatus
 }
 
 export type ReadFileResult =
@@ -189,6 +246,12 @@ export interface GitOutput {
 
 /* -------------------------------- settings -------------------------------- */
 
+type DeepPartial<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T
+
 export type SettingsPatch = Partial<
   Pick<
     Settings,
@@ -198,7 +261,6 @@ export type SettingsPatch = Partial<
     | 'git'
     | 'claude'
     | 'update'
-    | 'usage'
     | 'agentActivity'
     | 'sessionHistory'
     | 'reading'
@@ -208,7 +270,12 @@ export type SettingsPatch = Partial<
     | 'theme'
     | 'notes'
   >
->
+> & {
+  files?: Partial<Settings['files']>
+  /** Deep partial: the usage section is patched leaf by leaf (a widget move must not
+   * overwrite the pill settings, and the reverse). */
+  usage?: DeepPartial<Settings['usage']>
+}
 
 /* ------------------------------- channel maps ----------------------------- */
 
@@ -244,6 +311,16 @@ export interface InvokeChannels {
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:search': (req: { query: string }) => Result<TreeNode[]>
+  /** One folder with sizes, mtimes and ignored flags, optionally including the built-in ignored entries. */
+  'fs:readDir': (req: { relPath: string; showIgnored: boolean }) => Result<DirListing>
+  'fs:duplicate': (req: RelPathReq) => Result<{ relPath: string }>
+  'search:files': (req: QuickFilesReq) => Result<QuickFilesRes>
+  'search:status': (req: void) => Result<IndexStatus>
+  'search:content': (req: ContentOptions) => Result<{ id: number }>
+  'search:cancel': (req: void) => Result<void>
+  /** Renderer relays `fs:watch` batches so the index follows disk changes without touching the watcher. */
+  'search:applyWatch': (req: { events: WatchEvent[] }) => Result<void>
+  'search:refresh': (req: void) => Result<void>
   'fs:readFile': (req: ReadFileReq) => Result<ReadFileResult>
   'fs:writeFile': (req: WriteFileReq) => Result<WriteFileResult>
   'fs:createFile': (req: RelPathReq) => Result<void>
@@ -311,6 +388,17 @@ export interface InvokeChannels {
 
   /** Aggregated, tokens-only Claude usage from local ~/.claude transcripts. */
   'usage:get': (req: void) => Result<UsageSnapshot>
+  /** Real Claude usage (5h / 7d percentages and resets) captured from Claude's own
+   * status line, or null when nothing was ever captured. Expired windows are dropped. */
+  'usage:realGet': (req: void) => Result<RealUsage | null>
+  /** Real percentage samples (at most one per minute, up to 7 days), oldest first. */
+  'usageHistory:get': (req: { hours?: number } | void) => Result<UsageSample[]>
+  /** Floating usage window only: its config, thresholds and theme. */
+  'usageFloat:get': (req: void) => Result<UsageFloatView>
+  /** Floating usage window only: change what it shows (never its place or size). */
+  'usageFloat:set': (req: UsageFloatPatch) => Result<UsageFloatView>
+  /** Floating usage window only: close it (turns the widget off). */
+  'usageFloat:close': (req: void) => Result<void>
 
   /** Live Claude Code sub-agent activity from local ~/.claude transcripts. */
   'activity:get': (req: void) => Result<AgentActivity>
@@ -376,6 +464,9 @@ export interface InvokeChannels {
   'munu:dragStart': (req: { sx: number; sy: number }) => Result<void>
   /** Continue the drag to the cursor's current screen position. */
   'munu:dragMove': (req: { sx: number; sy: number }) => Result<void>
+  /** munu's clickable region (island, popup, card) relative to its box, or null
+   * while it is tucked away. Main polls the cursor against it to decide click-through. */
+  'munu:setHit': (req: { hit: { x: number; y: number; width: number; height: number } | null }) => Result<void>
 }
 
 export interface EventChannels {
@@ -385,12 +476,15 @@ export interface EventChannels {
   /** main → overlay only: the munu / swarm subset. */
   'overlaySettings:changed': OverlaySettings
   'fs:watch': WatchBatch
+  'search:event': SearchEvent
   /** main → overlay window: the global munu state. */
   'munu:state': MunuGlobal
   /** main → overlay: reveal (slide down) or hide (tuck into the notch). */
   'munu:reveal': boolean
   /** Windows: munu's rect inside the fixed overlay canvas (window coordinates). */
   'munu:frame': { x: number; y: number; width: number; height: number }
+  /** Main saw the cursor enter or leave munu's clickable region (Windows and macOS). */
+  'munu:hover': boolean
   /** main → the window owning an asking pane: key chunks to write into the PTY
    * one at a time, paced, so the TUI registers each as a separate keypress. */
   'munu:doAnswer': { leafId: string; action: MunuAnswerAction }
@@ -404,6 +498,10 @@ export interface EventChannels {
   'update:error': { message: string }
   /** main → renderer: a fresh usage snapshot (transcripts grew). */
   'usage:changed': UsageSnapshot
+  /** main → renderer: the captured real usage changed (or a window reset). */
+  'usage:real': RealUsage | null
+  /** main → floating usage window: its config or the theme changed. */
+  'usageFloat:changed': UsageFloatView
   /** main → every window: a fresh live sub-agent activity snapshot. */
   'activity:changed': AgentActivity
   /** main → every window: updated session prompt list (a new prompt landed). */
@@ -446,6 +544,14 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'project:takePendingOpen',
   'fs:readTree',
   'fs:search',
+  'fs:readDir',
+  'fs:duplicate',
+  'search:files',
+  'search:status',
+  'search:content',
+  'search:cancel',
+  'search:applyWatch',
+  'search:refresh',
   'fs:readFile',
   'fs:writeFile',
   'fs:createFile',
@@ -489,6 +595,11 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'chat:pickFiles',
   'chat:statPaths',
   'usage:get',
+  'usage:realGet',
+  'usageHistory:get',
+  'usageFloat:get',
+  'usageFloat:set',
+  'usageFloat:close',
   'activity:get',
   'session:getHistory',
   'reading:get',
@@ -512,6 +623,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:move',
   'munu:dragStart',
   'munu:dragMove',
+  'munu:setHit',
   'overlaySettings:get',
   'overlaySettings:set'
 ]
@@ -523,9 +635,11 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'settings:changed',
   'overlaySettings:changed',
   'fs:watch',
+  'search:event',
   'munu:state',
   'munu:reveal',
   'munu:frame',
+  'munu:hover',
   'munu:doAnswer',
   'munu:doFocus',
   'update:available',
@@ -533,6 +647,8 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'update:downloaded',
   'update:error',
   'usage:changed',
+  'usage:real',
+  'usageFloat:changed',
   'activity:changed',
   'session:changed',
   'menu:action',

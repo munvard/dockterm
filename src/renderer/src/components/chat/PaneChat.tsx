@@ -3,7 +3,8 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { useReadingStore } from '../../state/useReadingStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
-import { getPaneSample, paneVisibleText, setPaneChatView } from '../terminal/terminalPool'
+import { getPaneSample, paneClaudeFlag, paneVisibleText, setPaneChatView } from '../terminal/terminalPool'
+import { launchCommand } from '../terminal/launcherCommands'
 import { paneClaudeActive, paneClaudeForeground } from '../terminal/paneClaudeActive'
 import { ConversationList, conversationDepKey, useStickyScroll } from '../reading/ConversationList'
 import { AskCard } from './AskCard'
@@ -255,7 +256,7 @@ export function PaneChat({
                 onClick={() => {
                   markClaudeLaunch(leafId)
                   setStarting(true)
-                  paneWriters.write(leafId, 'claude\r')
+                  paneWriters.write(leafId, launchCommand('new', paneClaudeFlag(leafId)))
                 }}
               >
                 Start Claude

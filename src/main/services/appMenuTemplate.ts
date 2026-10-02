@@ -66,6 +66,18 @@ export function buildMenuTemplate(platform: NodeJS.Platform, deps: MenuDeps): Me
         { label: 'New Window', ...hint('N'), click: () => deps.newWindow() },
         { type: 'separator' },
         { label: 'Open Project…', ...hint('O'), click: () => deps.send('openProject') },
+        {
+          label: 'Quick Open…',
+          accelerator: isMac ? 'Cmd+P' : 'Ctrl+Shift+L',
+          registerAccelerator: false,
+          click: () => deps.send('quickOpen')
+        },
+        {
+          label: 'Find in Files…',
+          accelerator: isMac ? 'Cmd+Shift+F' : 'Ctrl+Shift+F',
+          registerAccelerator: false,
+          click: () => deps.send('findInFiles')
+        },
         ...(isMac
           ? []
           : ([

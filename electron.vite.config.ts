@@ -38,7 +38,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          overlay: resolve(__dirname, 'src/renderer/overlay.html')
+          overlay: resolve(__dirname, 'src/renderer/overlay.html'),
+          'usage-widget': resolve(__dirname, 'src/renderer/usage-widget.html')
         }
       }
     },

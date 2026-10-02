@@ -1,0 +1,274 @@
+/* Explorer: windowed tree, inline editing, drag and drop, filter, breadcrumb. Theme variables only. */
+.xt__scroll {
+  outline: none;
+  padding: 2px 0 8px;
+  position: relative;
+}
+.xt__scroll--drop {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.xt__spacer {
+  position: relative;
+  width: 100%;
+}
+.xt__window {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  will-change: transform;
+}
+.xt__row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding-right: 8px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 13px;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+}
+.xt__row:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.xt__row--selected {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.xt__row--selected:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.xt__scroll:focus-visible .xt__row--cursor {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.xt__row--ignored {
+  opacity: 0.55;
+}
+.xt__row--drop {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.xt__row--sibling-drop {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.xt__row--note {
+  cursor: default;
+  height: 22px;
+}
+.xt__row--note:hover {
+  background: transparent;
+}
+.xt__row--more {
+  cursor: pointer;
+}
+.xt__row--more:hover .xt__note {
+  color: var(--accent);
+}
+.xt__note {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-style: italic;
+}
+.xt__chev {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  display: inline-flex;
+  color: var(--text-faint);
+}
+.xt__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xt__name mark,
+.xt__path mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+.xt__name--mod {
+  color: var(--warning);
+}
+.xt__name--add,
+.xt__name--unt {
+  color: var(--success);
+}
+.xt__name--del,
+.xt__name--con {
+  color: var(--danger);
+}
+.xt__name--ren {
+  color: var(--accent);
+}
+.xt__row .git-badge {
+  margin-left: auto;
+}
+.xt__dot {
+  margin-left: auto;
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+.xt__dot--mod {
+  background: var(--warning);
+}
+.xt__dot--add,
+.xt__dot--unt {
+  background: var(--success);
+}
+.xt__dot--del,
+.xt__dot--con {
+  background: var(--danger);
+}
+.xt__dot--ren {
+  background: var(--accent);
+}
+.xt__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.xt__input--bad {
+  border-color: var(--danger);
+}
+.xt__empty {
+  padding: 10px 12px;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.xt__filter {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.xt__filter-icon {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+.xt__filter-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+.xt__filter-input::placeholder {
+  color: var(--text-faint);
+}
+.xt__filter-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 1px;
+  border-radius: 4px;
+}
+.xt__filter-clear:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.xt__hit {
+  padding-left: 10px;
+}
+.xt__path {
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  min-width: 0;
+}
+.xt__crumbs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.xt__crumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.xt__crumb-sep {
+  flex: 0 0 auto;
+  margin: 0 1px;
+  opacity: 0.7;
+}
+.xt__crumb {
+  border: none;
+  background: none;
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: var(--text-faint);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xt__crumb:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.xt__crumb--last {
+  color: var(--text-dim);
+}
+.xt__menu {
+  min-width: 200px;
+}
+.xt__menu-head {
+  padding: 4px 8px 2px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.xt__check {
+  flex: 0 0 14px;
+  width: 14px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--accent);
+}
+.xt .iconbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

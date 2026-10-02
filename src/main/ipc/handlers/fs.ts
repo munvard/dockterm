@@ -5,6 +5,8 @@ import { JailViolation, resolveInside } from '../../services/pathJail'
 import { rootFor, rememberKnownRoot, isKnownRoot } from '../../services/activeRoot'
 import {
   readTree,
+  readDir,
+  duplicate,
   searchTree,
   readFile,
   writeFile,
@@ -17,11 +19,13 @@ import {
   openPath
 } from '../../services/fileService'
 import { MAX_EDIT_FILE_BYTES } from '@shared/constants'
+import { indexReady, indexStatus, quickSearch } from '../../search/searchService'
 import type { Registrar } from '../register'
 
 const relSchema = z.object({ relPath: z.string().min(1).max(4096) })
 const treeSchema = z.object({ relPath: z.string().max(4096) })
 const searchSchema = z.object({ query: z.string().max(200) })
+const dirSchema = z.object({ relPath: z.string().max(4096), showIgnored: z.boolean() })
 // readFile/writeFile accept an optional absolute `root`, for an editor tab
 // whose owning pane is no longer the window's focused one (see RU-C3): it's
 // validated against the window's known roots below, never trusted outright.
@@ -86,7 +90,46 @@ export function registerFsHandlers(reg: Registrar): void {
 
   reg('fs:search', searchSchema, async (req, event) => {
     try {
-      return ok(await searchTree(rootFor(event), req.query))
+      const root = rootFor(event)
+      // Backed by the worker index once it is built (also starts building it);
+      // until then, or when the folder is too broad to index, the old walk answers.
+      indexStatus(root, event.sender)
+      if (indexReady(root) && req.query.trim()) {
+        const res = await quickSearch(root, event.sender, {
+          query: req.query,
+          includeIgnored: false,
+          kinds: 'both',
+          limit: 200,
+          recent: [],
+          owner: 999
+        })
+        if (res.kind === 'ok') {
+          return ok(
+            res.results.hits.map((h) => ({
+              name: h.relPath.slice(h.relPath.lastIndexOf('/') + 1),
+              relPath: h.relPath,
+              type: h.isDir ? ('dir' as const) : ('file' as const)
+            }))
+          )
+        }
+      }
+      return ok(await searchTree(root, req.query))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  reg('fs:readDir', dirSchema, async (req, event) => {
+    try {
+      return ok(await readDir(rootFor(event), req.relPath, req.showIgnored))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
+  reg('fs:duplicate', relSchema, async (req, event) => {
+    try {
+      return ok({ relPath: await duplicate(rootFor(event), req.relPath) })
     } catch (e) {
       return fail(e)
     }

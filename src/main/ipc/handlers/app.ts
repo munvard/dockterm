@@ -13,6 +13,7 @@ import {
   skipUpdate
 } from '../../services/updateChecker'
 import { getUsageSnapshot } from '../../services/usageService'
+import { getRealUsage } from '../../services/usageCaptureService'
 import { getAgentActivity } from '../../services/agentActivityService'
 import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
 import { paneKey } from '../../services/windowNamespace'
@@ -54,6 +55,7 @@ export function registerAppHandlers(reg: Registrar): void {
   })
 
   reg('usage:get', z.void(), async () => ok(await getUsageSnapshot()))
+  reg('usage:realGet', z.void(), () => ok(getRealUsage()))
 
   reg('activity:get', z.void(), async () => ok(await getAgentActivity()))
 

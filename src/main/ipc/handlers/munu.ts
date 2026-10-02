@@ -9,7 +9,7 @@ import {
   resizeMunu,
   showMainWindows
 } from '../../services/munuService'
-import { getOverlayBounds, moveOverlay, beginOverlayDrag, dragOverlay } from '../../overlayWindow'
+import { getOverlayBounds, moveOverlay, beginOverlayDrag, dragOverlay, setOverlayHit } from '../../overlayWindow'
 import { CONTROL_CHARS } from '../../services/munuAskTokens'
 import type { Registrar } from '../register'
 
@@ -18,6 +18,7 @@ import type { Registrar } from '../register'
 // flow straight into window bounds / drag-delta math in overlayWindow.ts.
 export const coord = z.number().finite()
 export const dragSchema = z.object({ sx: coord, sy: coord })
+const hitSchema = z.object({ x: coord, y: coord, width: coord, height: coord })
 
 // Generous but bounded string caps: this data is parsed from Claude's own
 // terminal output (askParser), not typed by hand, so it should never be huge
@@ -118,6 +119,11 @@ export function registerMunuHandlers(reg: Registrar): void {
 
   reg('munu:dragStart', dragSchema, (req) => {
     beginOverlayDrag(req.sx, req.sy)
+    return ok(undefined)
+  })
+
+  reg('munu:setHit', z.object({ hit: hitSchema.nullable() }), (req) => {
+    setOverlayHit(req.hit)
     return ok(undefined)
   })
 

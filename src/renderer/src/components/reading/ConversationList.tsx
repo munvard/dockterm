@@ -1,18 +1,22 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { renderMarkdownPreview } from '../terminal/markdown'
 import { conversationDepKey } from './conversationDepKey'
+import { sameMessage, rowStart, FIRST_ROWS, MORE_ROWS } from './conversationRows'
 import type { ReadingMessage } from '@shared/types'
 
 export { conversationDepKey }
 
 // Assistant markdown is immutable once written, so sanitize each message once and
 // cache by id — polling re-renders the list but must not re-run marked/DOMPurify.
+// The cached value is the `{ __html }` object itself: React re-sets innerHTML
+// whenever that prop's object changes, so a fresh object per render re-parsed
+// every assistant message's HTML on every poll.
 const MD_CACHE_MAX = 2000
-const mdCache = new Map<string, string>()
-function renderAssistant(id: string, text: string): string {
+const mdCache = new Map<string, { __html: string }>()
+function renderAssistant(id: string, text: string): { __html: string } {
   const hit = mdCache.get(id)
   if (hit !== undefined) return hit
-  const html = renderMarkdownPreview(text)
+  const html = { __html: renderMarkdownPreview(text) }
   // Evict the OLDEST half (a Map iterates in insertion order) rather than clearing:
   // a real session exceeds the cap, and clearing would make every subsequent render
   // re-run marked + DOMPurify over the whole visible conversation on each poll.
@@ -56,6 +60,25 @@ function onConversationClick(e: React.MouseEvent<HTMLDivElement>): void {
   e.preventDefault()
   void window.dockterm.invoke('app:openExternal', { url: href })
 }
+
+/** One row. Memoized by value so a poll that appends messages renders only the
+ * new or changed rows, not the whole (up to 2000-row) conversation. */
+const Row = memo(function Row({ m }: { m: ReadingMessage }): React.ReactElement {
+  if (m.role === 'tool') return <ToolRow m={m} />
+  if (m.role === 'user') {
+    return (
+      <div className="reading__msg reading__msg--user">
+        <div className="reading__role">You</div>
+        <div className="reading__text">{m.text}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="reading__msg reading__msg--assistant">
+      <div className="reading__md" dangerouslySetInnerHTML={renderAssistant(m.id, m.text ?? '')} />
+    </div>
+  )
+}, (a, b) => sameMessage(a.m, b.m))
 
 /** Keep a scroll container pinned to the newest content while the user is at the
  * bottom; report when they've scrolled away so a "jump to latest" can appear. */
@@ -121,25 +144,21 @@ export const ConversationList = memo(function ConversationList({
 }: {
   messages: ReadingMessage[]
 }): React.ReactElement {
+  // Mount the newest rows first, then the older ones in idle slices, so opening
+  // a long conversation never blocks a frame. Scroll anchoring keeps the view
+  // still while older rows are added above it.
+  const [shown, setShown] = useState(FIRST_ROWS)
+  const total = messages.length
+  useEffect(() => {
+    if (shown >= total) return
+    const id = requestIdleCallback(() => setShown((n) => n + MORE_ROWS), { timeout: 300 })
+    return () => cancelIdleCallback(id)
+  }, [shown, total])
   return (
     <div onClick={onConversationClick}>
-      {messages.map((m) =>
-        m.role === 'tool' ? (
-          <ToolRow key={m.id} m={m} />
-        ) : m.role === 'user' ? (
-          <div className="reading__msg reading__msg--user" key={m.id}>
-            <div className="reading__role">You</div>
-            <div className="reading__text">{m.text}</div>
-          </div>
-        ) : (
-          <div className="reading__msg reading__msg--assistant" key={m.id}>
-            <div
-              className="reading__md"
-              dangerouslySetInnerHTML={{ __html: renderAssistant(m.id, m.text ?? '') }}
-            />
-          </div>
-        )
-      )}
+      {messages.slice(rowStart(total, shown)).map((m) => (
+        <Row key={m.id} m={m} />
+      ))}
     </div>
   )
 })

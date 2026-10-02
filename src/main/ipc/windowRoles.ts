@@ -5,7 +5,7 @@
  * window main did not create, or one that is gone) is unknown and is refused.
  * No electron import, so it is unit-testable.
  */
-export type WindowRole = 'main' | 'overlay'
+export type WindowRole = 'main' | 'overlay' | 'usage'
 
 const roles = new Map<number, WindowRole>()
 

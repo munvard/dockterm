@@ -7,6 +7,7 @@ import { confirmCloseLeaves } from '../components/terminal/closeGuard'
 import { refocusIfTerminal } from '../components/terminal/PaneTree'
 import { detectPlatform, matchShortcut, PASTE_PLAIN_EVENT } from './keys'
 import { isModalOpen } from '../state/modalState'
+import { useSearchStore } from '../state/useSearchStore'
 
 const platform = detectPlatform()
 
@@ -66,6 +67,15 @@ export function useShortcuts(): void {
           return fire(() => app.togglePanel('review'))
         case 'panel:mcp':
           return fire(() => app.togglePanel('mcp'))
+        case 'quickOpen': {
+          const search = useSearchStore.getState()
+          return fire(() => (search.quickOpen ? search.closeQuick() : search.openQuick()))
+        }
+        case 'findInFiles':
+          return fire(() => {
+            if (app.openPanel !== 'search') app.setOpenPanel('search')
+            useSearchStore.getState().focusFind()
+          })
         case 'toggleMiniTerm':
           return fire(() => app.toggleMiniTerm())
         case 'openProject':

@@ -4,7 +4,7 @@ import { useAgentStore } from '../../state/useAgentStore'
 import { useAppStore } from '../../state/useAppStore'
 import { Munu } from '../munu/Munu'
 import type { LiveAgent, MunuState } from '@shared/types'
-import { creatureFor, friendlyType, fmtElapsed } from './agentVisual'
+import { creatureFor, friendlyType, fmtElapsed, kindLabel, agentTitle, teamLabel, isLive, stepsLabel } from './agentVisual'
 
 /** Re-render every second while something is running, so elapsed timers tick. */
 function useNow(active: boolean): number {
@@ -18,28 +18,32 @@ function useNow(active: boolean): number {
 }
 
 const artState = (a: LiveAgent): MunuState =>
-  a.phase === 'running' ? 'working' : a.phase === 'done' ? 'done' : 'asking'
+  a.phase === 'running' ? 'working' : a.phase === 'done' ? 'done' : a.phase === 'idle' ? 'idle' : 'asking'
 
 function AgentCard({ agent, now }: { agent: LiveAgent; now: number }) {
-  const elapsed =
-    agent.phase === 'running'
-      ? now - agent.startedAt
-      : (agent.durationMs ?? Math.max(0, (agent.endedAt ?? now) - agent.startedAt))
+  const live = agent.phase === 'running' || agent.phase === 'idle'
+  const elapsed = live
+    ? now - agent.startedAt
+    : (agent.durationMs ?? Math.max(0, (agent.endedAt ?? now) - agent.startedAt))
+  const title = agentTitle(agent)
+  const role = agent.name && friendlyType(agent.type) !== 'General Purpose' ? friendlyType(agent.type) : ''
+  const steps = stepsLabel(agent.steps)
   return (
     <div className={`agent-card agent-card--${agent.phase}`}>
       <div className="agent-card__rail" aria-hidden />
       <div className={`agent-card__avatar agent-card__avatar--${agent.phase}`}>
-        <Munu state={artState(agent)} character={creatureFor(agent.type)} size={30} />
+        <Munu state={artState(agent)} character={creatureFor(agent.name ?? agent.type)} size={30} />
       </div>
       <div className="agent-card__body">
         <div className="agent-card__top">
-          <span className="agent-card__type">{friendlyType(agent.type)}</span>
+          <span className="agent-card__type">{title}</span>
           <span className={`agent-card__status agent-card__status--${agent.phase}`}>
             {agent.phase === 'running' && (
               <>
                 <span className="agent-card__dot" /> running
               </>
             )}
+            {agent.phase === 'idle' && <>idle</>}
             {agent.phase === 'done' && (
               <>
                 <Check size={11} /> done
@@ -52,10 +56,16 @@ function AgentCard({ agent, now }: { agent: LiveAgent; now: number }) {
             )}
           </span>
         </div>
+        <div className="agent-card__tags">
+          <span className={`kindbadge kindbadge--${agent.kind}`}>{kindLabel(agent.kind)}</span>
+          {role && <span className="agent-card__role">{role}</span>}
+        </div>
         {agent.description && <div className="agent-card__desc">{agent.description}</div>}
         <div className="agent-card__meta">
           <span className="agent-card__time">{fmtElapsed(elapsed)}</span>
+          {steps && <span className="agent-card__steps"> · {steps}</span>}
         </div>
+        {agent.phase === 'running' && agent.action && <div className="agent-card__action">{agent.action}</div>}
         {agent.phase === 'running' ? (
           <div className="agent-card__working" aria-hidden>
             <span className="agent-card__shimmer" />
@@ -70,19 +80,55 @@ function AgentCard({ agent, now }: { agent: LiveAgent; now: number }) {
   )
 }
 
+/** Agents of one project: plain ones first, then each team under its own label. */
+function AgentList({ agents, now }: { agents: LiveAgent[]; now: number }) {
+  const solo = agents.filter((a) => a.kind !== 'teammate')
+  const teams = new Map<string, LiveAgent[]>()
+  for (const a of agents) {
+    if (a.kind !== 'teammate') continue
+    const k = a.teamName ?? ''
+    teams.set(k, [...(teams.get(k) ?? []), a])
+  }
+  return (
+    <>
+      {solo.length > 0 && (
+        <div className="agent-list">
+          {solo.map((a) => (
+            <AgentCard key={a.id} agent={a} now={now} />
+          ))}
+        </div>
+      )}
+      {[...teams.entries()].map(([team, members]) => (
+        <div className="agent-team" key={team}>
+          <div className="agent-team__head">
+            <span>{teamLabel(team || null)}</span>
+            <span className="agent-group__count">{members.length}</span>
+          </div>
+          <div className="agent-list">
+            {members.map((a) => (
+              <AgentCard key={a.id} agent={a} now={now} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
 export function ActivityPanel() {
   const activity = useAgentStore((s) => s.activity)
   const load = useAgentStore((s) => s.load)
   const enabled = useAppStore((s) => s.settings?.agentActivity?.enabled) ?? true
-  const now = useNow((activity?.activeCount ?? 0) > 0)
+  const now = useNow((activity?.agents ?? []).some(isLive))
 
   useEffect(() => {
     if (enabled) void load()
   }, [load, enabled])
 
   const agents = activity?.agents ?? []
-  const running = agents.filter((a) => a.phase === 'running')
-  const finished = agents.filter((a) => a.phase !== 'running')
+  const running = agents.filter(isLive)
+  const finished = agents.filter((a) => !isLive(a))
+  const workingCount = agents.filter((a) => a.phase === 'running').length
 
   // Group running agents by project (most-active first), derived directly from the
   // agents so no running agent can ever be missing from a group.
@@ -103,7 +149,8 @@ export function ActivityPanel() {
         <div className="panel__actions">
           {running.length > 0 && (
             <span className="agent-livecount">
-              <span className="agent-livecount__dot" /> {running.length} running
+              <span className="agent-livecount__dot" /> {workingCount} running
+              {running.length > workingCount ? `, ${running.length - workingCount} idle` : ''}
             </span>
           )}
           <button className="iconbtn iconbtn--sm" title="Refresh" onClick={() => void load()}>
@@ -124,8 +171,8 @@ export function ActivityPanel() {
             </div>
             <div className="agent-empty__title">No agents running</div>
             <div className="agent-empty__sub">
-              When Claude Code spawns sub-agents, they show up here live — what each is doing, how
-              long it&apos;s taken, and what it found.
+              When Claude Code starts sub-agents, background agents or a team, they show up here live:
+              what each is doing, how long it&apos;s taken, and what it found.
             </div>
           </div>
         ) : (
@@ -137,11 +184,7 @@ export function ActivityPanel() {
                   <span className="agent-group__name">{g.label}</span>
                   <span className="agent-group__count">{g.agents.length}</span>
                 </div>
-                <div className="agent-list">
-                  {g.agents.map((a) => (
-                    <AgentCard key={a.id} agent={a} now={now} />
-                  ))}
-                </div>
+                <AgentList agents={g.agents} now={now} />
               </div>
             ))}
 

@@ -1,4 +1,4 @@
-import type { AgentPhase, MascotCharacter } from '@shared/types'
+import type { AgentKind, AgentPhase, LiveAgent, MascotCharacter } from '@shared/types'
 
 /** The four mascot characters, reused as the swarm creatures. */
 const CREATURES: MascotCharacter[] = ['munu', 'nvurd', 'guru', 'adanana']
@@ -39,4 +39,29 @@ export function fmtElapsed(ms: number): string {
 /** CSS modifier suffix for an agent phase (drives status color). */
 export function phaseClass(phase: AgentPhase): string {
   return phase
+}
+
+/** Short badge text for the kind of agent. */
+export function kindLabel(kind: AgentKind): string {
+  return kind === 'background' ? 'Background' : kind === 'teammate' ? 'Teammate' : 'Sub-agent'
+}
+
+/** The name to show: a team member's own name, else the friendly agent type. */
+export function agentTitle(a: Pick<LiveAgent, 'name' | 'type'>): string {
+  return a.name ? a.name : friendlyType(a.type)
+}
+
+/** 'session-07339782' becomes 'Team 07339782'; any other team name is shown as is. */
+export function teamLabel(team: string | null): string {
+  if (!team) return 'Team'
+  const m = /^session-(.+)$/.exec(team)
+  return m ? `Team ${m[1]}` : team
+}
+
+/** Agents that are alive (working, or a team member waiting for work). */
+export const isLive = (a: LiveAgent): boolean => a.phase === 'running' || a.phase === 'idle'
+
+/** '3 steps' / '1 step', or '' when nothing is counted yet. */
+export function stepsLabel(steps: number): string {
+  return steps > 0 ? `${steps} step${steps === 1 ? '' : 's'}` : ''
 }

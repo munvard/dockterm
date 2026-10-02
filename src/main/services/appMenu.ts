@@ -1,6 +1,7 @@
 import { app, dialog, Menu, BrowserWindow, shell } from 'electron'
 import { createWindow } from '../window'
 import { getOverlay } from '../overlayWindow'
+import { getUsageWidget } from '../usageFloatWindow'
 import type { MenuAction } from '@shared/ipc'
 import { buildMenuTemplate } from './appMenuTemplate'
 import { countPtysForWindow } from './ptyService'
@@ -11,9 +12,12 @@ import { guardedReload, reloadWarning } from './reloadGuard'
  * typing) — never let it stand in for "the app window" here. */
 function send(action: MenuAction): void {
   const overlay = getOverlay()
+  const widget = getUsageWidget()
   const focused = BrowserWindow.getFocusedWindow()
   const win =
-    focused && focused !== overlay ? focused : BrowserWindow.getAllWindows().find((w) => w !== overlay)
+    focused && focused !== overlay && focused !== widget
+      ? focused
+      : BrowserWindow.getAllWindows().find((w) => w !== overlay && w !== widget)
   win?.webContents.send('menu:action', { action })
 }
 

@@ -1,4 +1,5 @@
 import { Terminal } from '@xterm/xterm'
+import { paneShells } from '../../state/paneShells'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { SerializeAddon } from '@xterm/addon-serialize'
@@ -17,6 +18,8 @@ import { useComposeStore } from '../../state/useComposeStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
+import { ptyAcks, ptyRouter, utf8Length } from './ptyRouter'
+import { coveredCells, type Box } from './paneCorner'
 import { bundledConptyBuild } from './conptyBuild'
 import {
   CLEAR_STARTING_HINT,
@@ -33,9 +36,8 @@ import {
 import { toComposerPlatform } from '../chat/composerText'
 import { useToastStore } from '../../state/useToastStore'
 import type { TerminalOptions } from './useTerminal'
+import { createPtyWriter } from './ptyWriter'
 import '@xterm/xterm/css/xterm.css'
-
-const encoder = new TextEncoder()
 
 function currentPlatform(): string {
   return document.documentElement.dataset.platform ?? ''
@@ -160,6 +162,24 @@ export function paneVisibleText(leafId: string): string {
   return out
 }
 
+/** The visible cells a floating box (screen coordinates) covers in a pane's
+ * terminal, one string per row, and whether a full-screen app owns the screen.
+ * Null when the terminal is not laid out. */
+export function paneCoveredText(leafId: string, box: Box): { cells: string[]; alt: boolean } | null {
+  const p = pool.get(leafId)
+  const screen = p?.term.element?.querySelector('.xterm-screen')
+  if (!p || !screen) return null
+  const r = screen.getBoundingClientRect()
+  const { cols, rows } = p.term
+  const cover = coveredCells(box, r, cols, rows)
+  const buf = p.term.buffer.active
+  const cells: string[] = []
+  for (let y = 0; y < cover.rows; y++) {
+    cells.push(buf.getLine(buf.viewportY + y)?.translateToString(true, cols - cover.cols, cols) ?? '')
+  }
+  return { cells, alt: buf.type === 'alternate' }
+}
+
 /** Distinctive recent lines from a pane's buffer — used to identify WHICH Claude
  * session this exact terminal is running (by matching the transcript). A fresh /
  * non-Claude terminal yields only chrome, which matches no transcript. */
@@ -182,6 +202,33 @@ export function getPaneSample(leafId: string, count = 40): string[] {
 const pool = new Map<string, PooledTerminal>()
 /** leafId → live pty session id, for the close-confirmation guard. */
 const paneSessions = new Map<string, string>()
+
+/** leafId → `--settings "<file>"` a launcher must add after `claude` (shells without
+ * the DockTerm `claude` hook only), so Claude's real usage can be captured. */
+const paneClaudeFlags = new Map<string, string>()
+
+/** The capture flag for a pane's launcher commands, or null (hooked shell / off). */
+export function paneClaudeFlag(leafId: string): string | null {
+  return paneClaudeFlags.get(leafId) ?? null
+}
+
+const paneSessionListeners = new Set<() => void>()
+
+/** Called whenever a pane gets, changes or loses its pty session id. */
+export function onPaneSessionChange(fn: () => void): () => void {
+  paneSessionListeners.add(fn)
+  return () => void paneSessionListeners.delete(fn)
+}
+
+function setPaneSession(leafId: string, sessionId: string | null): void {
+  if (sessionId === null) {
+    if (!paneSessions.delete(leafId)) return
+  } else {
+    if (paneSessions.get(leafId) === sessionId) return
+    paneSessions.set(leafId, sessionId)
+  }
+  for (const fn of [...paneSessionListeners]) fn()
+}
 
 /** The pty session id backing a pane (null if not started / disposed). */
 export function paneSessionId(leafId: string): string | null {
@@ -499,7 +546,6 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         void pasteFromClipboard()
         return false
     }
-    return true
   })
 
   // Right-click: with text selected it copies and clears the selection (every
@@ -625,52 +671,42 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
       term.write(CLEAR_STARTING_HINT)
     }
     term.write(data, () => {
-      if (sessionId) {
-        void window.dockterm.invoke('pty:ack', {
-          sessionId,
-          bytes: encoder.encode(data).length
-        })
+      if (sessionId) ptyAcks().add(sessionId, utf8Length(data))
+    })
+  }
+
+  // Until the spawn returns a session id, unclaimed chunks are buffered here.
+  let offData = ptyRouter().wait((e) => {
+    if (sessionId === null) pending.push(e)
+  })
+  let offRoute = (): void => {}
+  const claimSession = (sid: string): void => {
+    offData()
+    offData = () => {}
+    offRoute = ptyRouter().claim(sid, {
+      data: (data) => {
+        writeChunk(data)
+        p.opts.onActivity?.()
+        scheduleStatus()
+      },
+      exit: (exitCode) => {
+        exited = true
+        term.writeln(`\r\n\x1b[2m[shell exited with code ${exitCode}]\x1b[0m`)
       }
     })
   }
 
-  const offData = window.dockterm.on('pty:data', (e) => {
-    if (sessionId === null) {
-      pending.push(e)
-      return
-    }
-    if (e.sessionId === sessionId) {
-      writeChunk(e.data)
-      p.opts.onActivity?.()
-      scheduleStatus()
-    }
-  })
-  const offExit = window.dockterm.on('pty:exit', (e) => {
-    if (e.sessionId === sessionId) {
-      exited = true
-      term.writeln(`\r\n\x1b[2m[shell exited with code ${e.exitCode}]\x1b[0m`)
-    }
-  })
-
   // pty:write rejects over 1 MiB, so a huge paste goes out in order as several writes
-  // instead of being dropped silently. Split on code points, never inside a surrogate pair.
+  // instead of being dropped silently; keys typed meanwhile queue behind it.
   const WRITE_CHUNK = 256 * 1024
+  const writePty = createPtyWriter(async (data) => {
+    if (!sessionId || exited) return false
+    const r = await window.dockterm.invoke('pty:write', { sessionId, data })
+    return r.ok && !exited
+  }, WRITE_CHUNK)
   const dataSub = term.onData((d) => {
     if (!sessionId || exited) return
-    if (d.length <= WRITE_CHUNK) {
-      void window.dockterm.invoke('pty:write', { sessionId, data: d })
-      return
-    }
-    void (async () => {
-      for (let i = 0; i < d.length; ) {
-        let end = Math.min(i + WRITE_CHUNK, d.length)
-        const last = d.charCodeAt(end - 1)
-        if (end < d.length && last >= 0xd800 && last <= 0xdbff) end--
-        const r = await window.dockterm.invoke('pty:write', { sessionId: sessionId!, data: d.slice(i, end) })
-        if (!r.ok || exited) return
-        i = end
-      }
-    })()
+    writePty(d)
   })
   const resizeSub = term.onResize(({ cols, rows }) => {
     if (sessionId) void window.dockterm.invoke('pty:resize', { sessionId, cols, rows })
@@ -745,7 +781,10 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           return
         }
         sessionId = res.value.sessionId
-        paneSessions.set(id, res.value.sessionId)
+        claimSession(sessionId)
+        setPaneSession(id, res.value.sessionId)
+        paneShells.set(id, res.value.shell)
+        if (res.value.claudeFlag) paneClaudeFlags.set(id, res.value.claudeFlag)
         if (res.value.cwdFellBack) p.opts.onCwdFallback?.(res.value.cwd)
         // Catch up a resize that was dropped while spawning (see above).
         if (term.cols !== requestedCols || term.rows !== requestedRows) {
@@ -817,7 +856,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     disposed = true
     if (hintTimer) clearTimeout(hintTimer)
     offData()
-    offExit()
+    offRoute()
     dataSub.dispose()
     resizeSub.dispose()
     observer.disconnect()
@@ -828,9 +867,14 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (fitTimer) clearTimeout(fitTimer)
     if (statusTimer) clearTimeout(statusTimer)
     if (statusMaxTimer) clearTimeout(statusMaxTimer)
-    if (sessionId) void window.dockterm.invoke('pty:kill', { sessionId })
+    if (sessionId) {
+      ptyAcks().drop(sessionId)
+      void window.dockterm.invoke('pty:kill', { sessionId })
+    }
     sessionId = null
-    paneSessions.delete(id)
+    setPaneSession(id, null)
+    paneClaudeFlags.delete(id)
+    paneShells.delete(id)
     term.dispose()
     if (host.parentElement) host.parentElement.removeChild(host)
     // Drop this pane's Claude-state + writer registrations (true close only).

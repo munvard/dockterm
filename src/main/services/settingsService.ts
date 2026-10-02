@@ -35,6 +35,9 @@ const workspaceBase = z
 
 const workspaceSchema = workspaceBase.default(null)
 
+const usageMetric = z.enum(['fiveHour', 'sevenDay', 'context', 'cost'])
+const usageStyle = z.enum(['percent', 'bar', 'ring', 'graph'])
+
 /** Per-section preference schemas. Every leaf has a default so old/partial
  * configs migrate forward by simply filling the gaps. */
 const preference = {
@@ -93,6 +96,17 @@ const preference = {
       floating: z.boolean().default(false)
     })
     .default({}),
+  files: z
+    .object({
+      sortBy: z.enum(['name', 'type', 'modified', 'size']).default('name'),
+      sortDesc: z.boolean().default(false),
+      foldersFirst: z.boolean().default(true),
+      showHidden: z.boolean().default(true),
+      showIgnored: z.boolean().default(false),
+      /** Quick Open and Find in files: also search ignored and hidden folders (node_modules, build output, .git). */
+      searchIgnored: z.boolean().default(false)
+    })
+    .default({}),
   chat: z
     .object({
       /** What view a pane starts in. 'terminal' keeps DockTerm terminal-first. */
@@ -107,7 +121,7 @@ const preference = {
       editorRatio: z.number().min(0.2).max(0.8).default(0.5),
       miniTermHeight: z.number().min(80).max(600).default(160),
       openPanel: z
-        .enum(['files', 'git', 'review', 'mcp', 'skills', 'agents', 'activity', 'usage', 'info', 'settings'])
+        .enum(['files', 'search', 'git', 'review', 'mcp', 'skills', 'agents', 'activity', 'usage', 'info', 'settings'])
         .nullable()
         .default(null),
       miniTermOpen: z.boolean().default(false),
@@ -141,7 +155,33 @@ const preference = {
   usage: z
     .object({
       enabled: z.boolean().default(true),
-      plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto')
+      plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto'),
+      source: z.enum(['claude', 'local']).default('claude'),
+      captureEnabled: z.boolean().default(true),
+      captureWithoutStatusLine: z.boolean().default(false),
+      pill: z
+        .object({
+          show: z.array(usageMetric).max(4).default(['fiveHour']),
+          style: usageStyle.default('percent'),
+          showReset: z.boolean().default(true),
+          warnAt: z.number().min(0).max(100).default(75),
+          critAt: z.number().min(0).max(100).default(90)
+        })
+        .default({}),
+      float: z
+        .object({
+          enabled: z.boolean().default(false),
+          x: z.number().finite().nullable().default(null),
+          y: z.number().finite().nullable().default(null),
+          w: z.number().min(120).max(1200).default(260),
+          h: z.number().min(60).max(900).default(120),
+          alwaysOnTop: z.boolean().default(true),
+          opacity: z.number().min(0.3).max(1).default(1),
+          show: z.array(usageMetric).max(4).default(['fiveHour', 'sevenDay']),
+          style: usageStyle.default('percent'),
+          showReset: z.boolean().default(true)
+        })
+        .default({})
     })
     .default({}),
   agentActivity: z
@@ -190,6 +230,7 @@ const settingsSchema = z.object({
   sessionHistory: preference.sessionHistory,
   reading: preference.reading,
   chat: preference.chat,
+  files: preference.files,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   /** Free-form scratchpad shown in the top-bar notes popover; auto-saved. */
@@ -231,6 +272,7 @@ export const settingsPatchSchema = z.object({
   sessionHistory: toPatchSchema(preference.sessionHistory).optional(),
   reading: toPatchSchema(preference.reading).optional(),
   chat: toPatchSchema(preference.chat).optional(),
+  files: toPatchSchema(preference.files).optional(),
   munu: toPatchSchema(preference.munu).optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),
@@ -274,6 +316,7 @@ const OBJECT_PATCH_KEYS = [
   'sessionHistory',
   'reading',
   'chat',
+  'files',
   'munu'
 ] as const satisfies readonly (keyof Settings)[]
 

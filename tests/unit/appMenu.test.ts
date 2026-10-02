@@ -57,11 +57,13 @@ describe.each(['win32', 'linux'] as const)('app menu on %s', (platform) => {
     expect(find(t, 'New Window').accelerator).toBe('Ctrl+Shift+N')
     expect(find(t, 'Open Project…').accelerator).toBe('Ctrl+Shift+O')
     expect(find(t, 'Split Right').accelerator).toBe('Ctrl+Shift+D')
+    expect(find(t, 'Quick Open…').accelerator).toBe('Ctrl+Shift+L')
+    expect(find(t, 'Find in Files…').accelerator).toBe('Ctrl+Shift+F')
   })
 
   it('never registers a key the renderer already handles', () => {
     const t = buildMenuTemplate(platform, deps)
-    for (const label of ['New Tab', 'New Window', 'Open Project…', 'Split Right', 'Settings…']) {
+    for (const label of ['New Tab', 'New Window', 'Open Project…', 'Split Right', 'Settings…', 'Quick Open…', 'Find in Files…']) {
       expect(find(t, label).registerAccelerator, label).toBe(false)
     }
   })
@@ -90,7 +92,9 @@ describe('app menu on darwin', () => {
       ['New Tab', 'Cmd+T'],
       ['New Window', 'Cmd+N'],
       ['Open Project…', 'Cmd+O'],
-      ['Split Right', 'Cmd+D']
+      ['Split Right', 'Cmd+D'],
+      ['Quick Open…', 'Cmd+P'],
+      ['Find in Files…', 'Cmd+Shift+F']
     ]) {
       const it = find(t, label)
       expect(it.accelerator, label).toBe(key)

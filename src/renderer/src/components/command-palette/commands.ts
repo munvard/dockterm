@@ -1,6 +1,7 @@
 import { useAppStore } from '../../state/useAppStore'
 import { useGitStore } from '../../state/useGitStore'
 import { useReviewStore } from '../../state/useReviewStore'
+import { useSearchStore } from '../../state/useSearchStore'
 import { k } from '../../hooks/keys'
 
 export interface AppCommand {
@@ -19,6 +20,8 @@ export function buildCommands(): AppCommand[] {
   return [
     { id: 'open-project', title: 'Open Project…', group: 'Project', shortcut: k('⌘O', 'Ctrl+Shift+O'), run: () => void app.openProjectDialog() },
     { id: 'toggle-files', title: 'Toggle Files', group: 'View', shortcut: k('⌘B', 'Ctrl+Shift+B'), run: () => app.togglePanel('files') },
+    { id: 'quick-open', title: 'Quick Open File…', group: 'Project', shortcut: k('⌘P', 'Ctrl+Shift+L'), run: () => useSearchStore.getState().openQuick() },
+    { id: 'find-in-files', title: 'Find in Files…', group: 'Project', shortcut: k('⌘⇧F', 'Ctrl+Shift+F'), run: () => { app.setOpenPanel('search'); useSearchStore.getState().focusFind() } },
     { id: 'toggle-git', title: 'Toggle Source Control', group: 'View', shortcut: k('⌘G', 'Ctrl+Shift+G'), run: () => app.togglePanel('git') },
     { id: 'toggle-review', title: 'Toggle Review', group: 'View', shortcut: k('⌘E', 'Ctrl+Shift+E'), run: () => app.togglePanel('review') },
     { id: 'toggle-mcp', title: 'Toggle MCP Servers', group: 'View', shortcut: k('⌘⇧M', 'Ctrl+Shift+M'), run: () => app.togglePanel('mcp') },

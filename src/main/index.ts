@@ -6,11 +6,15 @@ import { applyGlobalSecurity } from './security'
 import { registerIpc } from './ipc/register'
 import { flushPtyHost, killAllPtys, warmPtyHost } from './services/ptyService'
 import { stopAllWatchers } from './services/watcherService'
+import { disposeAllSearch } from './search/searchService'
 import { setupMenubar, teardownMenubar } from './services/menubarService'
 import { setupAppMenu } from './services/appMenu'
 import { syncOverlay } from './services/munuService'
 import { startUpdateChecker } from './services/updateChecker'
 import { startUsageWatcher } from './services/usageService'
+import { startRealUsageWatcher } from './services/usageCaptureService'
+import { startUsageHistory, stopUsageHistory } from './services/usageHistoryService'
+import { getUsageWidget, syncUsageWidget } from './usageFloatWindow'
 import { startAgentWatcher } from './services/agentActivityService'
 import { startSessionHistoryWatcher } from './services/sessionHistoryService'
 import { setPendingOpen } from './services/pendingOpen'
@@ -41,7 +45,8 @@ if (process.argv.includes('conpty_console_list_agent')) {
      * NEVER the always-open, non-interactive munu overlay. */
     function pickTargetWindow(): BrowserWindow | null {
       const overlay = getOverlay()
-      const windows = BrowserWindow.getAllWindows().filter((w) => w !== overlay)
+      const widget = getUsageWidget()
+      const windows = BrowserWindow.getAllWindows().filter((w) => w !== overlay && w !== widget)
       return windows.find((w) => isPrimaryWindow(w.webContents.id)) ?? windows[0] ?? null
     }
 
@@ -90,6 +95,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
         setPendingOpen(filePath)
         createMainWindow()
         syncOverlay()
+        syncUsageWidget()
         return
       }
       focusWindow(win)
@@ -113,8 +119,11 @@ if (process.argv.includes('conpty_console_list_agent')) {
       setupAppMenu()
       setupMenubar()
       syncOverlay()
+      syncUsageWidget()
       startUpdateChecker()
       startUsageWatcher()
+      startRealUsageWatcher()
+      startUsageHistory()
       startAgentWatcher()
       startSessionHistoryWatcher()
       cleanupOldChatImages()
@@ -126,6 +135,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
         if (BrowserWindow.getAllWindows().length === 0) {
           createMainWindow()
           syncOverlay()
+          syncUsageWidget()
         }
       })
     })
@@ -139,6 +149,8 @@ if (process.argv.includes('conpty_console_list_agent')) {
       killAllPtys()
       flushPtyHost()
       stopAllWatchers()
+      disposeAllSearch()
+      stopUsageHistory()
     })
 
     app.on('window-all-closed', () => {

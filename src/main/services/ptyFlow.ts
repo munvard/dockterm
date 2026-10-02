@@ -18,12 +18,27 @@ export class PtyFlow {
   private bufferedBytes = 0
   private unacked = 0
   private paused = false
+  private lastSentAt = Number.NEGATIVE_INFINITY
 
   /** Append a chunk. Returns true if buffered bytes now meet the flush threshold. */
   push(chunk: string): boolean {
     this.buffer.push(chunk)
     this.bufferedBytes += Buffer.byteLength(chunk)
     return this.bufferedBytes >= PTY.FLUSH_BYTES
+  }
+
+  /**
+   * Leading edge: a chunk that arrives when nothing went out for a whole flush
+   * window (a keystroke's echo, the first bytes of a burst) is sent at once
+   * instead of waiting FLUSH_MS; chunks inside the window still batch.
+   */
+  isLeadingEdge(now: number): boolean {
+    return now - this.lastSentAt >= PTY.FLUSH_MS
+  }
+
+  /** Bytes currently buffered (what the next drain() will hand over). */
+  get bufferedByteCount(): number {
+    return this.bufferedBytes
   }
 
   get hasBuffered(): boolean {
@@ -40,7 +55,8 @@ export class PtyFlow {
   }
 
   /** Record bytes sent to the renderer. Returns true if the PTY should pause now. */
-  onSent(bytes: number): boolean {
+  onSent(bytes: number, now: number = Date.now()): boolean {
+    this.lastSentAt = now
     this.unacked += bytes
     if (!this.paused && this.unacked >= PTY.HIGH_WATER) {
       this.paused = true

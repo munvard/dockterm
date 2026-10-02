@@ -6,6 +6,7 @@ import { slugFor, isDirectChild, pickProjectDir, stripTuiPrefix, pickByHits } fr
 import { parseUserPrompt, buildHistory, type PromptRec } from './sessionHistoryParse'
 import {
   appendConversation,
+  linesByChars,
   newConversationParseState,
   sliceCompleteLines,
   parseTailSlice,
@@ -300,6 +301,22 @@ async function bestMatch(nc: string, sample: string[], hint: string | null): Pro
   return pickByHits(hits, MIN_HITS)
 }
 
+/** About 1 MB of transcript per synchronous parse run; the event loop is free between runs. */
+const PARSE_RUN_CHARS = 1_000_000
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r))
+
+async function appendConversationYielding(
+  messages: ReadingMessage[],
+  lines: string[],
+  state: Parameters<typeof appendConversation>[2]
+): Promise<void> {
+  const runs = linesByChars(lines, PARSE_RUN_CHARS)
+  for (let i = 0; i < runs.length; i++) {
+    if (i > 0) await yieldLoop()
+    appendConversation(messages, runs[i], state)
+  }
+}
+
 function pushPrompt(sess: Sess, r: PromptRec): void {
   sess.recs.push(r)
   if (r.cwd) sess.cwd = r.cwd
@@ -326,11 +343,15 @@ async function fullLoad(path: string): Promise<Sess | null> {
     if (nl >= 0) text = text.slice(nl + 1)
   }
   const sess: Sess = { sessionId: '', cwd: '', lastTs: 0, recs: [], offset: size }
-  for (const line of text.split('\n')) {
-    const r = parseUserPrompt(line)
-    if (r) {
-      sess.sessionId = r.sessionId || sess.sessionId
-      pushPrompt(sess, r)
+  const runs = linesByChars(text.split('\n'), PARSE_RUN_CHARS)
+  for (let i = 0; i < runs.length; i++) {
+    if (i > 0) await yieldLoop()
+    for (const line of runs[i]) {
+      const r = parseUserPrompt(line)
+      if (r) {
+        sess.sessionId = r.sessionId || sess.sessionId
+        pushPrompt(sess, r)
+      }
     }
   }
   byFile.set(path, sess)
@@ -474,7 +495,7 @@ export async function getConversation(
       }
       const { lines, end } = parseTailSlice(text, start)
       cache = { messages: [], offset: end, state: newConversationParseState(), revision: nextRevision() }
-      appendConversation(cache.messages, lines, cache.state)
+      await appendConversationYielding(cache.messages, lines, cache.state)
       trimConversation(cache)
       convByFile.set(path, cache)
     } else if (size > cache.offset) {
@@ -488,7 +509,7 @@ export async function getConversation(
       }
       const { lines, consumed } = sliceCompleteLines(text)
       if (consumed > 0) {
-        appendConversation(cache.messages, lines, cache.state)
+        await appendConversationYielding(cache.messages, lines, cache.state)
         trimConversation(cache)
         cache.offset += consumed
         cache.revision = nextRevision()

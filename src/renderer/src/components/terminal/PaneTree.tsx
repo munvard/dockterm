@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState, type DragEvent, type MouseEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import {
   GripVertical,
@@ -24,7 +24,8 @@ import { confirmCloseLeaves } from './closeGuard'
 import { toRelProjectPath } from './projectPath'
 import type { LayoutNode, LeafNode } from '../../state/layout'
 import { TerminalView } from './TerminalView'
-import { focusPaneTerminal } from './terminalPool'
+import { focusPaneTerminal, paneCoveredText } from './terminalPool'
+import { CornerHold, cornerBlank } from './paneCorner'
 import { quotePath } from './terminalSelection'
 import { PaneChat } from '../chat/PaneChat'
 import { k } from '../../hooks/keys'
@@ -84,6 +85,40 @@ function TerminalPane({
   const pasteRef = useRef<(text: string) => void>(() => {})
   const [dragOver, setDragOver] = useState(false)
   const [reorderOver, setReorderOver] = useState(false)
+  const paneRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
+  const checkCorner = useRef<() => void>(() => {})
+
+  // Corner guard for the floating controls: when the terminal draws under them
+  // (Claude Code's diff panel puts its close button in that corner) they get out
+  // of the way, set straight on the DOM so streaming output causes no re-render.
+  // Rechecked after output settles (onStatus) and on resize.
+  useEffect(() => {
+    const pane = paneRef.current
+    if (!pane || !hideBar) return
+    const hold = new CornerHold()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const check = (): void => {
+      if (timer) clearTimeout(timer)
+      timer = undefined
+      const ctl = controlsRef.current
+      const seen = ctl ? paneCoveredText(leaf.id, ctl.getBoundingClientRect()) : null
+      if (!seen) return
+      const r = hold.update(cornerBlank(seen.cells), performance.now())
+      const next = r.busy ? (seen.alt ? 'app' : 'text') : ''
+      if ((pane.dataset.corner ?? '') !== next) pane.dataset.corner = next
+      if (r.recheckIn !== undefined) timer = setTimeout(check, r.recheckIn)
+    }
+    checkCorner.current = check
+    const ro = new ResizeObserver(check)
+    ro.observe(pane)
+    return () => {
+      checkCorner.current = () => {}
+      ro.disconnect()
+      if (timer) clearTimeout(timer)
+      delete pane.dataset.corner
+    }
+  }, [hideBar, leaf.id])
 
   // Note: the pane's Claude-state + writer registrations are dropped by the
   // terminal pool when the terminal is truly disposed (pane closed / GC'd), not
@@ -170,102 +205,107 @@ function TerminalPane({
   // Every split (non-root) pane shows its own label: the live terminal title
   // (Claude Code / shell, via OSC 0/2) when present, else its folder name.
   const label = paneTitle ?? leaf.title
-  const showTitle = !hideBar && !!label
+  // Pane controls: split right/down, close, and a grip to drag a pane onto another
+  // to swap them. A split pane carries them in its title bar; a single, bar-less
+  // pane floats them over the terminal's top-right corner (see the corner guard).
+  const controls = (
+    <div className="pane__controls" ref={controlsRef}>
+      {!hideBar && (
+        <button
+          className="pane__grip"
+          title="Drag to reorder"
+          aria-label="Drag to reorder pane"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(
+              'application/x-dockterm-pane',
+              JSON.stringify({ leafId: leaf.id, tabId })
+            )
+            e.dataTransfer.effectAllowed = 'move'
+            focusPane(tabId, leaf.id)
+          }}
+          onDragEnd={clearDrag}
+        >
+          <GripVertical size={14} />
+        </button>
+      )}
+      {histEnabled && (
+        <button
+          className={historyOpen ? 'pane__active' : undefined}
+          title="Checkpoints (your prompts)"
+          aria-label="Toggle checkpoints"
+          onMouseDown={act(() => toggleHistory())}
+        >
+          <Milestone size={14} />
+        </button>
+      )}
+      {(t?.changesOverlay ?? true) && (
+        <button
+          title="Changes in this terminal's project"
+          aria-label="Show changes for this terminal"
+          onMouseDown={act(() => {
+            focusPane(tabId, leaf.id)
+            useChangesStore.getState().setOpen(true)
+          })}
+        >
+          <GitCompareArrows size={14} />
+        </button>
+      )}
+      <button
+        title={
+          chatOn
+            ? `Show the terminal (${k('⌘R', 'Ctrl+Shift+R')})`
+            : `Chat mode, comfortable reading (${k('⌘R', 'Ctrl+Shift+R')})`
+        }
+        aria-label="Toggle chat mode"
+        className={chatOn ? 'pane__active' : undefined}
+        onMouseDown={act(() => {
+          focusPane(tabId, leaf.id)
+          useWorkspaceStore.getState().togglePaneView(leaf.id, defaultMode)
+          refocusIfTerminal(leaf.id)
+        })}
+      >
+        {chatOn ? <SquareTerminal size={14} /> : <MessagesSquare size={14} />}
+      </button>
+      <button title="Split right" onMouseDown={act(() => split('row'))}>
+        <SplitSquareHorizontal size={14} />
+      </button>
+      <button title="Split down" onMouseDown={act(() => split('col'))}>
+        <SplitSquareVertical size={14} />
+      </button>
+      {canClose && (
+        <button
+          title="Close pane"
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            focusPane(tabId, leaf.id)
+            void confirmCloseLeaves([leaf.id]).then((proceed) => {
+              if (proceed) closeFocused()
+            })
+          }}
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  )
   return (
     <div
+      ref={paneRef}
       className={`pane${focused && !hideBar ? ' pane--focused' : ''}${dragOver ? ' pane--drop' : ''}${reorderOver ? ' pane--reorder' : ''}`}
       onMouseDown={() => focusPane(tabId, leaf.id)}
       onDragOver={onDragOver}
       onDragLeave={clearDrag}
       onDrop={onDrop}
     >
-      {showTitle && (
+      {hideBar ? (
+        controls
+      ) : (
         <div className="pane__bar">
           <span className="pane__title">{label}</span>
+          {controls}
         </div>
       )}
-      {/* Always-visible pane controls: split right/down (and close). A grip lets
-          you drag a pane onto another to swap their positions (reorder a grid).
-          Floating so even a single, bar-less pane keeps quick split access. */}
-      <div className="pane__controls">
-        {!hideBar && (
-          <button
-            className="pane__grip"
-            title="Drag to reorder"
-            aria-label="Drag to reorder pane"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(
-                'application/x-dockterm-pane',
-                JSON.stringify({ leafId: leaf.id, tabId })
-              )
-              e.dataTransfer.effectAllowed = 'move'
-              focusPane(tabId, leaf.id)
-            }}
-            onDragEnd={clearDrag}
-          >
-            <GripVertical size={14} />
-          </button>
-        )}
-        {histEnabled && (
-          <button
-            className={historyOpen ? 'pane__active' : undefined}
-            title="Checkpoints (your prompts)"
-            aria-label="Toggle checkpoints"
-            onMouseDown={act(() => toggleHistory())}
-          >
-            <Milestone size={14} />
-          </button>
-        )}
-        {(t?.changesOverlay ?? true) && (
-          <button
-            title="Changes in this terminal's project"
-            aria-label="Show changes for this terminal"
-            onMouseDown={act(() => {
-              focusPane(tabId, leaf.id)
-              useChangesStore.getState().setOpen(true)
-            })}
-          >
-            <GitCompareArrows size={14} />
-          </button>
-        )}
-        <button
-          title={
-            chatOn
-              ? `Show the terminal (${k('⌘R', 'Ctrl+Shift+R')})`
-              : `Chat mode, comfortable reading (${k('⌘R', 'Ctrl+Shift+R')})`
-          }
-          aria-label="Toggle chat mode"
-          className={chatOn ? 'pane__active' : undefined}
-          onMouseDown={act(() => {
-            focusPane(tabId, leaf.id)
-            useWorkspaceStore.getState().togglePaneView(leaf.id, defaultMode)
-            refocusIfTerminal(leaf.id)
-          })}
-        >
-          {chatOn ? <SquareTerminal size={14} /> : <MessagesSquare size={14} />}
-        </button>
-        <button title="Split right" onMouseDown={act(() => split('row'))}>
-          <SplitSquareHorizontal size={14} />
-        </button>
-        <button title="Split down" onMouseDown={act(() => split('col'))}>
-          <SplitSquareVertical size={14} />
-        </button>
-        {canClose && (
-          <button
-            title="Close pane"
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              focusPane(tabId, leaf.id)
-              void confirmCloseLeaves([leaf.id]).then((proceed) => {
-                if (proceed) closeFocused()
-              })
-            }}
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
       <div className="pane__term">
         <div className="pane__termhost" style={{ display: chatOn ? 'none' : 'block' }}>
           <TerminalView
@@ -289,7 +329,10 @@ function TerminalPane({
                 .push(`"${leaf.cwd}" is gone, opened a shell in ${actualCwd} instead.`, 'warning')
             }}
             onTitle={(title) => useWorkspaceStore.getState().setPaneTitle(leaf.id, title)}
-            onStatus={(state, ask) => useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)}
+            onStatus={(state, ask) => {
+              useMunuStore.getState().setPaneStatus(leaf.id, tabId, state, ask)
+              checkCorner.current()
+            }}
             onOpenPath={(raw, line) => {
               // Resolve a path clicked in output to a project-relative path and open it.
               const p = toRelProjectPath(raw, useAppStore.getState().activeRoot)
