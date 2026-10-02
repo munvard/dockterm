@@ -177,6 +177,26 @@ export function sliceCompleteLines(text: string): { lines: string[]; consumed: n
   return { lines: complete.split('\n'), consumed: Buffer.byteLength(complete, 'utf8') + 1 }
 }
 
+/** Split `lines` into consecutive runs of about `maxChars` characters (a run
+ * closes once it reaches the limit), so a big transcript can be parsed a run at
+ * a time with the event loop free in between. */
+export function linesByChars(lines: string[], maxChars: number): string[][] {
+  const runs: string[][] = []
+  let run: string[] = []
+  let size = 0
+  for (const line of lines) {
+    run.push(line)
+    size += line.length
+    if (size >= maxChars) {
+      runs.push(run)
+      run = []
+      size = 0
+    }
+  }
+  if (run.length) runs.push(run)
+  return runs
+}
+
 /**
  * Parse a slice read from byte `start` of a transcript. A read that began
  * mid-file opens with a fragment of a record, which is dropped. Returns the

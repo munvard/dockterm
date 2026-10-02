@@ -3,6 +3,7 @@ import {
   parseConversation,
   appendConversation,
   newConversationParseState,
+  linesByChars,
   toolSummary,
   sliceCompleteLines,
   parseTailSlice
@@ -225,5 +226,19 @@ describe('parseTailSlice', () => {
     const r = parseTailSlice(text, 5)
     expect(r.lines).toEqual(['ü'])
     expect(r.end).toBe(5 + 3 + 3)
+  })
+})
+
+describe('linesByChars', () => {
+  it('groups lines into runs of about maxChars, keeping order and every line', () => {
+    const lines = ['aaaa', 'bb', 'cccccc', 'd', 'eeeeeeeeee']
+    const runs = linesByChars(lines, 6)
+    expect(runs).toEqual([['aaaa', 'bb'], ['cccccc'], ['d', 'eeeeeeeeee']])
+    expect(runs.flat()).toEqual(lines)
+  })
+
+  it('handles empty input and a single huge line', () => {
+    expect(linesByChars([], 10)).toEqual([])
+    expect(linesByChars(['x'.repeat(50)], 10)).toEqual([['x'.repeat(50)]])
   })
 })

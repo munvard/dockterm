@@ -25,16 +25,40 @@ export class UsageScanner {
   private readonly seenLimits = new Set<string>()
   private readonly offsets = new Map<string, number>()
 
-  constructor(private readonly projectsDir: string) {}
+  constructor(
+    private readonly projectsDir: string,
+    private readonly chunkBytes = 8 * 1024 * 1024
+  ) {}
 
-  private async readSlice(path: string, start: number, end: number): Promise<string> {
-    const len = end - start
-    if (len <= 0) return ''
+  /**
+   * Read [start, end) in chunks of at most `chunkBytes` and hand each run of
+   * complete lines to `onText`. Returns the byte offset just past the last
+   * complete line, so a half-written last line is read again next scan. A big
+   * transcript never sits in memory whole (one 100 MB file used to cost 100 MB
+   * of buffer plus its string copy).
+   */
+  private async readLines(path: string, start: number, end: number, onText: (text: string) => void): Promise<number> {
     const fh = await open(path, 'r')
     try {
-      const buf = Buffer.alloc(len)
-      await fh.read(buf, 0, len, start)
-      return buf.toString('utf8')
+      const buf = Buffer.allocUnsafe(Math.min(this.chunkBytes, end - start))
+      let pos = start
+      let carry: Buffer | null = null
+      while (pos < end) {
+        const want = Math.min(buf.length, end - pos)
+        const { bytesRead } = await fh.read(buf, 0, want, pos)
+        if (bytesRead <= 0) break
+        pos += bytesRead
+        let chunk: Buffer = buf.subarray(0, bytesRead)
+        if (carry) chunk = Buffer.concat([carry, chunk])
+        const nl = chunk.lastIndexOf(0x0a)
+        if (nl < 0) {
+          carry = Buffer.from(chunk)
+          continue
+        }
+        onText(chunk.toString('utf8', 0, nl))
+        carry = nl + 1 < chunk.length ? Buffer.from(chunk.subarray(nl + 1)) : null
+      }
+      return pos - (carry ? carry.length : 0)
     } finally {
       await fh.close()
     }
@@ -84,34 +108,31 @@ export class UsageScanner {
       if (size < prev) this.offsets.set(path, 0) // rotated / truncated → re-read
       const start = this.offsets.get(path) ?? 0
       if (size <= start) continue
-      let text: string
       try {
-        text = await this.readSlice(path, start, size)
+        const done = await this.readLines(path, start, size, (text) => {
+          for (const line of text.split('\n')) {
+            const rec = parseUsageLine(line)
+            if (rec) {
+              if (rec.id === ':' || !this.seen.has(rec.id)) {
+                if (rec.id !== ':') this.seen.add(rec.id)
+                this.records.push(rec)
+                changed = true
+              }
+            }
+            const lim = parseLimitLine(line)
+            if (lim) {
+              const key = `${lim.ts}:${lim.resetAt}`
+              if (!this.seenLimits.has(key)) {
+                this.seenLimits.add(key)
+                this.limitHits.push(lim)
+                changed = true
+              }
+            }
+          }
+        })
+        this.offsets.set(path, done)
       } catch {
         continue
-      }
-      const lastNl = text.lastIndexOf('\n')
-      if (lastNl < 0) continue // no complete line appended yet
-      const complete = text.slice(0, lastNl)
-      this.offsets.set(path, start + Buffer.byteLength(complete, 'utf8') + 1)
-      for (const line of complete.split('\n')) {
-        const rec = parseUsageLine(line)
-        if (rec) {
-          if (rec.id === ':' || !this.seen.has(rec.id)) {
-            if (rec.id !== ':') this.seen.add(rec.id)
-            this.records.push(rec)
-            changed = true
-          }
-        }
-        const lim = parseLimitLine(line)
-        if (lim) {
-          const key = `${lim.ts}:${lim.resetAt}`
-          if (!this.seenLimits.has(key)) {
-            this.seenLimits.add(key)
-            this.limitHits.push(lim)
-            changed = true
-          }
-        }
       }
     }
     if (changed) {

@@ -58,7 +58,8 @@ export function prettyModel(id: string): string {
  * message carrying token usage. Pure (no I/O) so it's unit-testable. */
 export function parseUsageLine(line: string): UsageRecord | null {
   const s = line.trim()
-  if (!s) return null
+  // Cheap reject: tool results and prompts (most of a transcript's bytes) have no usage key.
+  if (!s || s.indexOf('"usage"') === -1) return null
   let o: RawLine
   try {
     o = JSON.parse(s) as RawLine

@@ -32,6 +32,23 @@ describe('UsageScanner (F5: runs in the worker thread, same class in-process)', 
     expect(sc.snapshot(Date.now(), PLAN.max5x).allTime.outputTokens).toBe(12)
   })
 
+  it('reads in small chunks with lines and multibyte text split across chunk edges', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'dockterm-scan-'))
+    mkdirSync(join(dir, 'slug'))
+    const file = join(dir, 'slug', 's.jsonl')
+    const filler = JSON.stringify({ type: 'user', message: { content: 'é✓ '.repeat(40) } })
+    let body = ''
+    for (let i = 1; i <= 20; i++) body += filler + '\n' + rec(String(i), i) + '\n'
+    writeFileSync(file, body + rec('21', 100)) // last line not finished yet
+    const sc = new UsageScanner(dir, 97)
+    expect(await sc.scan()).toBe(true)
+    expect(sc.snapshot(Date.now(), PLAN.max5x).allTime.outputTokens).toBe(210)
+    appendFileSync(file, '\n')
+    expect(await sc.scan()).toBe(true)
+    expect(sc.snapshot(Date.now(), PLAN.max5x).allTime.outputTokens).toBe(310)
+    expect(await sc.scan()).toBe(false)
+  })
+
   it('an empty or missing projects dir is an empty snapshot', async () => {
     dir = mkdtempSync(join(tmpdir(), 'dockterm-scan-'))
     const sc = new UsageScanner(join(dir, 'nope'))

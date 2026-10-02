@@ -35,6 +35,7 @@ import {
 import { toComposerPlatform } from '../chat/composerText'
 import { useToastStore } from '../../state/useToastStore'
 import type { TerminalOptions } from './useTerminal'
+import { createPtyWriter } from './ptyWriter'
 import '@xterm/xterm/css/xterm.css'
 
 function currentPlatform(): string {
@@ -677,24 +678,16 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   }
 
   // pty:write rejects over 1 MiB, so a huge paste goes out in order as several writes
-  // instead of being dropped silently. Split on code points, never inside a surrogate pair.
+  // instead of being dropped silently; keys typed meanwhile queue behind it.
   const WRITE_CHUNK = 256 * 1024
+  const writePty = createPtyWriter(async (data) => {
+    if (!sessionId || exited) return false
+    const r = await window.dockterm.invoke('pty:write', { sessionId, data })
+    return r.ok && !exited
+  }, WRITE_CHUNK)
   const dataSub = term.onData((d) => {
     if (!sessionId || exited) return
-    if (d.length <= WRITE_CHUNK) {
-      void window.dockterm.invoke('pty:write', { sessionId, data: d })
-      return
-    }
-    void (async () => {
-      for (let i = 0; i < d.length; ) {
-        let end = Math.min(i + WRITE_CHUNK, d.length)
-        const last = d.charCodeAt(end - 1)
-        if (end < d.length && last >= 0xd800 && last <= 0xdbff) end--
-        const r = await window.dockterm.invoke('pty:write', { sessionId: sessionId!, data: d.slice(i, end) })
-        if (!r.ok || exited) return
-        i = end
-      }
-    })()
+    writePty(d)
   })
   const resizeSub = term.onResize(({ cols, rows }) => {
     if (sessionId) void window.dockterm.invoke('pty:resize', { sessionId, cols, rows })
