@@ -8,7 +8,8 @@ import { FILES, BASH_INIT, PWSH_INIT } from '@main/services/shellIntegration'
 /** Runs the REAL zsh / bash against the generated shell integration with a fake
  * `claude` on PATH, to check what the `claude` hook actually executes. */
 const posix = process.platform !== 'win32'
-const d = posix ? describe : describe.skip
+const hasShell = (sh: string) => posix && spawnSync(sh, ['-c', 'exit 0']).status === 0
+const d = (kind: string) => (hasShell(kind) ? describe : describe.skip)
 
 let root: string
 let bin: string
@@ -54,7 +55,7 @@ function runShell(kind: 'zsh' | 'bash', userRc: string, script: string, env: Rec
 }
 
 for (const kind of ['zsh', 'bash'] as const) {
-  d(`${kind} claude hook`, () => {
+  d(kind)(`${kind} claude hook`, () => {
     it('adds --settings <file> before the user args (path with a space)', () => {
       expect(runShell(kind, '', 'claude --resume "two words"')).toBe(`REAL [--settings] [${settings}] [--resume] [two words]`)
     })
