@@ -3,13 +3,15 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__: copy and paste fixed
+## 🎯 What's new in v__VER__: real usage, agents in munu, search, and a much smoother app
 
-- **Copy works again.** The Copy button on the selection toolbar, copy on select, `Ctrl Shift C` and every "Copy" button in the app silently did nothing. They now all use the system clipboard properly.
-- **Right-click copies.** Select text in a normal terminal and right-click: it copies and clears the selection. On Windows, right-click with nothing selected pastes, and a multi-line clipboard is held back unless the program supports safe pasting.
-- **Paste works on Windows.** `Ctrl V` pastes, and `Ctrl C` copies while text is selected (with nothing selected it still interrupts). `Ctrl Insert` and `Shift Insert` work on Windows and Linux. Linux keeps plain `Ctrl V` for vim, nano and emacs.
-- **Big pastes.** Pasting more than 1 MB used to vanish without a message. It is now sent in pieces.
-- **Layouts.** Copy and paste keys follow the letter you type, so Dvorak users no longer paste with `Ctrl K`.
+- **Real usage percentages.** The usage pill now shows your real 5-hour and 7-day numbers from Claude itself, not an estimate. Pick what it shows (percent, bar, ring or graph), reset countdown and warning colours in the Usage panel, and pop it out as a floating, resizable, always-on-top widget. Until Claude has sent data, it says "no data yet". Your own Claude settings and status line are never changed.
+- **munu sees your agents.** Sub-agents, background agents and team members show up as little munus and in the popup. munu keeps working while they run and only smiles once, after the last one is done.
+- **munu is clickable again on Windows.** The overlay no longer inherits the app zoom, so clicks and the popup (pin, size, agents) work. On macOS the popup opens without the little glitch.
+- **Quick Open and Find in files.** Find any file by name, or any text in any file, including ignored folders when you ask for them. The index runs off the main thread and stays fast on 200k files.
+- **A better file explorer.** Keyboard navigation, multi-select, drag to move, inline create and rename, git badges, sorting and a hidden-files toggle, on a virtualized tree.
+- **Much smoother.** Idle CPU on a Mac dropped from about 50% to 12% of one core, typing while Claude streams is about twice as fast, a 50 MB chat opens without a freeze, and a very large paste no longer swallows Enter or Ctrl+C typed right after it. Pane controls no longer cover the close button of Claude's diff panel.
+- **Safer search and paths.** Search paths are jailed to the project, and paths pasted into a `cmd` or PowerShell pane are quoted for that shell.
 
 All local and read-only on your own `~/.claude` files. No API, no telemetry.
 
