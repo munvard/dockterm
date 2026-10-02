@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/components.css'
+import './styles/usage.css'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Root container missing')

@@ -10,6 +10,7 @@ import { getSettings, setLastProjectPath } from './services/settingsService'
 import { getWindowProject } from './services/windowNamespace'
 import { dropWindowMunu } from './services/munuService'
 import { destroyOverlay, getOverlay } from './overlayWindow'
+import { destroyUsageWidget, getUsageWidget } from './usageFloatWindow'
 import { chromeOptions } from './titleBar'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
 
@@ -99,7 +100,10 @@ export function createWindow(): BrowserWindow {
     }
     // No main windows left → close the floating overlay so the app can quit
     // (the overlay is otherwise an always-open window).
-    if (openWindows.size === 0) destroyOverlay()
+    if (openWindows.size === 0) {
+      destroyOverlay()
+      destroyUsageWidget()
+    }
   })
 
   // Apply the saved UI zoom on every (re)load — setZoomFactor resets on reload.
@@ -125,8 +129,9 @@ export function createWindow(): BrowserWindow {
  * never be zoomed along with it. */
 export function applyZoomToAllWindows(factor: number): void {
   const overlay = getOverlay()
+  const widget = getUsageWidget()
   for (const win of BrowserWindow.getAllWindows()) {
-    if (win === overlay || win.isDestroyed()) continue
+    if (win === overlay || win === widget || win.isDestroyed()) continue
     try {
       win.webContents.setZoomFactor(factor)
     } catch {

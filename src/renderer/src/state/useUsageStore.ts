@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { UsageSnapshot } from '@shared/types'
 import type { RealUsage } from '@shared/usageReal'
+import type { UsageSample } from '@shared/usageHistory'
 import { reduceReal } from './realUsage'
 
 interface UsageStore {
@@ -12,7 +13,10 @@ interface UsageStore {
    * seen last. null = nothing captured yet. A window is null when Claude reported
    * none or it has reset. Use pruneRealUsage(real, now) so expiry shows on screen. */
   real: RealUsage | null
+  /** Real percentage samples kept locally (at most one per minute), oldest first. */
+  history: UsageSample[]
   load: () => Promise<void>
+  loadHistory: () => Promise<void>
   loadReal: () => Promise<void>
 }
 
@@ -27,10 +31,19 @@ export const useUsageStore = create<UsageStore>((set, get) => {
     const r = await window.dockterm.invoke('usage:realGet', undefined)
     if (r.ok) set({ real: reduceReal(get().real, r.value) })
   }
+  let historyAt = 0
+  const loadHistory = async (): Promise<void> => {
+    if (Date.now() - historyAt < 10_000) return
+    historyAt = Date.now()
+    const r = await window.dockterm.invoke('usageHistory:get', { hours: 24 })
+    if (r.ok) set({ history: r.value })
+  }
   return {
     snapshot: null,
     real: null,
+    history: [],
     loadReal,
+    loadHistory,
     load: async () => {
       void loadReal()
       const r = await window.dockterm.invoke('usage:get', undefined)

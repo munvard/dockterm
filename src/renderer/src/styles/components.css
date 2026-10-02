@@ -2618,25 +2618,6 @@
   color: var(--text-faint);
 }
 
-/* Circular remaining-headroom ring (pill + window cards). */
-.usage-ring {
-  position: relative;
-  flex: 0 0 auto;
-}
-.usage-ring__track {
-  stroke: var(--border);
-}
-.usage-ring__center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  line-height: 1.05;
-}
-
 /* Headline rolling-limit card (5-hour / weekly). */
 /* Two compact rows: the exact tokens used in each rolling window. */
 .usage-wins {

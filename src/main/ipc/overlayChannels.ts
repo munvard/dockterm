@@ -38,10 +38,23 @@ export const OVERLAY_ONLY_CHANNELS = new Set<string>([
   'overlaySettings:set'
 ])
 
+/** The floating usage window reads real usage and its own config, nothing else. */
+export const USAGE_WIDGET_ALLOWED_CHANNELS = new Set<string>([
+  'usage:realGet',
+  'usageHistory:get',
+  'usageFloat:get',
+  'usageFloat:set',
+  'usageFloat:close'
+])
+
+/** Channels only the floating usage window may call. */
+export const USAGE_WIDGET_ONLY_CHANNELS = new Set<string>(['usageFloat:get', 'usageFloat:set', 'usageFloat:close'])
+
 /** Pure decision the registrar enforces: may a sender with this role call
  * `channel`? An unknown sender (`undefined`) can call nothing. */
 export function isChannelAllowedForRole(channel: string, role: WindowRole | undefined): boolean {
   if (role === 'overlay') return OVERLAY_ALLOWED_CHANNELS.has(channel)
-  if (role === 'main') return !OVERLAY_ONLY_CHANNELS.has(channel)
+  if (role === 'usage') return USAGE_WIDGET_ALLOWED_CHANNELS.has(channel)
+  if (role === 'main') return !OVERLAY_ONLY_CHANNELS.has(channel) && !USAGE_WIDGET_ONLY_CHANNELS.has(channel)
   return false
 }

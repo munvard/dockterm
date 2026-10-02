@@ -15,6 +15,7 @@ import { registerClaudeHandlers } from './handlers/claude'
 import { registerInfoHandlers } from './handlers/info'
 import { registerMunuHandlers } from './handlers/munu'
 import { registerChatHandlers } from './handlers/chat'
+import { registerUsageFloatHandlers } from './handlers/usageFloat'
 
 /**
  * A registrar binds one channel to one zod schema and one handler. Every call is:
@@ -59,4 +60,5 @@ export function registerIpc(): void {
   registerInfoHandlers(reg)
   registerMunuHandlers(reg)
   registerChatHandlers(reg)
+  registerUsageFloatHandlers(reg)
 }

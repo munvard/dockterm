@@ -62,3 +62,20 @@ describe('isChannelAllowedForRole', () => {
     }
   })
 })
+
+describe('the floating usage window role', () => {
+  it('reaches only real usage, history and its own widget channels', () => {
+    for (const c of ['usage:realGet', 'usageHistory:get', 'usageFloat:get', 'usageFloat:set', 'usageFloat:close']) {
+      expect(isChannelAllowedForRole(c, 'usage'), c).toBe(true)
+    }
+    for (const c of ['settings:get', 'settings:set', 'fs:readFile', 'pty:write', 'munu:answer', 'git:status']) {
+      expect(isChannelAllowedForRole(c, 'usage'), c).toBe(false)
+    }
+  })
+  it('keeps the widget-only channels away from main windows', () => {
+    expect(isChannelAllowedForRole('usageFloat:set', 'main')).toBe(false)
+    expect(isChannelAllowedForRole('usageHistory:get', 'main')).toBe(true)
+    expect(isChannelAllowedForRole('usageFloat:get', 'overlay')).toBe(false)
+  })
+})
+

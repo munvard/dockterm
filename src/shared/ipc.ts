@@ -38,7 +38,25 @@ import type {
   SessionHistory,
   ReadingConversation
 } from './types'
-import type { RealUsage } from './usageReal'
+import type { RealUsage, UsageFloatConfig, UsageMetric, UsageStyle } from './usageReal'
+import type { UsageSample } from './usageHistory'
+
+/** What the floating usage window needs to draw itself (it never sees the full settings). */
+export interface UsageFloatView {
+  float: UsageFloatConfig
+  warnAt: number
+  critAt: number
+  /** Theme id (or 'auto'). */
+  theme: string
+}
+
+export interface UsageFloatPatch {
+  show?: UsageMetric[]
+  style?: UsageStyle
+  showReset?: boolean
+  opacity?: number
+  alwaysOnTop?: boolean
+}
 
 export interface UpdateAvailable {
   latestVersion: string
@@ -195,6 +213,12 @@ export interface GitOutput {
 
 /* -------------------------------- settings -------------------------------- */
 
+type DeepPartial<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T
+
 export type SettingsPatch = Partial<
   Pick<
     Settings,
@@ -204,7 +228,6 @@ export type SettingsPatch = Partial<
     | 'git'
     | 'claude'
     | 'update'
-    | 'usage'
     | 'agentActivity'
     | 'sessionHistory'
     | 'reading'
@@ -214,7 +237,11 @@ export type SettingsPatch = Partial<
     | 'theme'
     | 'notes'
   >
->
+> & {
+  /** Deep partial: the usage section is patched leaf by leaf (a widget move must not
+   * overwrite the pill settings, and the reverse). */
+  usage?: DeepPartial<Settings['usage']>
+}
 
 /* ------------------------------- channel maps ----------------------------- */
 
@@ -320,6 +347,14 @@ export interface InvokeChannels {
   /** Real Claude usage (5h / 7d percentages and resets) captured from Claude's own
    * status line, or null when nothing was ever captured. Expired windows are dropped. */
   'usage:realGet': (req: void) => Result<RealUsage | null>
+  /** Real percentage samples (at most one per minute, up to 7 days), oldest first. */
+  'usageHistory:get': (req: { hours?: number } | void) => Result<UsageSample[]>
+  /** Floating usage window only: its config, thresholds and theme. */
+  'usageFloat:get': (req: void) => Result<UsageFloatView>
+  /** Floating usage window only: change what it shows (never its place or size). */
+  'usageFloat:set': (req: UsageFloatPatch) => Result<UsageFloatView>
+  /** Floating usage window only: close it (turns the widget off). */
+  'usageFloat:close': (req: void) => Result<void>
 
   /** Live Claude Code sub-agent activity from local ~/.claude transcripts. */
   'activity:get': (req: void) => Result<AgentActivity>
@@ -415,6 +450,8 @@ export interface EventChannels {
   'usage:changed': UsageSnapshot
   /** main → renderer: the captured real usage changed (or a window reset). */
   'usage:real': RealUsage | null
+  /** main → floating usage window: its config or the theme changed. */
+  'usageFloat:changed': UsageFloatView
   /** main → every window: a fresh live sub-agent activity snapshot. */
   'activity:changed': AgentActivity
   /** main → every window: updated session prompt list (a new prompt landed). */
@@ -501,6 +538,10 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'chat:statPaths',
   'usage:get',
   'usage:realGet',
+  'usageHistory:get',
+  'usageFloat:get',
+  'usageFloat:set',
+  'usageFloat:close',
   'activity:get',
   'session:getHistory',
   'reading:get',
@@ -546,6 +587,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'update:error',
   'usage:changed',
   'usage:real',
+  'usageFloat:changed',
   'activity:changed',
   'session:changed',
   'menu:action',

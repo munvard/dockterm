@@ -4,6 +4,7 @@ import { getSettings, applySettingsPatch, settingsPatchSchema } from '../../serv
 import { overlayPatchSchema, projectForOverlay } from '../../services/overlaySettings'
 import { broadcastSettings } from '../../services/settingsBroadcast'
 import { syncOverlay } from '../../services/munuService'
+import { syncUsageWidget } from '../../usageFloatWindow'
 import type { Registrar } from '../register'
 
 export function registerSettingsHandlers(reg: Registrar): void {
@@ -13,6 +14,7 @@ export function registerSettingsHandlers(reg: Registrar): void {
     const next = applySettingsPatch(patch)
     broadcastSettings(next)
     if (patch.munu) syncOverlay()
+    if (patch.usage || patch.theme !== undefined) syncUsageWidget()
     return ok(next)
   })
 

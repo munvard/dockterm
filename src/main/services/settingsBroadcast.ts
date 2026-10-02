@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import type { Settings } from '@shared/types'
 import { roleOf } from '../ipc/windowRoles'
 import { projectForOverlay } from './overlaySettings'
+import { usageFloatView } from '../usageFloatCore'
 
 /** Push new settings to every window by ITS role: main windows get the full
  * settings, the overlay gets only its munu / swarm subset, and a window with no
@@ -19,5 +20,6 @@ export function broadcastSettings(next: Settings): void {
     const role = roleOf(win.webContents.id)
     if (role === 'main') win.webContents.send('settings:changed', shared)
     else if (role === 'overlay') win.webContents.send('overlaySettings:changed', overlay)
+    else if (role === 'usage') win.webContents.send('usageFloat:changed', usageFloatView(next))
   }
 }
