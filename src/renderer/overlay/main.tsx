@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Munu } from '@renderer/components/munu/Munu'
 import { motionGovernor } from '@renderer/components/common/motionGovernor'
@@ -20,9 +20,6 @@ import './overlay.css'
 // How long munu + swarm stay revealed after the agent count changes, then tuck.
 const AGENT_PEEK_MS = 5000
 
-const setInteractive = (v: boolean): void => {
-  void window.dockterm.invoke('munu:setInteractive', { interactive: v })
-}
 const setFocusable = (v: boolean): void => {
   void window.dockterm.invoke('munu:setFocusable', { focusable: v })
 }
@@ -68,6 +65,16 @@ function Overlay() {
   // Windows: the window is a fixed canvas and munu is drawn at this rect in it.
   const [frame, setFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   useEffect(() => window.dockterm.on('munu:frame', setFrame), [])
+  // Main polls the cursor against munu's reported region and tells us when it enters
+  // or leaves it. Leaving dismisses the popup, so an unpinned munu resumes its normal
+  // auto-tuck. Never mid-drag: the window lags a frame behind the cursor.
+  useEffect(
+    () =>
+      window.dockterm.on('munu:hover', (over) => {
+        if (!over && !draggingRef.current) setPopupOpen(false)
+      }),
+    []
+  )
   useEffect(() => window.dockterm.on('activity:changed', setActivity), [])
   useEffect(() => {
     void window.dockterm.invoke('activity:get', undefined).then((r) => {
@@ -172,6 +179,7 @@ function Overlay() {
     if (!el) return
     const pad = platform === 'darwin' ? 34 : 8
     const measure = (): void => {
+      reportHit()
       const w = Math.ceil(el.offsetWidth) + 48
       const h = Math.ceil(el.offsetHeight) + pad + 52
       if (Math.abs(w - lastSize.current.w) < 2 && Math.abs(h - lastSize.current.h) < 2) return
@@ -256,12 +264,11 @@ function Overlay() {
     movedRef.current = false
     if (!pinned) return // only pinned munu drags
     // Capture the origin synchronously (main reads its own bounds), so the drag
-    // never waits on a round-trip — and keep the window interactive + capture the
-    // pointer on a STABLE element so a mid-drag re-render or stray mouseleave can't
-    // make it click-through and "stick".
+    // never waits on a round-trip. Main keeps the window clickable while a drag
+    // runs, and the pointer is captured on a STABLE element so a mid-drag
+    // re-render can't make it "stick".
     dragRef.current = { sx: e.screenX, sy: e.screenY }
     draggingRef.current = true
-    setInteractive(true)
     void window.dockterm.invoke('munu:dragStart', { sx: e.screenX, sy: e.screenY })
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
@@ -303,6 +310,30 @@ function Overlay() {
   const agentPeekActive = swarmOn && Date.now() < agentPeekUntil
   const shown = pinned || revealed || (popupOpen && !showCard) || agentPeekActive
 
+  // Tell main where munu can be clicked (only while it is revealed). It moves with
+  // munu's box, so a drag needs no new report. Layout offsets ignore the reveal
+  // slide, so the final spot is reported even mid-animation.
+  const shownRef = useRef(false)
+  shownRef.current = shown
+  const lastHit = useRef('')
+  const reportHit = (): void => {
+    const el = islandRef.current
+    const hit =
+      shownRef.current && el
+        ? {
+            x: Math.floor(el.offsetLeft),
+            y: Math.floor(el.offsetTop),
+            width: Math.ceil(el.offsetWidth),
+            height: Math.ceil(el.offsetHeight)
+          }
+        : null
+    const key = JSON.stringify(hit)
+    if (key === lastHit.current) return
+    lastHit.current = key
+    void window.dockterm.invoke('munu:setHit', { hit })
+  }
+  useLayoutEffect(reportHit)
+
   return (
     <div
       className={`ov ov--${platform}${shown ? ' ov--revealed' : ' ov--hidden'}${frame ? ' ov--framed' : ''}`}
@@ -312,7 +343,7 @@ function Overlay() {
           : // Until the first frame arrives on Windows, munu's spot in the canvas is
             // unknown. Hide it, at the window's starting size: munu's width follows its
             // container, so measuring it inside the whole canvas would size it too wide.
-            platform === 'win32' || platform === ''
+            platform !== 'linux'
             ? { visibility: 'hidden', width: 380, height: 260 }
             : undefined
       }
@@ -320,16 +351,11 @@ function Overlay() {
       <div
         ref={islandRef}
         className={`island island--${g.state}${showCard ? ' island--card' : ''}${pinned ? ' island--pinned' : ''}`}
-        onMouseEnter={() => setInteractive(true)}
         onMouseLeave={() => {
-          // Never go click-through mid-drag: while dragging, the window lags a frame
-          // behind the cursor and the pointer can briefly slip off .island — if that
-          // flipped us click-through, the drag would stop dead and munu would "stick".
+          // Leaving the whole munu+popup area dismisses the popup (the same thing
+          // munu:hover does when mouse events are not forwarded). Moving between
+          // munu and the popup stays inside .island, so this doesn't fire mid-use.
           if (draggingRef.current) return
-          // Leaving the whole munu+popup area dismisses the popup, so an unpinned
-          // munu resumes its normal auto-tuck. Moving between munu and the popup
-          // stays inside .island, so this doesn't fire mid-interaction.
-          setInteractive(false)
           setPopupOpen(false)
         }}
       >

@@ -6,12 +6,17 @@ import { getSettings } from './services/settingsService'
 import {
   anchorFromSaved,
   boxAtAnchor,
+  canvasAreaFor,
   clampToAreas,
+  cursorOverHit,
   frameInCanvas,
-  pointNearBox,
+  hitRectOnScreen,
+  normalizeHit,
   sameRect,
   savedFromAnchor,
+  usesCanvas,
   type Box,
+  type HitRegion,
   type MunuAnchor
 } from './overlayPlacement'
 import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
@@ -22,8 +27,8 @@ import { registerWindowRole, unregisterWindowRole } from './ipc/windowRoles'
  * (over the notch on a MacBook); when the user pins munu it moves to their saved
  * position anywhere on screen (see placeOverlay). It floats above other apps and
  * all Spaces — including fullscreen — so munu's state is visible even when
- * DockTerm is in the background. The window is click-through except where the
- * renderer reports the cursor is over munu (toggled via setOverlayInteractive).
+ * DockTerm is in the background. The window is click-through except while main
+ * sees the cursor over munu (see the hit poll below).
  */
 let overlay: BrowserWindow | null = null
 
@@ -32,14 +37,15 @@ const H = 260
 const isLinux = process.platform === 'linux'
 
 /**
- * Windows only: the overlay window is a fixed, click-through canvas over the work
- * area of munu's display, and munu is drawn inside it at `box` (sent to the
- * renderer as `munu:frame`). Resizing a transparent window on Windows shows the
- * old picture at the new origin for one frame, so munu jumped sideways whenever
- * its popup opened or closed. With a canvas the window is only moved when munu
- * crosses to another display. Elsewhere `box` is simply the window's bounds.
+ * Windows and macOS: the overlay window is a fixed, click-through canvas over the
+ * work area (Windows) or the whole display (macOS, munu rests over the notch) of
+ * munu's display, and munu is drawn inside it at `box` (sent to the renderer as
+ * `munu:frame`). Resizing a transparent window shows the old picture at the new
+ * origin for one frame, so munu jumped sideways whenever its popup opened or
+ * closed. With a canvas the window is only moved when munu crosses to another
+ * display. On Linux `box` is simply the window's bounds.
  */
-const useCanvas = process.platform === 'win32'
+const useCanvas = usesCanvas(process.platform)
 let box: Box = { x: 0, y: 0, width: W, height: H }
 let canvas: Box | null = null
 
@@ -59,9 +65,9 @@ function applyBox(next: Box, moveOnly = false): void {
     else overlay.setBounds(next)
     return
   }
-  const area = screen.getDisplayMatching(next).workArea
+  const area = canvasAreaFor(process.platform, screen.getDisplayMatching(next))
   if (!sameRect(canvas, area)) {
-    canvas = { x: area.x, y: area.y, width: area.width, height: area.height }
+    canvas = area
     overlay.setBounds(canvas)
   }
   overlay.webContents.send('munu:frame', frameInCanvas(next, canvas as Box))
@@ -181,12 +187,11 @@ export function createOverlayWindow(): BrowserWindow {
   const overlayId = overlay.webContents.id
   registerWindowRole(overlayId, 'overlay')
   applyWindowSecurity(overlay)
-  // Start click-through; the renderer enables interaction while hovering munu.
-  // Linux/Wayland can't forward mouse-move to a click-through window, so there
-  // the renderer could never detect a hover to flip it interactive — keep munu
-  // clickable from the start on Linux so it can be used at all.
+  // Start click-through; main turns interaction on while the cursor is over munu
+  // (hit poll below). Linux/Wayland can't query the cursor, so there munu stays
+  // clickable from the start so it can be used at all.
   if (isLinux) overlay.setIgnoreMouseEvents(false)
-  else overlay.setIgnoreMouseEvents(true, { forward: true })
+  else overlay.setIgnoreMouseEvents(true)
 
   // Only ever honored in dev (electron-vite sets this for the Vite dev
   // server) — a packaged build must never load overlay content from a URL an
@@ -205,8 +210,10 @@ export function createOverlayWindow(): BrowserWindow {
   overlay.on('closed', () => {
     unregisterWindowRole(overlayId)
     stopDisplayWatch()
+    stopHitPoll()
     overlay = null
     canvas = null
+    hit = null
   })
   return overlay
 }
@@ -258,49 +265,67 @@ export function destroyOverlay(): void {
   if (overlay && !overlay.isDestroyed()) overlay.destroy()
   overlay = null
   canvas = null
-  stopGuard()
+  hit = null
+  stopHitPoll()
   stopDisplayWatch()
 }
 
-// Windows canvas safety net: the renderer turns click-through back on when the
-// cursor leaves munu, but a cursor that jumps (SetCursorPos, remote desktop, touch)
-// can skip that mouseleave. On a canvas that covers the whole work area a missed
-// leave would swallow every click on the screen, so while munu is interactive main
-// also checks the cursor and restores click-through once it is well outside munu.
-const GUARD_MS = 150
-const GUARD_MARGIN = 48
-let guard: ReturnType<typeof setInterval> | null = null
+// Click-through control (Windows and macOS). The overlay covers a whole display, so
+// it must pass every click through except those landing on munu. Chromium's
+// forwarded mouse-move is a fragile signal for that (on Windows it comes from a
+// low-level mouse hook the OS silently drops if the app stalls for a moment, after
+// which hover never arrives again), so main decides itself: the renderer reports
+// munu's clickable region (island, popup, card) while munu is visible, and a short
+// poll compares the real cursor position with it. No region (munu tucked away) means
+// no poll and a fully click-through window.
+const HIT_POLL_MS = 33
+const DRAG_HOLD_MS = 500
+let hit: HitRegion | null = null
+let hitTimer: ReturnType<typeof setInterval> | null = null
+let interactive = false
 let lastDragAt = 0
 
-function stopGuard(): void {
-  if (guard) clearInterval(guard)
-  guard = null
+function stopHitPoll(): void {
+  if (hitTimer) clearInterval(hitTimer)
+  hitTimer = null
+  interactive = false
 }
 
-function startGuard(): void {
-  if (guard) return
-  guard = setInterval(() => {
-    if (!overlay || overlay.isDestroyed()) return stopGuard()
-    if (Date.now() - lastDragAt < 500) return // a drag can run ahead of munu
-    if (pointNearBox(screen.getCursorScreenPoint(), box, GUARD_MARGIN)) return
-    overlay.setIgnoreMouseEvents(true, { forward: true })
-    stopGuard()
-  }, GUARD_MS)
+function setInteractiveNow(next: boolean): void {
+  if (!overlay || overlay.isDestroyed() || next === interactive) return
+  interactive = next
+  overlay.setIgnoreMouseEvents(!next)
+  overlay.webContents.send('munu:hover', next)
 }
 
-export function setOverlayInteractive(interactive: boolean): void {
-  if (!overlay || overlay.isDestroyed()) return
-  // On Linux the overlay stays interactive (mouse-forward isn't supported, so
-  // toggling click-through would make munu permanently unclickable).
-  if (isLinux) {
-    overlay.setIgnoreMouseEvents(false)
+function hitTick(): void {
+  if (!overlay || overlay.isDestroyed() || !hit) return stopHitPoll()
+  // A drag can run ahead of munu, so the cursor may briefly leave it mid-drag.
+  const dragging = Date.now() - lastDragAt < DRAG_HOLD_MS
+  const over = cursorOverHit(screen.getCursorScreenPoint(), hitRectOnScreen(box, hit), interactive)
+  setInteractiveNow(over || dragging)
+}
+
+/** The renderer reports munu's clickable region, relative to munu's box, or null
+ * when munu is tucked away. Starts or stops the cursor poll accordingly. */
+export function setOverlayHit(region: Partial<HitRegion> | null): void {
+  if (!overlay || overlay.isDestroyed() || isLinux) return
+  hit = normalizeHit(region)
+  if (!hit) {
+    if (hitTimer) clearInterval(hitTimer)
+    hitTimer = null
+    setInteractiveNow(false)
     return
   }
-  overlay.setIgnoreMouseEvents(!interactive, { forward: true })
-  if (useCanvas) {
-    if (interactive) startGuard()
-    else stopGuard()
-  }
+  hitTick()
+  if (!hitTimer) hitTimer = setInterval(hitTick, HIT_POLL_MS)
+}
+
+/** Kept for the old hover signal: the cursor poll above now owns click-through, so
+ * a renderer hint can only matter on Linux, where munu always stays clickable. */
+export function setOverlayInteractive(_interactive: boolean): void {
+  if (!overlay || overlay.isDestroyed()) return
+  if (isLinux) overlay.setIgnoreMouseEvents(false)
 }
 
 /** Temporarily make the overlay focusable so its text field can receive typing.

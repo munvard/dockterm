@@ -464,6 +464,9 @@ export interface InvokeChannels {
   'munu:dragStart': (req: { sx: number; sy: number }) => Result<void>
   /** Continue the drag to the cursor's current screen position. */
   'munu:dragMove': (req: { sx: number; sy: number }) => Result<void>
+  /** munu's clickable region (island, popup, card) relative to its box, or null
+   * while it is tucked away. Main polls the cursor against it to decide click-through. */
+  'munu:setHit': (req: { hit: { x: number; y: number; width: number; height: number } | null }) => Result<void>
 }
 
 export interface EventChannels {
@@ -480,6 +483,8 @@ export interface EventChannels {
   'munu:reveal': boolean
   /** Windows: munu's rect inside the fixed overlay canvas (window coordinates). */
   'munu:frame': { x: number; y: number; width: number; height: number }
+  /** Main saw the cursor enter or leave munu's clickable region (Windows and macOS). */
+  'munu:hover': boolean
   /** main → the window owning an asking pane: key chunks to write into the PTY
    * one at a time, paced, so the TUI registers each as a separate keypress. */
   'munu:doAnswer': { leafId: string; action: MunuAnswerAction }
@@ -618,6 +623,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'munu:move',
   'munu:dragStart',
   'munu:dragMove',
+  'munu:setHit',
   'overlaySettings:get',
   'overlaySettings:set'
 ]
@@ -633,6 +639,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'munu:state',
   'munu:reveal',
   'munu:frame',
+  'munu:hover',
   'munu:doAnswer',
   'munu:doFocus',
   'update:available',

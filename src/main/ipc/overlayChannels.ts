@@ -24,6 +24,7 @@ export const OVERLAY_ALLOWED_CHANNELS = new Set<string>([
   'munu:move',
   'munu:dragStart',
   'munu:dragMove',
+  'munu:setHit',
   'overlaySettings:get',
   'overlaySettings:set',
   'app:getInfo',

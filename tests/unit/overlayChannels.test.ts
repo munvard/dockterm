@@ -23,6 +23,7 @@ describe('isChannelAllowedForRole', () => {
       'munu:move',
       'munu:dragStart',
       'munu:dragMove',
+      'munu:setHit',
       'overlaySettings:get',
       'overlaySettings:set',
       'app:getInfo',

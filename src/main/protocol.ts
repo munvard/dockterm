@@ -8,8 +8,11 @@ const SCHEME = 'app'
 /** URL the production window loads. */
 export const APP_URL = `${SCHEME}://bundle/index.html`
 
-/** URL the production munu overlay window loads. */
-export const OVERLAY_URL = `${SCHEME}://bundle/overlay.html`
+/** URL the production munu overlay window loads. Its own host on purpose:
+ * Chromium keeps page zoom per scheme and host, so on `bundle` the overlay
+ * inherited the main window's UI zoom (110 percent by default) and munu was
+ * drawn 10 percent away from where main hit-tests it. */
+export const OVERLAY_URL = `${SCHEME}://overlay/overlay.html`
 
 /** URL the production floating usage window loads. */
 export const USAGE_WIDGET_URL = `${SCHEME}://bundle/usage-widget.html`

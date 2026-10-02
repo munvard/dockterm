@@ -2,11 +2,16 @@ import { describe, it, expect } from 'vitest'
 import {
   anchorFromSaved,
   boxAtAnchor,
+  canvasAreaFor,
   clampToAreas,
+  cursorOverHit,
   frameInCanvas,
+  hitRectOnScreen,
+  normalizeHit,
   pointNearBox,
   sameRect,
-  savedFromAnchor
+  savedFromAnchor,
+  usesCanvas
 } from '@main/overlayPlacement'
 
 const area = { x: 0, y: 0, width: 1000, height: 800 }
@@ -68,5 +73,63 @@ describe('pinned munu anchor', () => {
 
   it('round-trips the saved position', () => {
     expect(savedFromAnchor(anchorFromSaved({ x: 812, y: 44 }, 380), 380)).toEqual({ x: 812, y: 44 })
+  })
+})
+
+describe('canvas platforms', () => {
+  const display = {
+    bounds: { x: 0, y: 0, width: 3440, height: 1440 },
+    workArea: { x: 0, y: 0, width: 3440, height: 1400 }
+  }
+  it('uses the canvas on Windows and macOS only', () => {
+    expect(usesCanvas('win32')).toBe(true)
+    expect(usesCanvas('darwin')).toBe(true)
+    expect(usesCanvas('linux')).toBe(false)
+  })
+  it('spans the work area on Windows and the whole display on macOS', () => {
+    expect(canvasAreaFor('win32', display)).toEqual(display.workArea)
+    expect(canvasAreaFor('darwin', display)).toEqual(display.bounds)
+  })
+})
+
+describe('munu hit region', () => {
+  // munu's box on a second monitor to the right of a 2560 wide primary.
+  const box = { x: 2560 + 700, y: 0, width: 300, height: 200 }
+  const hit = { x: 100, y: 34, width: 80, height: 64 }
+
+  it('moves with the box, so a drag never needs a new report', () => {
+    expect(hitRectOnScreen(box, hit)).toEqual({ x: 3360, y: 34, width: 80, height: 64 })
+    expect(hitRectOnScreen({ ...box, x: box.x + 50 }, hit).x).toBe(3410)
+  })
+
+  it('is not hit by a cursor drawn where an old zoomed layout would have put munu', () => {
+    // The overlay used to inherit the main window's 110 percent zoom, so munu was
+    // drawn 10 percent further right than main thought. In real DIPs the rect is exact.
+    const rect = hitRectOnScreen({ x: 1658, y: 6, width: 124, height: 100 }, { x: 24, y: 0, width: 76, height: 76 })
+    expect(cursorOverHit({ x: 1700, y: 40 }, rect, false)).toBe(true)
+    expect(cursorOverHit({ x: 1892, y: 40 }, rect, false)).toBe(false)
+  })
+
+  it('enters a few pixels outside the edge and leaves only a little further out', () => {
+    const rect = hitRectOnScreen(box, hit)
+    const right = rect.x + rect.width
+    expect(cursorOverHit({ x: right + 3, y: 60 }, rect, false)).toBe(true)
+    expect(cursorOverHit({ x: right + 4, y: 60 }, rect, false)).toBe(false)
+    expect(cursorOverHit({ x: right + 10, y: 60 }, rect, true)).toBe(true)
+    expect(cursorOverHit({ x: right + 11, y: 60 }, rect, true)).toBe(false)
+  })
+
+  it('does not flicker for a cursor resting between the enter and leave edge', () => {
+    const rect = hitRectOnScreen(box, hit)
+    const p = { x: rect.x + rect.width + 7, y: 60 }
+    expect(cursorOverHit(p, rect, false)).toBe(false)
+    expect(cursorOverHit(p, rect, true)).toBe(true)
+  })
+
+  it('rejects empty or malformed regions from the renderer', () => {
+    expect(normalizeHit(null)).toBeNull()
+    expect(normalizeHit({ x: 0, y: 0, width: 0, height: 10 })).toBeNull()
+    expect(normalizeHit({ x: NaN, y: 0, width: 10, height: 10 })).toBeNull()
+    expect(normalizeHit({ x: 4, y: 5, width: 10, height: 12 })).toEqual({ x: 4, y: 5, width: 10, height: 12 })
   })
 })
