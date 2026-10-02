@@ -40,6 +40,8 @@ import type {
 } from './types'
 import type { RealUsage, UsageFloatConfig, UsageMetric, UsageStyle } from './usageReal'
 import type { UsageSample } from './usageHistory'
+import type { QuickResults } from './search/pathIndex'
+import type { ContentOptions, IndexStatus, SearchEvent } from './search/types'
 
 /** What the floating usage window needs to draw itself (it never sees the full settings). */
 export interface UsageFloatView {
@@ -157,6 +159,35 @@ export interface TreeNode {
   name: string
   relPath: string
   type: 'file' | 'dir'
+  /** Present on `fs:readDir` listings only. */
+  size?: number
+  mtimeMs?: number
+  /** In the built-in ignore list (node_modules, dist, .git ...); only listed when asked for. */
+  ignored?: boolean
+}
+
+export interface DirListing {
+  entries: TreeNode[]
+  /** Entries left out because the folder holds more than MAX_TREE_ENTRIES. */
+  more: number
+}
+
+export interface QuickFilesReq {
+  query: string
+  includeIgnored: boolean
+  kinds: 'files' | 'both'
+  limit: number
+  /** Recently opened relPaths, most recent first. */
+  recent: string[]
+  /** One id per caller (Quick Open, explorer filter, mentions): a newer query from the same caller replaces an older one. */
+  owner: number
+}
+
+export interface QuickFilesRes {
+  /** True when a newer query from the same owner overtook this one. */
+  stale: boolean
+  results: QuickResults
+  index: IndexStatus
 }
 
 export type ReadFileResult =
@@ -236,6 +267,7 @@ export type SettingsPatch = Partial<
     | 'workspace'
     | 'theme'
     | 'notes'
+    | 'files'
   >
 > & {
   /** Deep partial: the usage section is patched leaf by leaf (a widget move must not
@@ -277,6 +309,16 @@ export interface InvokeChannels {
 
   'fs:readTree': (req: RelPathReq) => Result<TreeNode[]>
   'fs:search': (req: { query: string }) => Result<TreeNode[]>
+  /** One folder with sizes, mtimes and ignored flags, optionally including the built-in ignored entries. */
+  'fs:readDir': (req: { relPath: string; showIgnored: boolean }) => Result<DirListing>
+  'fs:duplicate': (req: RelPathReq) => Result<{ relPath: string }>
+  'search:files': (req: QuickFilesReq) => Result<QuickFilesRes>
+  'search:status': (req: void) => Result<IndexStatus>
+  'search:content': (req: ContentOptions) => Result<{ id: number }>
+  'search:cancel': (req: void) => Result<void>
+  /** Renderer relays `fs:watch` batches so the index follows disk changes without touching the watcher. */
+  'search:applyWatch': (req: { events: WatchEvent[] }) => Result<void>
+  'search:refresh': (req: void) => Result<void>
   'fs:readFile': (req: ReadFileReq) => Result<ReadFileResult>
   'fs:writeFile': (req: WriteFileReq) => Result<WriteFileResult>
   'fs:createFile': (req: RelPathReq) => Result<void>
@@ -429,6 +471,7 @@ export interface EventChannels {
   /** main → overlay only: the munu / swarm subset. */
   'overlaySettings:changed': OverlaySettings
   'fs:watch': WatchBatch
+  'search:event': SearchEvent
   /** main → overlay window: the global munu state. */
   'munu:state': MunuGlobal
   /** main → overlay: reveal (slide down) or hide (tuck into the notch). */
@@ -494,6 +537,14 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'project:takePendingOpen',
   'fs:readTree',
   'fs:search',
+  'fs:readDir',
+  'fs:duplicate',
+  'search:files',
+  'search:status',
+  'search:content',
+  'search:cancel',
+  'search:applyWatch',
+  'search:refresh',
   'fs:readFile',
   'fs:writeFile',
   'fs:createFile',
@@ -576,6 +627,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'settings:changed',
   'overlaySettings:changed',
   'fs:watch',
+  'search:event',
   'munu:state',
   'munu:reveal',
   'munu:frame',

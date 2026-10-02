@@ -96,6 +96,17 @@ const preference = {
       floating: z.boolean().default(false)
     })
     .default({}),
+  files: z
+    .object({
+      sortBy: z.enum(['name', 'type', 'modified', 'size']).default('name'),
+      sortDesc: z.boolean().default(false),
+      foldersFirst: z.boolean().default(true),
+      showHidden: z.boolean().default(true),
+      showIgnored: z.boolean().default(false),
+      /** Quick Open and Find in files: also search ignored and hidden folders (node_modules, build output, .git). */
+      searchIgnored: z.boolean().default(false)
+    })
+    .default({}),
   chat: z
     .object({
       /** What view a pane starts in. 'terminal' keeps DockTerm terminal-first. */
@@ -110,7 +121,7 @@ const preference = {
       editorRatio: z.number().min(0.2).max(0.8).default(0.5),
       miniTermHeight: z.number().min(80).max(600).default(160),
       openPanel: z
-        .enum(['files', 'git', 'review', 'mcp', 'skills', 'agents', 'activity', 'usage', 'info', 'settings'])
+        .enum(['files', 'search', 'git', 'review', 'mcp', 'skills', 'agents', 'activity', 'usage', 'info', 'settings'])
         .nullable()
         .default(null),
       miniTermOpen: z.boolean().default(false),
@@ -218,6 +229,7 @@ const settingsSchema = z.object({
   sessionHistory: preference.sessionHistory,
   reading: preference.reading,
   chat: preference.chat,
+  files: preference.files,
   munu: preference.munu,
   theme: z.string().default('dockterm-graphite'),
   /** Free-form scratchpad shown in the top-bar notes popover; auto-saved. */
@@ -259,6 +271,7 @@ export const settingsPatchSchema = z.object({
   sessionHistory: toPatchSchema(preference.sessionHistory).optional(),
   reading: toPatchSchema(preference.reading).optional(),
   chat: toPatchSchema(preference.chat).optional(),
+  files: toPatchSchema(preference.files).optional(),
   munu: toPatchSchema(preference.munu).optional(),
   theme: z.string().optional(),
   notes: z.string().max(200_000).optional(),
@@ -302,6 +315,7 @@ const OBJECT_PATCH_KEYS = [
   'sessionHistory',
   'reading',
   'chat',
+  'files',
   'munu'
 ] as const satisfies readonly (keyof Settings)[]
 

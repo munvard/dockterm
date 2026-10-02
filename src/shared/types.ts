@@ -4,6 +4,7 @@ import type { UsagePillConfig, UsageFloatConfig } from './usageReal'
 
 export type PanelId =
   | 'files'
+  | 'search'
   | 'git'
   | 'review'
   | 'mcp'
@@ -372,6 +373,16 @@ export interface RecentProject {
   lastOpenedAt: number
 }
 
+export type FileSortBy = 'name' | 'type' | 'modified' | 'size'
+export interface FilesSettings {
+  sortBy: FileSortBy
+  sortDesc: boolean
+  foldersFirst: boolean
+  showHidden: boolean
+  showIgnored: boolean
+  searchIgnored: boolean
+}
+
 export interface Settings {
   schemaVersion: number
   lastProjectPath: string | null
@@ -387,6 +398,7 @@ export interface Settings {
   sessionHistory: SessionHistorySettings
   reading: ReadingSettings
   chat: ChatSettings
+  files: FilesSettings
   /** Selected theme id, or 'auto' to follow the OS appearance. */
   theme: string
   munu: MunuSettings

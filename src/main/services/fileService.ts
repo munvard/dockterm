@@ -3,7 +3,8 @@ import { basename, dirname, join } from 'node:path'
 import { shell } from 'electron'
 import { resolveInside, isRegularFile } from './pathJail'
 import { IGNORED_ENTRIES, MAX_EDIT_FILE_BYTES, MAX_TREE_ENTRIES } from '@shared/constants'
-import type { TreeNode, ReadFileResult, WriteFileResult } from '@shared/ipc'
+import type { TreeNode, DirListing, ReadFileResult, WriteFileResult } from '@shared/ipc'
+import { duplicateName } from '@shared/fileNames'
 
 /** One level of children for `relPath` ('' = project root). Dirs first, then files. */
 export async function readTree(root: string, relPath: string): Promise<TreeNode[]> {
@@ -21,6 +22,61 @@ export async function readTree(root: string, relPath: string): Promise<TreeNode[
     a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : a.name.localeCompare(b.name)
   )
   return nodes
+}
+
+const STAT_LANES = 48
+
+/**
+ * One folder for the explorer: the same entries as readTree (symlinks never
+ * listed) with size and mtime, built-in ignored entries only when `showIgnored`,
+ * and a count of what was left out past MAX_TREE_ENTRIES. Unsorted: the renderer
+ * sorts by the user's chosen order.
+ */
+export async function readDir(root: string, relPath: string, showIgnored: boolean): Promise<DirListing> {
+  const abs = relPath ? resolveInside(root, relPath) : root
+  const entries = await fs.readdir(abs, { withFileTypes: true })
+  const nodes: TreeNode[] = []
+  let used = 0
+  for (const entry of entries) {
+    used++
+    const ignored = IGNORED_ENTRIES.includes(entry.name)
+    if (ignored && !showIgnored) continue
+    if (entry.isSymbolicLink()) continue
+    const childRel = relPath ? `${relPath}/${entry.name}` : entry.name
+    nodes.push({ name: entry.name, relPath: childRel, type: entry.isDirectory() ? 'dir' : 'file', ignored })
+    if (nodes.length >= MAX_TREE_ENTRIES) break
+  }
+  let next = 0
+  const lane = async (): Promise<void> => {
+    while (next < nodes.length) {
+      const node = nodes[next++]
+      try {
+        const st = await fs.lstat(join(abs, node.name))
+        node.size = node.type === 'file' ? st.size : undefined
+        node.mtimeMs = st.mtimeMs
+      } catch {
+        // vanished between readdir and lstat: leave it unstatted
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(STAT_LANES, nodes.length) }, lane))
+  return { entries: nodes, more: Math.max(0, entries.length - used) }
+}
+
+/** Copy a file or folder next to itself as "name copy.ext". Returns the new relPath. */
+export async function duplicate(root: string, relPath: string): Promise<string> {
+  const { parent, name } = splitRelPath(relPath)
+  const parentAbs = parent ? resolveInside(root, parent) : root
+  const fromAbs = resolveInside(root, relPath)
+  const taken = new Set(await fs.readdir(parentAbs))
+  const copyName = duplicateName(name, taken)
+  await fs.cp(fromAbs, join(parentAbs, copyName), {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+    verbatimSymlinks: true
+  })
+  return parent ? `${parent}/${copyName}` : copyName
 }
 
 const MAX_SEARCH_RESULTS = 200

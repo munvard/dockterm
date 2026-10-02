@@ -9,6 +9,7 @@ import { registerPtyHandlers } from './handlers/pty'
 import { registerSettingsHandlers } from './handlers/settings'
 import { registerProjectHandlers } from './handlers/project'
 import { registerFsHandlers } from './handlers/fs'
+import { registerSearchHandlers } from './handlers/search'
 import { registerGitHandlers } from './handlers/git'
 import { registerReviewHandlers } from './handlers/review'
 import { registerClaudeHandlers } from './handlers/claude'
@@ -54,6 +55,7 @@ export function registerIpc(): void {
   registerSettingsHandlers(reg)
   registerProjectHandlers(reg)
   registerFsHandlers(reg)
+  registerSearchHandlers(reg)
   registerGitHandlers(reg)
   registerReviewHandlers(reg)
   registerClaudeHandlers(reg)
