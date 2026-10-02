@@ -52,7 +52,7 @@ export function UsageWidget() {
   const rate = real?.fiveHour ? burnRate(history, real.fiveHour.resetsAt, now) : null
 
   return (
-    <div className="uw" title={usageTooltip(real, now, history, th)}>
+    <div className="uw" title={usageTooltip(real, now, history, th, f.paceMarker)}>
       <div className="uw__tools">
         <button className="uw__btn" title="Widget settings" onClick={() => setMenu((m) => !m)}>
           <Settings2 size={12} />
@@ -84,6 +84,10 @@ export function UsageWidget() {
             Reset countdown
           </label>
           <label className="uw__check">
+            <input type="checkbox" checked={f.paceMarker} onChange={() => set({ paceMarker: !f.paceMarker })} />
+            Average pace marker
+          </label>
+          <label className="uw__check">
             <input type="checkbox" checked={f.alwaysOnTop} onChange={() => set({ alwaysOnTop: !f.alwaysOnTop })} />
             Always on top
           </label>
@@ -112,7 +116,7 @@ export function UsageWidget() {
       ) : (
         <>
           <div className="uw__body">
-            <UsageReadout readings={readings} style={f.style} showReset={f.showReset} real={real} history={history} now={now} variant="widget" />
+            <UsageReadout readings={readings} style={f.style} showReset={f.showReset} showPace={f.paceMarker} real={real} history={history} now={now} variant="widget" />
           </div>
           {real && (
             <div className="uw__foot">

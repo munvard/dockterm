@@ -1,4 +1,4 @@
-import { app, shell, clipboard, BrowserWindow } from 'electron'
+import { app, shell, clipboard, BrowserWindow, systemPreferences } from 'electron'
 import os from 'node:os'
 import { existsSync, statSync } from 'node:fs'
 import { z } from 'zod'
@@ -18,7 +18,7 @@ import { getAgentActivity } from '../../services/agentActivityService'
 import { getSessionHistory, getConversation } from '../../services/sessionHistoryService'
 import { paneKey } from '../../services/windowNamespace'
 import { broadcastSettings } from '../../services/settingsBroadcast'
-import { HEX_COLOR, TITLEBAR_HEIGHT } from '../../titleBar'
+import { HEX_COLOR, TITLEBAR_HEIGHT, titleDoubleClickAction } from '../../titleBar'
 import type { Registrar } from '../register'
 
 /** Windows build number out of os.release() ("10.0.22621" -> 22621). Xterm's
@@ -29,14 +29,15 @@ function windowsBuildNumber(release: string): number | undefined {
 }
 
 export function registerAppHandlers(reg: Registrar): void {
-  reg('app:getInfo', z.void(), () =>
+  reg('app:getInfo', z.void(), (_req, event) =>
     ok({
       name: APP_NAME,
       version: app.getVersion(),
       platform: process.platform,
       home: app.getPath('home'),
       windowsBuildNumber:
-        process.platform === 'win32' ? windowsBuildNumber(os.release()) : undefined
+        process.platform === 'win32' ? windowsBuildNumber(os.release()) : undefined,
+      fullScreen: BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false
     })
   )
 
@@ -108,6 +109,19 @@ export function registerAppHandlers(reg: Registrar): void {
       return ok(undefined)
     }
   )
+
+  reg('window:titleDoubleClick', z.void(), (_req, event) => {
+    if (process.platform !== 'darwin') return ok(undefined)
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return ok(undefined)
+    const action = titleDoubleClickAction(systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string'))
+    if (action === 'minimize') win.minimize()
+    else if (action === 'zoom') {
+      if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+    }
+    return ok(undefined)
+  })
 
   reg('update:check', z.void(), async () => {
     const found = await checkForUpdate(true)

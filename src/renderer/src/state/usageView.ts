@@ -1,4 +1,4 @@
-import type { RealUsage, UsageMetric, UsagePillConfig } from '@shared/usageReal'
+import type { RealUsage, RealUsageWindow, UsageMetric, UsagePillConfig } from '@shared/usageReal'
 import { seriesOf, type SeriesPoint, type UsageSample } from '@shared/usageHistory'
 import { fmtCountdown, fmtResetClock } from '../components/usage/format'
 
@@ -201,7 +201,8 @@ export function usageTooltip(
   real: RealUsage | null,
   now: number,
   samples: UsageSample[],
-  th: Thresholds
+  th: Thresholds,
+  showPace = false
 ): string {
   if (!real) return 'No usage data yet. Start Claude in a DockTerm terminal to see your real usage.'
   const lines: string[] = []
@@ -211,6 +212,8 @@ export function usageTooltip(
       lines.push(
         `${METRIC_NAME[metric]}: ${r.text} used, resets ${fmtResetClock(r.resetsAt)} (in ${fmtCountdown(r.resetsAt - now)})`
       )
+      const pace = showPace ? paceFor(r, now) : null
+      if (pace && r.pct !== null) lines.push(paceTooltipLine(metric, r.pct, pace))
     } else {
       lines.push(`${METRIC_NAME[metric]}: no data (no limit info yet, or the window has reset)`)
     }
@@ -249,4 +252,67 @@ export function noDataNote(captureEnabled: boolean, withoutStatusLine: boolean):
   return withoutStatusLine
     ? base
     : base + ' If you have no status line set up in Claude, turn on "Also capture without a status line" under Data below.'
+}
+
+export const FIVE_HOUR_MS = 18_000_000
+export const SEVEN_DAY_MS = 604_800_000
+
+/** Within this many points of an even spend counts as "on pace". */
+export const PACE_EVEN_BAND = 3
+
+export interface PaceMarker {
+  /** Where usage would be (0 to 100) if the window were spent evenly so far. */
+  pacePct: number
+  /** Used minus pacePct. Positive = ahead of an even spend (using it faster). */
+  deltaPct: number
+  state: 'ahead' | 'behind' | 'even'
+}
+
+/** The window length for a metric that has one (5h, 7d), else null. */
+export function windowMsFor(metric: UsageMetric): number | null {
+  return metric === 'fiveHour' ? FIVE_HOUR_MS : metric === 'sevenDay' ? SEVEN_DAY_MS : null
+}
+
+/** Where an even spend of a window would be right now, against the real usage.
+ * null when there is no window, its reset time is not a number, or it has already
+ * ended (resetsAt in the past). */
+export function paceMarker(window: RealUsageWindow | null | undefined, windowMs: number, now: number): PaceMarker | null {
+  if (!window || !Number.isFinite(window.resetsAt) || !Number.isFinite(window.pct) || !(windowMs > 0)) return null
+  if (window.resetsAt <= now) return null
+  const elapsed = Math.min(1, Math.max(0, 1 - (window.resetsAt - now) / windowMs))
+  const pacePct = elapsed * 100
+  const deltaPct = window.pct - pacePct
+  const state = deltaPct > PACE_EVEN_BAND ? 'ahead' : deltaPct < -PACE_EVEN_BAND ? 'behind' : 'even'
+  return { pacePct, deltaPct, state }
+}
+
+/** The marker for one reading (null for context, cost and unknown values). */
+export function paceFor(r: Reading, now: number): PaceMarker | null {
+  const ms = windowMsFor(r.metric)
+  if (ms === null || !r.known || r.pct === null || r.resetsAt === null) return null
+  return paceMarker({ pct: r.pct, resetsAt: r.resetsAt }, ms, now)
+}
+
+/** The two ends of the even-spend line for the graph: from the window start (or the
+ * left edge of the chart, whichever is later) to now. Empty when the window has not
+ * started or ended. */
+export function paceLine(resetsAt: number, windowMs: number, from: number, now: number): SeriesPoint[] {
+  const start = resetsAt - windowMs
+  const t0 = Math.max(start, from)
+  if (!(now > t0) || resetsAt <= now) return []
+  const v = (t: number): number => Math.min(100, Math.max(0, ((t - start) / windowMs) * 100))
+  return [
+    { t: t0, v: v(t0) },
+    { t: now, v: v(now) }
+  ]
+}
+
+/** One tooltip line: "Pace (5-hour window): you have used 36%, an even spend would be 26% (10 points ahead)". */
+export function paceTooltipLine(metric: UsageMetric, usedPct: number, p: PaceMarker): string {
+  const used = Math.round(usedPct)
+  const even = Math.round(p.pacePct)
+  const gap = Math.round(Math.abs(p.deltaPct))
+  const how =
+    p.state === 'even' ? 'on pace' : `${gap} point${gap === 1 ? '' : 's'} ${p.state === 'ahead' ? 'ahead' : 'behind'}`
+  return `Pace (${METRIC_NAME[metric]}): you have used ${used}%, an even spend would be ${even}% (${how})`
 }

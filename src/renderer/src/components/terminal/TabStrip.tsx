@@ -10,6 +10,7 @@ import { markClaudeLaunch } from '../../state/launchTracker'
 import { confirmCloseLeaves } from './closeGuard'
 import { k } from '../../hooks/keys'
 import claudeIcon from '../../assets/claudecode.svg'
+import { onChromeDoubleClick } from '../layout/chromeDoubleClick'
 
 /** Send a command into the focused terminal pane of the active tab. */
 function runInFocusedPane(action: LaunchAction): void {
@@ -60,7 +61,7 @@ export function TabStrip() {
   }, [launcherOpen])
 
   return (
-    <div className="tabstrip">
+    <div className="tabstrip" onDoubleClick={onChromeDoubleClick}>
       <div className="tabstrip__tabs">
         {tabs.map((t, i) => (
           <div

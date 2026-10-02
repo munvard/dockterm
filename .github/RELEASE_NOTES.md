@@ -3,15 +3,14 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__: real usage, agents in munu, search, and a much smoother app
+## 🎯 What's new in v__VER__: an average pace line, a calmer top bar, and a gentler Zen mode
 
-- **Real usage percentages.** The usage pill now shows your real 5-hour and 7-day numbers from Claude itself, not an estimate. Pick what it shows (percent, bar, ring or graph), reset countdown and warning colours in the Usage panel, and pop it out as a floating, resizable, always-on-top widget. Until Claude has sent data, it says "no data yet". Your own Claude settings and status line are never changed.
-- **munu sees your agents.** Sub-agents, background agents and team members show up as little munus and in the popup. munu keeps working while they run and only smiles once, after the last one is done.
-- **munu is clickable again on Windows.** The overlay no longer inherits the app zoom, so clicks and the popup (pin, size, agents) work. On macOS the popup opens without the little glitch.
-- **Quick Open and Find in files.** Find any file by name, or any text in any file, including ignored folders when you ask for them. The index runs off the main thread and stays fast on 200k files.
-- **A better file explorer.** Keyboard navigation, multi-select, drag to move, inline create and rename, git badges, sorting and a hidden-files toggle, on a virtualized tree.
-- **Much smoother.** Idle CPU on a Mac dropped from about 50% to 12% of one core, typing while Claude streams is about twice as fast, a 50 MB chat opens without a freeze, and a very large paste no longer swallows Enter or Ctrl+C typed right after it. Pane controls no longer cover the close button of Claude's diff panel.
-- **Safer search and paths.** Search paths are jailed to the project, and paths pasted into a `cmd` or PowerShell pane are quoted for that shell.
+- **Average pace marker on usage.** The 5-hour and 7-day readings now show where your usage would be if you spent the window evenly, so you see at a glance if you are above or below average. It is a tick on the ring and the bar, a dashed line on the graph, and a small arrow on the percent view. The tooltip gives the real numbers. On by default, with a switch in the pill settings and in the widget menu.
+- **A calmer top bar.** There is always a free area to grab and drag the window, and the empty space in the tab strip drags it too. When space runs out, items give way in a fixed order instead of overlapping or wrapping. The usage pill is compact by default (`5h 11%`). Double-click the bar to zoom on macOS, and fullscreen drops the extra left padding.
+- **Zen mode only hides the bars.** It no longer dims the panes you are not using or adds extra padding. It hides the top bar and the side panels and nothing else.
+- **Windows fix.** A path separator bug in one test made CI fail on Windows. Fixed.
+
+Everything from v0.32.0 is included: real 5-hour and 7-day usage from Claude itself, agents in munu, Quick Open and Find in files, a better file explorer, a much smoother app, and a clickable munu on Windows.
 
 All local and read-only on your own `~/.claude` files. No API, no telemetry.
 

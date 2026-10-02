@@ -51,6 +51,8 @@ describe('sameBox and the patch schema', () => {
   })
   it('lets the widget change only what it shows, never place, size or enabled', () => {
     expect(floatViewPatchSchema.safeParse({ style: 'ring', opacity: 0.5 }).success).toBe(true)
+    expect(floatViewPatchSchema.safeParse({ paceMarker: false }).success).toBe(true)
+    expect(floatViewPatchSchema.safeParse({ paceMarker: 'no' }).success).toBe(false)
     expect(floatViewPatchSchema.safeParse({ opacity: 0.1 }).success).toBe(false)
     expect(floatViewPatchSchema.safeParse({ show: [] }).success).toBe(false)
     expect(floatViewPatchSchema.safeParse({ x: 5 }).success).toBe(false)

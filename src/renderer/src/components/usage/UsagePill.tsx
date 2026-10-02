@@ -45,7 +45,7 @@ export function UsagePill() {
   const th = { warnAt: cfg.warnAt, critAt: cfg.critAt }
   const readings = readingsFor(real, cfg.show, th)
   const none = hasNoData(readings)
-  const tip = none && !real ? NO_DATA_TIP : usageTooltip(real, now, history, th)
+  const tip = none && !real ? NO_DATA_TIP : usageTooltip(real, now, history, th, cfg.paceMarker)
   return (
     <button
       className={`${cls}${none ? ' usage-pill--quiet' : ''}`}
@@ -63,6 +63,7 @@ export function UsagePill() {
           readings={readings}
           style={cfg.style}
           showReset={cfg.showReset}
+          showPace={cfg.paceMarker}
           real={real}
           history={history}
           now={now}

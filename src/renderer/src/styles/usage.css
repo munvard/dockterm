@@ -90,6 +90,41 @@
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+.uv-bar--pace {
+  position: relative;
+  overflow: visible;
+}
+.uv-pace {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  box-shadow: 0 0 0 1px var(--bg);
+  pointer-events: none;
+}
+.uv-spark .uv-spark__pace {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  stroke-linecap: butt;
+}
+.usage-ring__pace {
+  stroke: var(--text);
+  pointer-events: none;
+}
+.uv-arrow {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 0.62em;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+.uv-arrow--even {
+  visibility: hidden;
+}
 .uv-item--ring .usage-ring svg circle:last-of-type {
   stroke: var(--uv, var(--accent));
 }
@@ -263,6 +298,18 @@
   stroke-width: 1;
   stroke-dasharray: 2 3;
   vector-effect: non-scaling-stroke;
+}
+.uchart__pace {
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+.uchart__pace--five {
+  stroke: var(--accent);
+}
+.uchart__pace--seven {
+  stroke: var(--text-faint);
 }
 .uchart__five {
   stroke: var(--accent);

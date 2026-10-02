@@ -4,9 +4,13 @@ import type { UsageSample } from '@shared/usageHistory'
 import { Ring } from './Ring'
 import {
   hasNoData,
+  paceFor,
+  paceLine,
   resetCountdown,
+  windowMsFor,
   sparkFor,
   sparkPath,
+  type PaceMarker,
   type Reading,
   type Tone
 } from '../../state/usageView'
@@ -21,6 +25,8 @@ export interface ReadoutProps {
   readings: Reading[]
   style: UsageStyle
   showReset: boolean
+  /** Mark where an even spend of the window would be (5h and 7d only). */
+  showPace: boolean
   real: RealUsage | null
   history: UsageSample[]
   now: number
@@ -34,7 +40,8 @@ function Spark({
   history,
   now,
   w,
-  h
+  h,
+  showPace
 }: {
   reading: Reading
   real: RealUsage | null
@@ -42,6 +49,7 @@ function Spark({
   now: number
   w: number
   h: number
+  showPace: boolean
 }) {
   const data =
     reading.metric === 'fiveHour' || reading.metric === 'sevenDay'
@@ -49,8 +57,14 @@ function Spark({
       : null
   if (!data) return <span className="uv-collect" title="collecting data">collecting data</span>
   const d = sparkPath(data.points, data.from, data.to, w, h)
+  const ms = windowMsFor(reading.metric)
+  const ideal =
+    showPace && ms !== null && reading.resetsAt !== null
+      ? sparkPath(paceLine(reading.resetsAt, ms, data.from, now), data.from, data.to, w, h)
+      : ''
   return (
     <svg className="uv-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      {ideal && <path className="uv-spark__pace" d={ideal} fill="none" vectorEffect="non-scaling-stroke" />}
       <path d={d} fill="none" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
     </svg>
   )
@@ -73,6 +87,7 @@ function useBox(): [(el: HTMLDivElement | null) => void, { w: number; h: number 
 function Item(p: ReadoutProps & { r: Reading }) {
   const { r, style, variant } = p
   const reset = p.showReset ? resetCountdown(r.resetsAt, p.now) : null
+  const pace: PaceMarker | null = p.showPace ? paceFor(r, p.now) : null
   const numeric = r.known && r.pct !== null
   const graphable = r.metric === 'fiveHour' || r.metric === 'sevenDay'
   const viz = !numeric || (style === 'graph' && !graphable) ? 'percent' : style
@@ -83,7 +98,13 @@ function Item(p: ReadoutProps & { r: Reading }) {
       {viz === 'ring' && variant === 'widget' ? (
         <div className="uv-ringcell" ref={cellRef}>
           {cell.w > 0 && (
-            <Ring pct={r.pct ?? 0} size={ringSize} stroke={Math.max(4, ringSize / 10)} color={TONE_COLOR[r.tone]}>
+            <Ring
+              pct={r.pct ?? 0}
+              size={ringSize}
+              stroke={Math.max(4, ringSize / 10)}
+              color={TONE_COLOR[r.tone]}
+              pace={pace?.pacePct}
+            >
               <span className="uv-ring-num" style={{ fontSize: Math.max(11, ringSize / 3.4) }}>
                 {r.text}
               </span>
@@ -98,19 +119,27 @@ function Item(p: ReadoutProps & { r: Reading }) {
         <>
           <span className="uv-label">{r.label}</span>
           {viz === 'ring' && (
-            <Ring pct={r.pct ?? 0} size={16} stroke={3} color={TONE_COLOR[r.tone]} />
+            <Ring pct={r.pct ?? 0} size={16} stroke={3} color={TONE_COLOR[r.tone]} pace={pace?.pacePct} />
           )}
           {viz === 'bar' && (
-            <span className="uv-bar">
+            <span className={`uv-bar${pace ? ' uv-bar--pace' : ''}`}>
               <i style={{ width: `${Math.min(100, Math.max(0, r.pct ?? 0))}%` }} />
+              {pace && <b className="uv-pace" style={{ left: `${pace.pacePct}%` }} />}
             </span>
           )}
           {viz === 'graph' && (
             <span className="uv-graphbox">
-              <Spark reading={r} real={p.real} history={p.history} now={p.now} w={80} h={variant === 'pill' ? 14 : 40} />
+              <Spark reading={r} real={p.real} history={p.history} now={p.now} w={80} h={variant === 'pill' ? 14 : 40} showPace={p.showPace} />
             </span>
           )}
-          <span className="uv-val">{r.text}</span>
+          <span className="uv-val">
+            {r.text}
+            {viz === 'percent' && p.showPace && windowMsFor(r.metric) !== null && r.known && (
+              <span className={`uv-arrow uv-arrow--${pace?.state ?? 'even'}`} aria-hidden="true">
+                {pace?.state === 'behind' ? '\u2193' : '\u2191'}
+              </span>
+            )}
+          </span>
           {reset && <span className="uv-reset">{reset}</span>}
         </>
       )}

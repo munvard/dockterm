@@ -64,9 +64,9 @@
 - 🧭 **Checkpoints for your Claude chat** — see the prompts in the current session, jump back to them, and hand off restores to Claude's own `/rewind`.
 - 🛰️ **Live agent activity** — when Claude spawns subagents, DockTerm shows the count, what they are doing, elapsed time, and finished results.
 - ✂️ **Send selection to Claude** — select terminal text and send it into Claude as a referenced snippet, without building a separate chat UI.
-- 📊 **Usage at a glance** — how much of your **5-hour and weekly limits** is left, and exactly **when they reset** — live, in a panel and a top-bar pill.
+- 📊 **Real usage at a glance** — your actual **5-hour and weekly limits** from Claude itself, **when they reset**, and a line that shows whether you are above or below an even pace — live, in a panel, a top-bar pill and a floating widget.
 - 🔍 **Diff review + safe Git** — see exactly what changed, then stage and commit, without leaving the terminal.
-- 🗂️ **Files, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't. Multi-select files, send paths to Claude, or Alt+drag real files into other apps.
+- 🗂️ **Files, search, editor, MCP, skills & agents** — they appear when you ask and vanish when you don't. Find any file by name or any text in any file, multi-select files, send paths to Claude, or Alt+drag real files into other apps.
 - 🪟 **A project per pane** — a grid where each pane is a different repo; the side panels follow whichever you focus. Drag panes to reorder.
 - 🔒 **Local-only** — no accounts, no telemetry; it never calls an AI of its own.
 
@@ -85,7 +85,7 @@ Running Claude Code means living next to a terminal — alt-tabbing to read a di
 | Shows Claude subagents while they run | ❌ | ❌ | ~ | ✅ |
 | Checkpoints for the current Claude session | ❌ | ❌ | ~ | ✅ |
 | Send selected terminal text back to Claude | manual | manual | ~ | ✅ |
-| Usage limits & reset times at a glance | ❌ | ❌ | ❌ | ✅ |
+| Real usage limits, pace & reset times at a glance | ❌ | ❌ | ❌ | ✅ |
 | Stays out of the way | ✅ | ❌ heavy | ~ | ✅ |
 | No telemetry, local-only | ~ | ❌ | ~ | ✅ |
 
@@ -93,7 +93,7 @@ Running Claude Code means living next to a terminal — alt-tabbing to read a di
 
 ## munu
 
-DockTerm reads Claude's state from the terminal output and shows it as **munu**, a small face near your menu bar — in the notch, on a MacBook. At a glance you can tell whether Claude is working, finished, or waiting for a `[y/n]`, even when DockTerm is behind another window. When Claude pauses to ask permission, munu surfaces the prompt so you can answer with one click — including multi-choice and free-text answers — and never lose your flow. It infers everything from the terminal; it **never auto-answers** and **never calls an API**.
+DockTerm reads Claude's state from the terminal output and shows it as **munu**, a small face near your menu bar — in the notch, on a MacBook. At a glance you can tell whether Claude is working, finished, or waiting for a `[y/n]`, even when DockTerm is behind another window. Sub-agents, background agents and team members show up as little munus too. When Claude pauses to ask permission, munu surfaces the prompt so you can answer with one click — including multi-choice and free-text answers — and never lose your flow. It infers everything from the terminal; it **never auto-answers** and **never calls an API**.
 
 <p align="center"><img src="docs/screenshots/hd/hero.gif" alt="munu surfacing Claude's prompt over a fullscreen movie, answered without leaving the film" width="900"></p>
 <p align="center"><sub>Go watch something fullscreen — munu floats over it (even on another desktop/Space) and brings Claude's prompt to you, so you never miss it.</sub></p>
@@ -138,15 +138,17 @@ By default munu tucks into the notch, slides out on hover, and peeks for a few s
 
 ## What you get
 
-- **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, and native, instant scrolling. Drag a pane to reorder the grid.
+- **Real terminal** — xterm.js on a native PTY (your real shell). Tabs, splits, grids, true-color, unicode, search, and native, instant scrolling, tuned to stay smooth while Claude streams. Drag a pane to reorder the grid.
 - **Chat mode:** press `⌘R` / `Ctrl Shift R` on any pane to read Claude's session as a clean conversation, with a working timer, permission prompts as buttons, and a composer for attachments, smart paste, `/` and `@` menus, history and drafts. Hold the mic to talk through Claude's own voice mode. The real terminal keeps running underneath; press the shortcut again to go back.
-- **Reading comfort:** a docked or floating Reading view of the current conversation, a warm low-glare Reading theme, line height, letter spacing and padding controls with one-tap presets, and Zen mode (`⌘.` / `Ctrl Shift .`) that dims the panes you're not using.
+- **Reading comfort:** a docked or floating Reading view of the current conversation, a warm low-glare Reading theme, line height, letter spacing and padding controls with one-tap presets, and Zen mode (`⌘.` / `Ctrl Shift .`) that hides the top bar and side panels and leaves only your panes.
 - **Claude workflow helpers** — one-click `claude` / `claude --resume`, a checkpoint rail for the current conversation, and a Send to Claude selection toolbar for turning terminal text into a referenced prompt snippet.
 - **Live agent activity** — a top-bar count pill, Activity panel, and munu swarm show Claude Code subagents as they start, run, and finish, grouped by project and read from local transcripts.
 - **Terminal memory after quit** — DockTerm restores each terminal's visible scrollback after a full app quit, so updating the app does not leave you staring at a blank shell. Use `claude --resume` to continue Claude's actual conversation.
-- **Usage limits, live** — a Usage panel and a top-bar pill show how much of your rolling **5-hour** and **weekly** windows remain and **when each resets**, calibrated from your own history. Read locally; tokens-only; nothing leaves your machine.
+- **Real usage limits, live** — a Usage panel, a compact top-bar pill (`5h 11%` by default) and a pop-out floating widget show your real rolling **5-hour** and **weekly** percentages from Claude Code itself, with a reset countdown and warning colours. Show them as a percent, bar, ring or graph. An **average pace marker** (on by default, switchable) draws the point where your usage would be if you spent the window evenly: a tick on the ring and bar, a dashed line on the graph, a small arrow on the percent view. Until Claude has sent data it says "no data yet". Your own Claude settings and status line are never changed. Read locally; nothing leaves your machine.
 - **Diff review** — see exactly what changed since your last commit, this session, or a pinned checkpoint, and open a side-by-side diff for any file before you trust it.
 - **Beginner-safe Git** — grouped status, stage/discard, commit, push/pull, branches, with confirmations on the risky actions that show the exact command they'll run.
+- **Quick Open & Find in files** — find any file by name (`⌘P` / `Ctrl Shift L`) or any text in any file (`⌘⇧F` / `Ctrl Shift F`), including ignored folders when you ask. The index runs off the main thread and stays fast on 200k files.
+- **A calm top bar** — it always keeps a free area to grab and drag the window, the empty space in the tab strip drags it too, and items give way in a fixed order (labels shorten, panel icons fold into a menu) instead of overlapping. Double-click it to zoom, as on any Mac window. It adapts to fullscreen.
 - **Files, editor & previews** — a virtualized file tree that stays smooth in huge folders: full keyboard navigation (arrows, Home/End, type to jump, `F2` rename, `Delete`), multi-select with `⌘`/`Ctrl`/`Shift`, drag to move files and folders, inline new file and rename, duplicate, reveal the open file, collapse all, sort by name, type, date or size, hidden and ignored toggles, git status badges on files and parent folders, file-type icons, a breadcrumb for the open file, an instant inline filter, a context menu with copy path, copy relative path, open in terminal here and cd here, and each project remembers which folders were open. Monaco editor with a save-conflict guard, image and binary previews; drag a file or folder into a terminal to insert its path, and hold `Alt` while dragging to hand the real files to other apps.
 - **MCP, skills & agents** — read-only views of your MCP servers (project, user, claude.ai connectors, and plugin-provided) with secrets masked, plus your skills, slash-commands and subagents; browse and scaffold skills.
 - **A project per pane** — a grid where each pane is a different repo; focus a pane and the side panels follow it, including a live `cd`.
@@ -237,7 +239,7 @@ macOS builds are **signed and notarized**, so they open normally. Windows builds
 DockTerm is built to be trusted with your code:
 
 - **No telemetry, no accounts, no AI of its own.** It only ever runs *your* `claude`.
-- Usage stats are read from your local `~/.claude` transcripts, **read-only** — token counts only, never message content, and nothing is uploaded.
+- Usage numbers are read from your local `~/.claude` files, **read-only** — never message content, and nothing is uploaded.
 - `contextIsolation` and `sandbox` are on; production loads over a custom protocol with a strict CSP and no remote content.
 - Every IPC channel is an explicit, schema-validated verb with a sender check.
 - Filesystem access is jailed to the open project (symlink-safe). Reading `~/.claude` is a separate opt-in.
@@ -250,13 +252,13 @@ More in [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
 ## FAQ
 
 **Does my code or any data leave my machine?**
-No. DockTerm has no telemetry and never calls an AI of its own. Usage stats come from your local `~/.claude` transcripts, read-only.
+No. DockTerm has no telemetry and never calls an AI of its own. Usage numbers come from your local `~/.claude` files, read-only.
 
 **Do I keep using my normal `claude`?**
 Yes — DockTerm wraps your real Claude Code session in a real shell. Nothing to relearn, and it stays compatible as Claude Code evolves.
 
 **Are the usage percentages exact to my plan?**
-Anthropic doesn't expose your exact quota locally, so DockTerm calibrates the percentage from your own history — it tracks your real limits closely (especially once you've hit one), and the **reset times are exact**.
+Yes. They are the real 5-hour and weekly numbers that Claude Code itself reports, and the reset times come with them. Until Claude has sent data you see "no data yet" instead of a guess. DockTerm never changes your Claude settings or status line to get them.
 
 **Windows says "unknown publisher."**
 The Windows build is unsigned for now: choose *More info → Run anyway*. macOS is signed and notarized.
