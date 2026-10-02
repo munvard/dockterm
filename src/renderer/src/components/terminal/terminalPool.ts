@@ -18,6 +18,7 @@ import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
 import { ptyAcks, ptyRouter, utf8Length } from './ptyRouter'
+import { coveredCells, type Box } from './paneCorner'
 import { bundledConptyBuild } from './conptyBuild'
 import {
   CLEAR_STARTING_HINT,
@@ -157,6 +158,24 @@ export function paneVisibleText(leafId: string): string {
     out += (buf.getLine(y)?.translateToString(true) ?? '') + '\n'
   }
   return out
+}
+
+/** The visible cells a floating box (screen coordinates) covers in a pane's
+ * terminal, one string per row, and whether a full-screen app owns the screen.
+ * Null when the terminal is not laid out. */
+export function paneCoveredText(leafId: string, box: Box): { cells: string[]; alt: boolean } | null {
+  const p = pool.get(leafId)
+  const screen = p?.term.element?.querySelector('.xterm-screen')
+  if (!p || !screen) return null
+  const r = screen.getBoundingClientRect()
+  const { cols, rows } = p.term
+  const cover = coveredCells(box, r, cols, rows)
+  const buf = p.term.buffer.active
+  const cells: string[] = []
+  for (let y = 0; y < cover.rows; y++) {
+    cells.push(buf.getLine(buf.viewportY + y)?.translateToString(true, cols - cover.cols, cols) ?? '')
+  }
+  return { cells, alt: buf.type === 'alternate' }
 }
 
 /** Distinctive recent lines from a pane's buffer — used to identify WHICH Claude
@@ -507,7 +526,6 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         void pasteFromClipboard()
         return false
     }
-    return true
   })
 
   // Right-click: with text selected it copies and clears the selection (every

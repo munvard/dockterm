@@ -680,6 +680,34 @@
   background: var(--accent);
   color: #fff;
 }
+/* A split pane carries its controls in its title bar, never over the terminal. */
+.pane__bar .pane__controls {
+  position: static;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1;
+}
+.pane__bar .pane__controls button {
+  width: 22px;
+  height: 22px;
+}
+/* A single pane's floating controls step aside while the terminal draws under
+   them: always for a full-screen app (it may have a button there), and until
+   hover for plain output. */
+.pane[data-corner='text'] > .pane__controls,
+.pane[data-corner='app'] > .pane__controls {
+  opacity: 0;
+  pointer-events: none;
+}
+.pane[data-corner='text']:hover > .pane__controls {
+  opacity: 1;
+  pointer-events: auto;
+}
 .pane__grip {
   cursor: grab;
 }
