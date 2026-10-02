@@ -1,6 +1,6 @@
 import { BrowserWindow, Notification, powerSaveBlocker, screen, webContents } from 'electron'
 import { aggregateWithAgents } from '@shared/munu'
-import { getActiveAgentCount, onAgentCountChange } from './agentActivityService'
+import { getUnattributedAgentCounts, onAgentCountChange } from './agentActivityService'
 import { getSettings } from './settingsService'
 import {
   createOverlayWindow,
@@ -97,7 +97,8 @@ function computeGlobal(): MunuGlobal {
     states.push(g.state)
     for (const a of g.asks) asks.push(a)
   }
-  return { state: aggregateWithAgents(states, getActiveAgentCount()), asks }
+  const agents = getUnattributedAgentCounts()
+  return { state: aggregateWithAgents(states, agents.unplaced, agents.outside), asks }
 }
 
 function pushGlobal(): void {

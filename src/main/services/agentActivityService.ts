@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { getSettings } from './settingsService'
 import { createAgentTracker } from './agentTracker'
 import { claudeConfigDir } from './claudeConfigDir'
+import { createPidOwner, paneWork, processTableReader } from './agentPanes'
+import { ptyProcesses } from './ptyService'
 import type { AgentActivity } from '@shared/types'
 
 /**
@@ -24,9 +26,15 @@ const tracker = createAgentTracker({
   sessionsDir: join(claudeConfigDir(), 'sessions')
 })
 
+// PowerShell's process query costs about a second on Windows; ps is cheap.
+const pidOwner = createPidOwner(processTableReader(), ptyProcesses, process.platform === 'win32' ? 15_000 : 2_000)
+
 let started = false
 let timer: ReturnType<typeof setTimeout> | null = null
 let lastActiveCount = 0
+let lastUnattributed = 0
+let lastOutside = 0
+let lastAgentsSent = ''
 let blockerId: number | null = null
 let lastSent = ''
 const countListeners = new Set<() => void>()
@@ -39,18 +47,34 @@ function emptySnapshot(now = Date.now()): AgentActivity {
   return { updatedAt: now, agents: [], activeCount: 0, byProject: [] }
 }
 
+async function scanAll(): Promise<void> {
+  await tracker.scan()
+  await pidOwner.refresh(tracker.liveSessions().map((s) => s.pid))
+}
+
 function buildSnapshot(): AgentActivity {
   if (!enabled()) return emptySnapshot()
-  return tracker.snapshot({
+  const snap = tracker.snapshot({
     streamOutput: getSettings().agentActivity.streamOutput,
     retainMs: RETAIN_MS,
     resultMax: RESULT_MAX
   })
+  const work = paneWork(tracker.liveSessions(), pidOwner.owner, snap.agents)
+  lastUnattributed = work.unattributedRunning
+  lastOutside = work.outsideRunning
+  return { ...snap, busyPtys: work.busyPtys }
 }
 
-/** Agents running right now (munu counts them as "still working"). */
+/** Agents running right now (keep-awake and the "agents finished" notification). */
 export function getActiveAgentCount(): number {
   return lastActiveCount
+}
+
+/** Running agents of Claude sessions not matched to a pane: `unplaced` (not placed
+ * yet) and `outside` (Claude running outside DockTerm). Matched ones make their own
+ * pane busy instead. */
+export function getUnattributedAgentCounts(): { unplaced: number; outside: number } {
+  return { unplaced: lastUnattributed, outside: lastOutside }
 }
 
 /** Called when the number of running agents changes. */
@@ -80,6 +104,9 @@ function applyKeepAwake(active: number): void {
 function noteCount(active: number): void {
   const s = getSettings().agentActivity
   const prev = lastActiveCount
+  const agentsKey = `${lastUnattributed}/${lastOutside}`
+  const agentsChanged = agentsKey !== lastAgentsSent
+  lastAgentsSent = agentsKey
   if (prev > 0 && active === 0 && s.notifications && Notification.isSupported()) {
     const appFocused = BrowserWindow.getAllWindows().some((w) => w.isFocused())
     if (!appFocused) {
@@ -87,24 +114,30 @@ function noteCount(active: number): void {
     }
   }
   lastActiveCount = active
-  if (prev !== active) for (const cb of countListeners) cb()
+  if (prev !== active || agentsChanged) for (const cb of countListeners) cb()
 }
 
 /** Everything a window renders from a snapshot except its timestamp, so an
  * unchanged snapshot is not re-sent (the UI ticks elapsed time itself). */
 function fingerprint(s: AgentActivity): string {
-  return JSON.stringify([s.agents, s.activeCount, s.byProject])
+  return JSON.stringify([s.agents, s.activeCount, s.byProject, s.busyPtys])
+}
+
+/** A Claude in a pane (or not yet placed) is mid-turn: poll fast so the pane's
+ * busy flag is current when its screen goes quiet. */
+function anyBusySession(): boolean {
+  return tracker.liveSessions().some((s) => s.status === 'busy' && pidOwner.owner(s.pid) !== null)
 }
 
 function tick(): void {
   if (!enabled()) {
+    lastUnattributed = lastOutside = 0
     applyKeepAwake(0)
     noteCount(0)
     schedule(IDLE_POLL_MS)
     return
   }
-  void tracker
-    .scan()
+  void scanAll()
     .then(() => {
       const snap = buildSnapshot()
       const fp = fingerprint(snap)
@@ -116,7 +149,13 @@ function tick(): void {
       }
       applyKeepAwake(snap.activeCount)
       noteCount(snap.activeCount)
-      schedule(snap.activeCount > 0 ? ACTIVE_POLL_MS : tracker.sessionCount() > 0 ? WATCH_POLL_MS : IDLE_POLL_MS)
+      schedule(
+        snap.activeCount > 0 || anyBusySession()
+          ? ACTIVE_POLL_MS
+          : tracker.sessionCount() > 0
+            ? WATCH_POLL_MS
+            : IDLE_POLL_MS
+      )
     })
     .catch(() => {
       // A transient file error must never kill the watcher: always reschedule.
@@ -133,7 +172,7 @@ function schedule(ms: number): void {
 /** Current snapshot, after ensuring a scan has run (used by the `activity:get` handler). */
 export async function getAgentActivity(): Promise<AgentActivity> {
   if (!enabled()) return emptySnapshot()
-  await tracker.scan()
+  await scanAll()
   return buildSnapshot()
 }
 

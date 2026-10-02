@@ -58,6 +58,9 @@ export type AgentEvent =
       text: string
       durationMs: number | null
       steps: number | null
+      /** The agent stopped while background work of its own (a shell) still runs:
+       * it resumes when that work ends and notifies again with the same task-id. */
+      parked: boolean
       ts: number
     }
   | { kind: 'resume'; agentId: string; ts: number }
@@ -131,6 +134,10 @@ function noteText(result: string | null, summary: string | null): string {
   return summary || result || ''
 }
 
+// Claude Code 2.1.287: "This agent stopped with background work of its own still
+// running. It may resume on its own when that work completes ..."
+const PARKED_NOTE = /background work of its own still running|may resume on its own/i
+
 function parseNotifications(text: string, ts: number): AgentEvent[] {
   const out: AgentEvent[] = []
   const re = /<task-notification>([\s\S]*?)<\/task-notification>/g
@@ -150,6 +157,7 @@ function parseNotifications(text: string, ts: number): AgentEvent[] {
       text: noteText(tag(body, 'result'), tag(body, 'summary')).slice(0, TEXT_MAX),
       durationMs: dur ? Number(dur[1]) : null,
       steps: tools ? Number(tools[1]) : null,
+      parked: PARKED_NOTE.test(tag(body, 'note') ?? ''),
       ts
     })
   }
@@ -569,6 +577,13 @@ export function reduceActivity(
     } else if (e.kind === 'notify') {
       const a = byAgentId.get(e.agentId)
       if (!a) continue
+      a._lastEvent = e.ts
+      if (e.parked) {
+        // Not finished: its own background command is still running, and it will
+        // resume and notify again when that ends.
+        if (e.steps != null) a.steps = Math.max(a.steps, e.steps)
+        continue
+      }
       const ok = e.status === 'completed'
       finish(a, e.ts, ok ? 'done' : 'failed', previewOf(e.text, resultMax, streamOutput), e.durationMs)
       if (e.steps != null) a.steps = Math.max(a.steps, e.steps)

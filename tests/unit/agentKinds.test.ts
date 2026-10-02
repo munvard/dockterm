@@ -260,7 +260,8 @@ describe('munu state with agents', () => {
     expect(aggregateWithAgents(['idle'], 2)).toBe('working')
     expect(aggregateWithAgents([], 1)).toBe('working')
     expect(aggregateWithAgents(['asking'], 3)).toBe('asking')
-    expect(aggregateWithAgents(['done', 'idle'], 3)).toBe('done')
+    expect(aggregateWithAgents(['done', 'idle'], 3)).toBe('working')
+    expect(aggregateWithAgents(['done', 'idle'], 0)).toBe('done')
   })
 })
 

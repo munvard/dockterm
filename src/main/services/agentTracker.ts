@@ -69,7 +69,17 @@ interface RegistryEntry {
   pid: number
   sessionId: string
   cwd: string
+  /** Claude Code's own status: 'busy' (a turn, or its agents/teammates run),
+   * 'shell' (idle, a background shell runs), 'waiting' (a dialog), 'idle'. */
+  status: string | null
   mtimeMs: number
+}
+
+/** A running Claude Code process from the sessions registry. */
+export interface LiveSession {
+  pid: number
+  sessionId: string
+  status: string | null
 }
 
 export interface TrackerPaths {
@@ -129,6 +139,7 @@ export function createAgentTracker(paths: TrackerPaths, clock: () => number = Da
   const knownPaths = new Map<string, string>() // sessionId to transcript path (scan)
   let lastLegacy = 0
   let busy = 0
+  let live: LiveSession[] = []
 
   function push(e: AgentEvent): void {
     events.push(e)
@@ -151,16 +162,22 @@ export function createAgentTracker(paths: TrackerPaths, clock: () => number = Da
         const st = await stat(p)
         const prev = registry.get(n)
         if (prev && prev.mtimeMs === st.mtimeMs) continue
-        const o = JSON.parse(await readFile(p, 'utf8')) as { pid?: number; sessionId?: string; cwd?: string }
+        const o = JSON.parse(await readFile(p, 'utf8')) as { pid?: number; sessionId?: string; cwd?: string; status?: unknown }
         if (typeof o.sessionId === 'string' && typeof o.pid === 'number') {
-          registry.set(n, { pid: o.pid, sessionId: o.sessionId, cwd: o.cwd ?? '', mtimeMs: st.mtimeMs })
+          const status = typeof o.status === 'string' ? o.status : null
+          registry.set(n, { pid: o.pid, sessionId: o.sessionId, cwd: o.cwd ?? '', status, mtimeMs: st.mtimeMs })
         }
       } catch {
         // half-written or unreadable: look again next tick
       }
     }
     const aliveNow = new Set<string>()
-    for (const r of registry.values()) if (pidAlive(r.pid)) aliveNow.add(r.sessionId)
+    live = []
+    for (const r of registry.values()) {
+      if (!pidAlive(r.pid)) continue
+      aliveNow.add(r.sessionId)
+      live.push({ pid: r.pid, sessionId: r.sessionId, status: r.status })
+    }
     for (const id of aliveNow) {
       closed.delete(id)
       aliveSeen.add(id)
@@ -429,6 +446,8 @@ export function createAgentTracker(paths: TrackerPaths, clock: () => number = Da
       const closedSessions = new Map(closed)
       return reduceActivity(events, clock(), { closedSessions, ...opts }, [...subs.values()].map((s) => s.info))
     },
+    /** Running Claude Code processes (from the registry), as of the last scan. */
+    liveSessions: (): LiveSession[] => live,
     /** How many sessions are being followed (for adaptive polling). */
     sessionCount: (): number => sessions.size,
     projectLabel: labelOf

@@ -257,6 +257,16 @@ export function killAllPtys(): void {
   for (const id of [...sessions.keys()]) killPty(id)
 }
 
+/** Live ptys with their shell pid (agent activity maps Claude processes to panes). */
+export function ptyProcesses(): { id: string; pid: number }[] {
+  const out: { id: string; pid: number }[] = []
+  for (const s of sessions.values()) {
+    const pid = (s.pty as { pid?: number | null }).pid
+    if (typeof pid === 'number' && pid > 0) out.push({ id: s.id, pid })
+  }
+  return out
+}
+
 /** How many live PTYs a window owns. */
 export function countPtysForWindow(webContentsId: number): number {
   let n = 0

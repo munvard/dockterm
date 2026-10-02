@@ -331,6 +331,8 @@ export interface AgentActivity {
   activeCount: number
   /** running counts grouped by project, most-active first. */
   byProject: { project: string; label: string; count: number }[]
+  /** pty ids whose Claude still has work in flight (its turn, or agents it started). */
+  busyPtys?: string[]
 }
 
 export interface AgentActivitySettings {

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useMunuStore } from '../../state/useMunuStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { answerPane } from '../../state/munuAnswer'
+import { startMunuDelegated } from '../../state/munuDelegated'
 import { actionKeys } from '../terminal/askKeys'
 
 /**
@@ -25,14 +26,16 @@ export function useMunuBridge(): void {
     }
     report()
     const offMunu = useMunuStore.subscribe((s, p) => {
-      if (s.panes !== p.panes || s.done !== p.done) report()
+      if (s.panes !== p.panes || s.done !== p.done || s.busy !== p.busy) report()
     })
     const offWs = useWorkspaceStore.subscribe((s, p) => {
       if (s.activeId !== p.activeId) report()
     })
+    const offDelegated = startMunuDelegated()
     window.addEventListener('focus', report)
     window.addEventListener('blur', report)
     return () => {
+      offDelegated()
       offMunu()
       offWs()
       window.removeEventListener('focus', report)
