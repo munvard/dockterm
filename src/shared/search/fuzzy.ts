@@ -156,7 +156,9 @@ export function matchToken(
   const pos = subsequence(tok, lower, 0, lower.length)
   if (pos) {
     if (out) out.push(...pos)
-    return Math.max(1, scorePositions(pos, orig, 0) * 0.6)
+    // Squashed below 55 so any contiguous path match (60 and up) always outranks a scattered one.
+    const raw = Math.max(0, scorePositions(pos, orig, 0) * 0.6)
+    return 1 + 54 * (raw / (raw + 60))
   }
   return -1
 }

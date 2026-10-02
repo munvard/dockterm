@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { constants as fsConstants, promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { buildMatcher, hasBinaryExtension, looksBinary, searchText } from '@shared/search/lineSearch'
 import {
@@ -11,7 +11,8 @@ import {
   type MessagePortLike
 } from './protocol'
 
-const READ_CONCURRENCY = 6
+const READ_CONCURRENCY = 3
+const NOFOLLOW = fsConstants.O_NOFOLLOW ?? 0
 const FLUSH_MS = 80
 const FLUSH_FILES = 30
 const MAX_OUTSTANDING = 4
@@ -28,12 +29,16 @@ export async function scanFile(root: string, rel: string, re: RegExp, maxPerFile
   const abs = join(root, rel)
   let handle: import('node:fs/promises').FileHandle | null = null
   try {
-    const before = await fs.lstat(abs)
-    if (!before.isFile()) return { kind: 'none' }
-    handle = await fs.open(abs, 'r')
+    // O_NOFOLLOW refuses a symlink in one syscall (the index never holds symlinks, but a
+    // file can be swapped for one after indexing); Windows has no such flag, so lstat first.
+    let before: import('node:fs').Stats | null = null
+    if (NOFOLLOW === 0) {
+      before = await fs.lstat(abs)
+      if (!before.isFile()) return { kind: 'none' }
+    }
+    handle = await fs.open(abs, fsConstants.O_RDONLY | NOFOLLOW)
     const st = await handle.stat()
-    // The file was swapped for something else between lstat and open: skip it.
-    if (st.ino !== before.ino || st.dev !== before.dev || !st.isFile()) return { kind: 'none' }
+    if (!st.isFile() || (before && (st.ino !== before.ino || st.dev !== before.dev))) return { kind: 'none' }
     if (st.size > CONTENT_CAPS.MAX_FILE_BYTES) return { kind: 'skip', reason: 'large' }
     if (st.size === 0) return { kind: 'none' }
     const buf = Buffer.allocUnsafe(st.size)
@@ -49,7 +54,8 @@ export async function scanFile(root: string, rel: string, re: RegExp, maxPerFile
     const res = searchText(text, re, maxPerFile)
     if (res.totalLines === 0) return { kind: 'none' }
     return { kind: 'match', file: { relPath: rel, matches: res.matches, totalLines: res.totalLines } }
-  } catch {
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ELOOP') return { kind: 'none' }
     return { kind: 'skip', reason: 'error' }
   } finally {
     await handle?.close().catch(() => undefined)

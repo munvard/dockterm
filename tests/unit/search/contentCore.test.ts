@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MessageChannel } from 'node:worker_threads'
+import { MessageChannel, type MessagePort } from 'node:worker_threads'
 import { ContentScanner, PortSink, feedContent, matcherFor, scanFile } from '../../../src/main/search/contentCore'
 import { CONTENT_CAPS, SHARED, type ContentFileResult } from '../../../src/main/search/protocol'
 
@@ -42,6 +42,12 @@ describe('scanFile', () => {
   it('skips files over the size cap', async () => {
     put('big.txt', Buffer.alloc(CONTENT_CAPS.MAX_FILE_BYTES + 10, 97))
     expect(await scanFile(root, 'big.txt', re('a'), 100)).toEqual({ kind: 'skip', reason: 'large' })
+  })
+  it('never reads through a symlink', async () => {
+    put('real.txt', 'needle')
+    symlinkSync(join(root, 'real.txt'), join(root, 'link.txt'))
+    expect((await scanFile(root, 'link.txt', re('needle'), 100)).kind).toBe('none')
+    expect((await scanFile(root, 'real.txt', re('needle'), 100)).kind).toBe('match')
   })
   it('a missing file is an error skip, not a throw', async () => {
     expect(await scanFile(root, 'gone.txt', re('a'), 100)).toEqual({ kind: 'skip', reason: 'error' })

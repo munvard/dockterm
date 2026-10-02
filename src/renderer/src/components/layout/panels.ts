@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   FolderTree,
+  FileSearch,
   GitBranch,
   GitCompare,
   Plug,
@@ -22,6 +23,7 @@ export interface PanelDef {
 /** Dock panels, added here as each is implemented (no buttons for unbuilt panels). */
 export const PANELS: PanelDef[] = [
   { id: 'files', label: 'Files', icon: FolderTree },
+  { id: 'search', label: 'Find in Files', icon: FileSearch },
   { id: 'git', label: 'Source Control', icon: GitBranch },
   { id: 'review', label: 'Review', icon: GitCompare },
   { id: 'mcp', label: 'MCP Servers', icon: Plug },

@@ -197,6 +197,8 @@ DockTerm uses the shortcuts you already know from each platform's default termin
 | Close tab | `⌘W` | `Ctrl Shift W` |
 | Command palette | `⌘K` | `Ctrl Shift P` |
 | Open project | `⌘O` | `Ctrl Shift O` |
+| Quick Open a file (fuzzy, `Ctrl`/`⌘` `Enter` pastes its path) | `⌘P` | `Ctrl Shift L` |
+| Find in files | `⌘⇧F` | `Ctrl Shift F` |
 | Files / Git / Review panel | `⌘B` / `⌘G` / `⌘E` | `Ctrl Shift B / G / E` |
 | Chat mode for the focused pane | `⌘R` | `Ctrl Shift R` |
 | Zen mode | `⌘.` | `Ctrl Shift .` |

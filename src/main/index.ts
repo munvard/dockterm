@@ -6,6 +6,7 @@ import { applyGlobalSecurity } from './security'
 import { registerIpc } from './ipc/register'
 import { flushPtyHost, killAllPtys, warmPtyHost } from './services/ptyService'
 import { stopAllWatchers } from './services/watcherService'
+import { disposeAllSearch } from './search/searchService'
 import { setupMenubar, teardownMenubar } from './services/menubarService'
 import { setupAppMenu } from './services/appMenu'
 import { syncOverlay } from './services/munuService'
@@ -148,6 +149,7 @@ if (process.argv.includes('conpty_console_list_agent')) {
       killAllPtys()
       flushPtyHost()
       stopAllWatchers()
+      disposeAllSearch()
       stopUsageHistory()
     })
 

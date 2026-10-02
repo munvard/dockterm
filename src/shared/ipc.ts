@@ -87,6 +87,8 @@ export type MenuAction =
   | 'splitRight'
   | 'splitDown'
   | 'settings'
+  | 'quickOpen'
+  | 'findInFiles'
 
 /* ----------------------------------- PTY ---------------------------------- */
 
@@ -267,9 +269,9 @@ export type SettingsPatch = Partial<
     | 'workspace'
     | 'theme'
     | 'notes'
-    | 'files'
   >
 > & {
+  files?: Partial<Settings['files']>
   /** Deep partial: the usage section is patched leaf by leaf (a widget move must not
    * overwrite the pill settings, and the reverse). */
   usage?: DeepPartial<Settings['usage']>

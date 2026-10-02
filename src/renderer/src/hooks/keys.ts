@@ -33,6 +33,8 @@ export type ShortcutId =
   | 'panel:git'
   | 'panel:review'
   | 'panel:mcp'
+  | 'quickOpen'
+  | 'findInFiles'
   | 'toggleMiniTerm'
   | 'openProject'
   | 'newTab'
@@ -127,6 +129,10 @@ export function matchShortcut(input: KeyLike, platform: Platform): MatchResult |
   // Review lives on E — R is the per-pane chat/terminal toggle.
   if (panel('KeyE')) return { id: 'panel:review' }
   if (withShift && e.code === 'KeyM') return { id: 'panel:mcp' }
+  // Quick Open: Cmd+P (mac). On win/linux plain Ctrl+P is the shell's and Ctrl+Shift+P is
+  // the palette, so it lives on Ctrl+Shift+L. Find in files: Cmd/Ctrl+Shift+F.
+  if ((cmdOnly && e.code === 'KeyP') || (ctrlShift && e.code === 'KeyL')) return { id: 'quickOpen' }
+  if (withShift && e.code === 'KeyF') return { id: 'findInFiles' }
   if (primary && e.code === 'KeyJ') return { id: 'toggleMiniTerm' }
   if (primary && e.code === 'KeyO') return { id: 'openProject' }
   if (primary && e.code === 'KeyT') return { id: 'newTab' }

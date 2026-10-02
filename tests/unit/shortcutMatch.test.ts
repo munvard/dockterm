@@ -121,6 +121,22 @@ describe('matchShortcut', () => {
     })
   })
 
+  it('quick open: Cmd+P (mac) / Ctrl+Shift+L (win, linux); plain Ctrl+P and Ctrl+L stay the shell\'s', () => {
+    expect(matchShortcut(key({ code: 'KeyP', metaKey: true }), 'mac')).toEqual({ id: 'quickOpen' })
+    expect(matchShortcut(key({ code: 'KeyL', ctrlKey: true, shiftKey: true }), 'win')).toEqual({ id: 'quickOpen' })
+    expect(matchShortcut(key({ code: 'KeyL', ctrlKey: true, shiftKey: true }), 'linux')).toEqual({ id: 'quickOpen' })
+    expect(matchShortcut(key({ code: 'KeyP', ctrlKey: true }), 'win')).toBeNull()
+    expect(matchShortcut(key({ code: 'KeyL', ctrlKey: true }), 'win')).toBeNull()
+    expect(matchShortcut(key({ code: 'KeyP', ctrlKey: true }), 'mac')).toBeNull()
+  })
+
+  it('find in files: Cmd+Shift+F (mac) / Ctrl+Shift+F (win, linux); plain Ctrl+F is the shell\'s', () => {
+    expect(matchShortcut(key({ code: 'KeyF', metaKey: true, shiftKey: true }), 'mac')).toEqual({ id: 'findInFiles' })
+    expect(matchShortcut(key({ code: 'KeyF', ctrlKey: true, shiftKey: true }), 'win')).toEqual({ id: 'findInFiles' })
+    expect(matchShortcut(key({ code: 'KeyF', ctrlKey: true }), 'win')).toBeNull()
+    expect(matchShortcut(key({ code: 'KeyF', metaKey: true }), 'mac')).toBeNull()
+  })
+
   it('returns null for an unrelated keypress', () => {
     expect(matchShortcut(key({ code: 'KeyZ' }), 'mac')).toBeNull()
     expect(matchShortcut(key({ code: 'KeyZ', ctrlKey: true, shiftKey: true }), 'win')).toBeNull()

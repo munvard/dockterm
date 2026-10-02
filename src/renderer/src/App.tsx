@@ -11,6 +11,9 @@ import { Toaster } from './components/common/Toaster'
 import { DialogHost } from './components/common/DialogHost'
 import { UpdatePopup } from './components/common/UpdatePopup'
 import { CommandPalette } from './components/command-palette/CommandPalette'
+import { SearchHost } from './components/search/SearchHost'
+import { QuickOpen } from './components/search/QuickOpen'
+import { useSearchStore } from './state/useSearchStore'
 import { allLeaves } from './state/layout'
 import { confirmCloseLeaves } from './components/terminal/closeGuard'
 import { countLiveTerminals } from './components/terminal/liveTerminals'
@@ -85,6 +88,13 @@ export default function App() {
         case 'splitDown':
           ws.splitFocused('col')
           break
+        case 'quickOpen':
+          useSearchStore.getState().openQuick()
+          break
+        case 'findInFiles':
+          appState.setOpenPanel('search')
+          useSearchStore.getState().focusFind()
+          break
       }
     })
   }, [])
@@ -96,6 +106,8 @@ export default function App() {
       <DialogHost />
       <UpdatePopup />
       <CommandPalette />
+      <SearchHost />
+      <QuickOpen />
     </>
   )
 }

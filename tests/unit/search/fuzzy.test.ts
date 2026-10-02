@@ -42,6 +42,11 @@ describe('scorePath', () => {
   it('shorter paths win ties', () => {
     expect(score('app', 'app.ts')).toBeGreaterThan(score('app', 'a/b/c/d/app.ts'))
   })
+  it('a contiguous folder match always beats a scattered match on a deep path', () => {
+    expect(score('planted', 'node_modules/dep/lib/planted/hidden.js')).toBeGreaterThan(
+      score('planted', 'packages/pkg-2/src/panel-1/layout-0/utils-1/worker-2/button-2/terminal877.md')
+    )
+  })
   it('all tokens must match', () => {
     expect(score('src button', 'src/components/Button.tsx')).toBeGreaterThan(0)
     expect(score('lib button', 'src/components/Button.tsx')).toBeLessThan(0)

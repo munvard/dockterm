@@ -1,5 +1,6 @@
 import { useAppStore } from '../../state/useAppStore'
 import { FileTree } from '../files/FileTree'
+import { FindInFilesPanel } from '../search/FindInFilesPanel'
 import { GitPanel } from '../git/GitPanel'
 import { ReviewPanel } from '../review/ReviewPanel'
 import { McpPanel } from '../mcp/McpPanel'
@@ -17,6 +18,7 @@ export function Dock() {
   return (
     <aside className="dock">
       {openPanel === 'files' && <FileTree />}
+      {openPanel === 'search' && <FindInFilesPanel />}
       {openPanel === 'git' && <GitPanel />}
       {openPanel === 'review' && <ReviewPanel />}
       {openPanel === 'mcp' && <McpPanel />}
