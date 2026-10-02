@@ -128,7 +128,7 @@ export function TerminalView({ onInputReady, ...options }: Props) {
             setPos(null)
           }}
           onCopy={() => {
-            if (sendRef.current) void navigator.clipboard.writeText(sendRef.current)
+            if (sendRef.current) void window.dockterm.invoke('clipboard:write', { text: sendRef.current })
             setPos(null)
           }}
         />

@@ -51,7 +51,8 @@ export function McpPanel() {
 
   const copy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text)
+      const r = await window.dockterm.invoke('clipboard:write', { text })
+      if (!r.ok) throw new Error(r.error.message)
       toast('Copied to clipboard', 'success')
     } catch {
       toast('Copy failed', 'error')

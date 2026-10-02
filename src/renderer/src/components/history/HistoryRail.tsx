@@ -140,9 +140,11 @@ export function HistoryRail({
     })
   }
   const copyPrompt = (p: SessionPrompt): void => {
-    void navigator.clipboard.writeText(p.text)
+    void window.dockterm.invoke('clipboard:write', { text: p.text }).then((r) => {
+      if (r.ok) toast('Prompt copied', 'success')
+      else toast('Copy failed', 'error')
+    })
     setMenuFor(null)
-    toast('Prompt copied', 'success')
   }
 
   return (

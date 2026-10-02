@@ -4,7 +4,7 @@ import type { Pt } from './terminalSelection'
 /**
  * The floating action toolbar shown when terminal text is selected. "Send to
  * Claude" is the star (drops the selection into the pane's prompt as a reference);
- * Copy is there for completeness — native ⌘C / Ctrl+Shift+C still works.
+ * Copy is there for completeness — ⌘C / Ctrl+Shift+C and right-click copy too.
  */
 export function SelectionToolbar({
   pos,

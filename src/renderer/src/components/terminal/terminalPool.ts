@@ -279,6 +279,9 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     cursorBlink: opts.cursorBlink ?? true,
     scrollback: opts.scrollback ?? 5000,
     allowProposedApi: true,
+    // Right-click copies the selection (see the contextmenu handler), so it must not
+    // first replace that selection with the word under the cursor (xterm's macOS default).
+    rightClickSelectsWord: false,
     // Off by default: on macOS, Option is how German/French/etc. layouts type
     // @{}[]|~\, and forcing it to always send Meta breaks that. Opt-in per the
     // terminal.macOptionIsMeta setting for anyone who actually wants Option as
@@ -349,10 +352,29 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     // Lazy: paneClaudeActive imports this module.
     isClaude: () => import('./paneClaudeActive').then((m) => m.paneClaudeForeground(id)),
     paste: (text) => p.paste(text),
-    platform: toComposerPlatform(platform),
+    platform: toComposerPlatform(currentPlatform()),
     warn: (m) => useToastStore.getState().push(m, 'warning')
   })
   host.addEventListener('paste', (e) => void handleImagePasteEvent(e, imageDeps()), true)
+
+  // Clipboard goes through the main process: the renderer's navigator.clipboard
+  // needs a permission, and security.ts denies every permission, so a copy from
+  // here silently did nothing.
+  const copyText = (text: string): void => {
+    if (text) void window.dockterm.invoke('clipboard:write', { text })
+  }
+  const pasteFromClipboard = async (guardMultiline = false): Promise<void> => {
+    const r = await window.dockterm.invoke('clipboard:read', undefined)
+    if (!r.ok) return
+    // A stray right-click must not run a multi-line clipboard line by line in a
+    // program without bracketed paste (cmd.exe, a REPL): ask for Ctrl+V instead.
+    if (guardMultiline && /[\r\n]/.test(r.value.trim()) && !term.modes.bracketedPasteMode) {
+      useToastStore.getState().push('Multi-line text not pasted. Press Ctrl+V to paste it.', 'warning')
+      return
+    }
+    if (r.value) p.paste(r.value)
+    else void pasteImageFromSystemClipboard(imageDeps())
+  }
 
   const p: PooledTerminal = {
     id,
@@ -394,7 +416,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // toolbar; auto-copy only when the user opted into copyOnSelect.
   const selSub = term.onSelectionChange(() => {
     const sel = term.getSelection()
-    if (sel && p.opts.copyOnSelect) void navigator.clipboard.writeText(sel)
+    if (sel && p.opts.copyOnSelect) copyText(sel)
     p.opts.onSelection?.(sel)
   })
 
@@ -442,7 +464,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
   // ⌘↓/⌘↑ jump to bottom/top; Shift+PageUp/Down page; on Linux/Windows
   // Ctrl+Shift+C/V copy the selection / paste the clipboard.
   term.attachCustomKeyEventHandler((e) => {
-    const action = resolveTermKey(e, platform)
+    const action = resolveTermKey(e, currentPlatform(), term.hasSelection())
     if (!action) return true
     switch (action) {
       case 'scroll-bottom':
@@ -459,7 +481,12 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         return false
       case 'copy': {
         const sel = term.getSelection()
-        if (sel) void navigator.clipboard.writeText(sel)
+        e.preventDefault()
+        if (sel) {
+          copyText(sel)
+          // Like a normal terminal: the next Ctrl+C is SIGINT again.
+          term.clearSelection()
+        }
         return false
       }
       case 'paste':
@@ -469,14 +496,34 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         // always failed silently, so Ctrl+Shift+V did nothing. Read via the
         // main process instead, which needs no renderer permission.
         e.preventDefault()
-        void window.dockterm.invoke('clipboard:read', undefined).then((r) => {
-          if (r.ok && r.value) p.paste(r.value)
-          else if (r.ok) void pasteImageFromSystemClipboard(imageDeps())
-        })
+        void pasteFromClipboard()
         return false
     }
     return true
   })
+
+  // Right-click: with text selected it copies and clears the selection (every
+  // platform). With nothing selected it pastes on Windows only, like Windows Terminal;
+  // on macOS a Ctrl+click or two-finger tap is too easy to hit by accident. Skipped
+  // while the app underneath tracks the mouse (Claude's fullscreen UI, vim):
+  // there the click belongs to that app.
+  host.addEventListener(
+    'contextmenu',
+    (e) => {
+      if (term.hasSelection()) {
+        e.preventDefault()
+        e.stopPropagation()
+        copyText(term.getSelection())
+        term.clearSelection()
+        return
+      }
+      if (term.modes.mouseTrackingMode !== 'none' || currentPlatform() !== 'win32') return
+      e.preventDefault()
+      e.stopPropagation()
+      void pasteFromClipboard(true)
+    },
+    true
+  )
 
   // WebGL is loaded lazily on first attach (it needs the canvas in the DOM with
   // real dimensions); falls back to the DOM renderer if unavailable. On context
@@ -605,8 +652,25 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     }
   })
 
+  // pty:write rejects over 1 MiB, so a huge paste goes out in order as several writes
+  // instead of being dropped silently. Split on code points, never inside a surrogate pair.
+  const WRITE_CHUNK = 256 * 1024
   const dataSub = term.onData((d) => {
-    if (sessionId && !exited) void window.dockterm.invoke('pty:write', { sessionId, data: d })
+    if (!sessionId || exited) return
+    if (d.length <= WRITE_CHUNK) {
+      void window.dockterm.invoke('pty:write', { sessionId, data: d })
+      return
+    }
+    void (async () => {
+      for (let i = 0; i < d.length; ) {
+        let end = Math.min(i + WRITE_CHUNK, d.length)
+        const last = d.charCodeAt(end - 1)
+        if (end < d.length && last >= 0xd800 && last <= 0xdbff) end--
+        const r = await window.dockterm.invoke('pty:write', { sessionId: sessionId!, data: d.slice(i, end) })
+        if (!r.ok || exited) return
+        i = end
+      }
+    })()
   })
   const resizeSub = term.onResize(({ cols, rows }) => {
     if (sessionId) void window.dockterm.invoke('pty:resize', { sessionId, cols, rows })

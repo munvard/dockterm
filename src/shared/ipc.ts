@@ -292,6 +292,7 @@ export interface InvokeChannels {
   'app:openExternal': (req: { url: string }) => Result<void>
   /** Read the system clipboard text (main-process, no renderer permission needed). */
   'clipboard:read': (req: void) => Result<string>
+  'clipboard:write': (req: { text: string }) => Result<void>
   /** Absolute paths of files copied in Finder / Explorer (existing paths only, never contents). */
   'clipboard:readFiles': (req: void) => Result<{ paths: string[] }>
   /** Save the clipboard image (if any) into the DockTerm temp image dir; `path` is null when there is none. */
@@ -481,6 +482,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'info:get',
   'app:openExternal',
   'clipboard:read',
+  'clipboard:write',
   'clipboard:readFiles',
   'clipboard:saveImage',
   'chat:saveImage',

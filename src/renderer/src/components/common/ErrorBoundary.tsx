@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
             <button
               className="btn btn--ghost"
-              onClick={() => void navigator.clipboard.writeText(detail)}
+              onClick={() => void window.dockterm.invoke('clipboard:write', { text: detail })}
             >
               Copy error
             </button>

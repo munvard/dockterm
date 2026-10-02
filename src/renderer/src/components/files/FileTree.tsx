@@ -151,8 +151,10 @@ export function FileTree() {
   const copySelectionPaths = (): void => {
     if (!activeRoot) return
     const paths = [...sel.selected].map((rel) => joinAbs(activeRoot, rel))
-    void navigator.clipboard.writeText(paths.join('\n'))
-    toast(`Copied ${paths.length} path${paths.length > 1 ? 's' : ''}`, 'success')
+    void window.dockterm.invoke('clipboard:write', { text: paths.join('\n') }).then((r) => {
+      if (r.ok) toast(`Copied ${paths.length} path${paths.length > 1 ? 's' : ''}`, 'success')
+      else toast('Copy failed', 'error')
+    })
   }
 
   useEffect(() => window.dockterm.on('fs:watch', () => refresh({ silent: true })), [refresh])
