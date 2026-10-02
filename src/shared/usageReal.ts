@@ -40,6 +40,8 @@ export interface UsagePillConfig {
   style: UsageStyle
   /** Show "resets in 2h 10m" next to a window. */
   showReset: boolean
+  /** Mark where an even spend of the 5h and 7d window would be right now. */
+  paceMarker: boolean
   /** Colour turns amber at this percent used. */
   warnAt: number
   /** Colour turns red at this percent used. */
@@ -60,4 +62,5 @@ export interface UsageFloatConfig {
   show: UsageMetric[]
   style: UsageStyle
   showReset: boolean
+  paceMarker: boolean
 }

@@ -107,8 +107,8 @@ describe('usage settings (real usage capture)', () => {
     expect(u.source).toBe('claude')
     expect(u.captureEnabled).toBe(true)
     expect(u.captureWithoutStatusLine).toBe(false)
-    expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: false, warnAt: 75, critAt: 90 })
-    expect(u.float).toMatchObject({ enabled: false, x: null, y: null, w: 260, h: 120, alwaysOnTop: true, opacity: 1, show: ['fiveHour', 'sevenDay'], style: 'percent', showReset: true })
+    expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: false, paceMarker: true, warnAt: 75, critAt: 90 })
+    expect(u.float).toMatchObject({ enabled: false, x: null, y: null, w: 260, h: 120, alwaysOnTop: true, opacity: 1, show: ['fiveHour', 'sevenDay'], style: 'percent', showReset: true, paceMarker: true })
   })
 
   it('an old config without the new leaves is filled with the defaults', () => {
@@ -123,6 +123,18 @@ describe('usage settings (real usage capture)', () => {
   it('the compact pill default never overrides a saved reset choice', () => {
     expect(settingsSchema.parse({ usage: { pill: { showReset: true } } }).usage.pill.showReset).toBe(true)
     expect(settingsSchema.parse({ usage: { source: 'claude' } }).usage.pill.showReset).toBe(false)
+  })
+
+  it('the pace marker is on for an old config and a saved off choice is kept, in the pill and the widget', () => {
+    const old = settingsSchema.parse({ usage: { pill: { style: 'ring' }, float: { enabled: true } } })
+    expect(old.usage.pill.paceMarker).toBe(true)
+    expect(old.usage.float.paceMarker).toBe(true)
+    const off = settingsSchema.parse({ usage: { pill: { paceMarker: false }, float: { paceMarker: false } } })
+    expect(off.usage.pill.paceMarker).toBe(false)
+    expect(off.usage.float.paceMarker).toBe(false)
+    const next = mergeSettingsPatch(base(), patch({ usage: { pill: { paceMarker: false } } }))
+    expect(next.usage.pill.paceMarker).toBe(false)
+    expect(next.usage.float.paceMarker).toBe(true)
   })
 
   it('a partial pill / float patch never resets the sibling fields', () => {

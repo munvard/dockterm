@@ -24,6 +24,8 @@ import {
   moveMetric,
   noDataNote,
   noWindowsNote,
+  paceFor,
+  paceTooltipLine,
   readingFor,
   readingsFor,
   setThreshold,
@@ -131,21 +133,24 @@ function MetricPicker({ show, onChange }: { show: UsageMetric[]; onChange: (s: U
   )
 }
 
-function WindowCard({ r, now }: { r: Reading; now: number }) {
+function WindowCard({ r, now, showPace }: { r: Reading; now: number; showPace: boolean }) {
+  const pace = showPace ? paceFor(r, now) : null
   return (
     <div className={`unow uv--${r.tone}`}>
       <div className="unow__top">
         <span className="unow__name">{METRIC_NAME[r.metric]}</span>
         <span className="unow__val">{r.text}</span>
       </div>
-      <span className="uv-bar uv-bar--wide">
+      <span className={`uv-bar uv-bar--wide${pace ? ' uv-bar--pace' : ''}`}>
         <i style={{ width: `${Math.min(100, Math.max(0, r.pct ?? 0))}%` }} />
+        {pace && <b className="uv-pace" style={{ left: `${pace.pacePct}%` }} />}
       </span>
       <div className="unow__sub">
         {r.known && r.resetsAt !== null
           ? `Resets ${fmtResetClock(r.resetsAt)} (in ${fmtCountdown(r.resetsAt - now)})`
           : 'No data (window has reset, or no limit info yet)'}
       </div>
+      {pace && r.pct !== null && <div className="unow__sub">{paceTooltipLine(r.metric, r.pct, pace)}</div>}
     </div>
   )
 }
@@ -223,8 +228,8 @@ export function UsagePanel() {
                 </div>
               ) : (
                 <>
-                  <WindowCard r={five} now={now} />
-                  <WindowCard r={seven} now={now} />
+                  <WindowCard r={five} now={now} showPace={u.pill.paceMarker} />
+                  <WindowCard r={seven} now={now} showPace={u.pill.paceMarker} />
                   <div className="unow-facts">
                     {ctx.known && (
                       <div className="unow-fact">
@@ -271,7 +276,7 @@ export function UsagePanel() {
               )}
             </div>
 
-            <UsageChart history={history} now={now} />
+            <UsageChart history={history} now={now} real={real} showPace={u.pill.paceMarker} />
 
             <div className="settings-section">
               <div className="settings-section__title">Top bar pill</div>
@@ -284,6 +289,7 @@ export function UsagePanel() {
                       readings={readingsFor(real, u.pill.show, th)}
                       style={u.pill.style}
                       showReset={u.pill.showReset}
+                      showPace={u.pill.paceMarker}
                       real={real}
                       history={history}
                       now={now}
@@ -299,6 +305,13 @@ export function UsagePanel() {
               <Row label="Show reset time">
                 <Toggle checked={u.pill.showReset} onChange={(showReset) => setPill({ showReset })} />
               </Row>
+              <Row label="Show average pace marker">
+                <Toggle checked={u.pill.paceMarker} onChange={(paceMarker) => setPill({ paceMarker })} />
+              </Row>
+              <div className="usage-note usage-note--flush">
+                Marks where usage would be if you spent the 5-hour and 7-day windows evenly. Above the mark means
+                you are using more than average. Also used in the panel above.
+              </div>
               <Row label="Amber at (% used)">
                 <NumField value={u.pill.warnAt} onCommit={(v) => setPill(setThreshold(u.pill, 'warnAt', v))} />
               </Row>
@@ -346,6 +359,9 @@ export function UsagePanel() {
                   </Row>
                   <Row label="Show reset time">
                     <Toggle checked={u.float.showReset} onChange={(showReset) => setFloat({ showReset })} />
+                  </Row>
+                  <Row label="Show average pace marker">
+                    <Toggle checked={u.float.paceMarker} onChange={(paceMarker) => setFloat({ paceMarker })} />
                   </Row>
                   <Row label="Position">
                     <button className="btn btn--ghost btn--sm" onClick={() => setFloat({ x: null, y: null })}>

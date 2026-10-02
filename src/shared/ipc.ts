@@ -56,6 +56,7 @@ export interface UsageFloatPatch {
   show?: UsageMetric[]
   style?: UsageStyle
   showReset?: boolean
+  paceMarker?: boolean
   opacity?: number
   alwaysOnTop?: boolean
 }

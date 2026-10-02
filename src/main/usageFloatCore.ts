@@ -62,6 +62,7 @@ export const floatViewPatchSchema = z
     show: z.array(metric).min(1).max(4).optional(),
     style: style.optional(),
     showReset: z.boolean().optional(),
+    paceMarker: z.boolean().optional(),
     opacity: z.number().min(0.3).max(1).optional(),
     alwaysOnTop: z.boolean().optional()
   })

@@ -16,6 +16,12 @@ import {
   toggleMetric,
   toneFor,
   usageTooltip,
+  paceMarker,
+  paceFor,
+  paceLine,
+  paceTooltipLine,
+  FIVE_HOUR_MS,
+  SEVEN_DAY_MS,
   noDataNote,
   noWindowsNote
 } from '@renderer/state/usageView'
@@ -165,5 +171,94 @@ describe('panel notes', () => {
     expect(noDataNote(false, false)).toMatch(/off/)
     expect(noDataNote(true, false)).toMatch(/no status line/)
     expect(noDataNote(true, true)).not.toMatch(/no status line/)
+  })
+})
+
+describe('paceMarker', () => {
+  const W = FIVE_HOUR_MS
+  const win = (pct: number, resetsAt: number) => ({ pct, resetsAt })
+  it('is 0 at the start of the window', () => {
+    const p = paceMarker(win(0, 1000 + W), W, 1000)
+    expect(p).toEqual({ pacePct: 0, deltaPct: 0, state: 'even' })
+  })
+  it('is 50 in the middle and 100 just before the end', () => {
+    expect(paceMarker(win(50, 1000 + W / 2), W, 1000)?.pacePct).toBeCloseTo(50, 6)
+    expect(paceMarker(win(99, 1000 + 1), W, 1000)?.pacePct).toBeGreaterThan(99.99)
+  })
+  it('is null once the window ended, for a bad reset time or no window', () => {
+    expect(paceMarker(win(10, 1000), W, 1000)).toBeNull()
+    expect(paceMarker(win(10, 500), W, 1000)).toBeNull()
+    expect(paceMarker(win(10, Number.NaN), W, 1000)).toBeNull()
+    expect(paceMarker(win(Number.NaN, 5000), W, 1000)).toBeNull()
+    expect(paceMarker(null, W, 1000)).toBeNull()
+    expect(paceMarker(undefined, W, 1000)).toBeNull()
+    expect(paceMarker(win(10, 5000), 0, 1000)).toBeNull()
+  })
+  it('clamps a reset time further away than one window to 0', () => {
+    const p = paceMarker(win(5, 1000 + 2 * W), W, 1000)
+    expect(p?.pacePct).toBe(0)
+    expect(p?.state).toBe('ahead')
+  })
+  it('reports ahead when more is used than an even spend, behind when less', () => {
+    const now = 0
+    const reset = W * 0.74 // 26% elapsed
+    const ahead = paceMarker(win(36, reset), W, now)
+    expect(ahead?.pacePct).toBeCloseTo(26, 6)
+    expect(ahead?.deltaPct).toBeCloseTo(10, 6)
+    expect(ahead?.state).toBe('ahead')
+    const behind = paceMarker(win(10, reset), W, now)
+    expect(behind?.deltaPct).toBeCloseTo(-16, 6)
+    expect(behind?.state).toBe('behind')
+  })
+  it('counts within 3 points as even (both edges)', () => {
+    const reset = W * 0.5
+    expect(paceMarker(win(53, reset), W, 0)?.state).toBe('even')
+    expect(paceMarker(win(47, reset), W, 0)?.state).toBe('even')
+    expect(paceMarker(win(53.5, reset), W, 0)?.state).toBe('ahead')
+    expect(paceMarker(win(46.5, reset), W, 0)?.state).toBe('behind')
+  })
+  it('uses 7 days for the weekly window', () => {
+    const now = 1_000_000
+    expect(paceMarker(win(50, now + SEVEN_DAY_MS / 2), SEVEN_DAY_MS, now)?.pacePct).toBeCloseTo(50, 6)
+  })
+})
+
+describe('paceFor, paceLine, paceTooltipLine', () => {
+  it('gives a marker for the two windows only', () => {
+    const now = 6 * H
+    expect(paceFor(readingFor(real(), 'fiveHour', th), now)?.pacePct).toBeCloseTo(20, 6)
+    expect(paceFor(readingFor(real(), 'sevenDay', th), now)).not.toBeNull()
+    expect(paceFor(readingFor(real(), 'context', th), now)).toBeNull()
+    expect(paceFor(readingFor(real(), 'cost', th), now)).toBeNull()
+    expect(paceFor(readingFor(null, 'fiveHour', th), now)).toBeNull()
+    expect(paceFor(readingFor(real(), 'fiveHour', th), 11 * H)).toBeNull()
+  })
+  it('draws the even-spend line from the window start to now, clipped to the chart', () => {
+    const reset = 10 * H
+    const start = reset - FIVE_HOUR_MS
+    expect(paceLine(reset, FIVE_HOUR_MS, start, 7.5 * H)).toEqual([
+      { t: start, v: 0 },
+      { t: 7.5 * H, v: 50 }
+    ])
+    const clipped = paceLine(reset, FIVE_HOUR_MS, 6 * H, 7.5 * H)
+    expect(clipped[0].t).toBe(6 * H)
+    expect(clipped[0].v).toBeCloseTo(20, 6)
+    expect(paceLine(reset, FIVE_HOUR_MS, start, 11 * H)).toEqual([])
+    expect(paceLine(reset, FIVE_HOUR_MS, start, 4 * H)).toEqual([])
+  })
+  it('words the tooltip line with the real numbers', () => {
+    const w = (u: number) => ({ pacePct: 26, deltaPct: u - 26, state: 'ahead' as const })
+    expect(paceTooltipLine('fiveHour', 36, w(36))).toBe(
+      'Pace (5-hour window): you have used 36%, an even spend would be 26% (10 points ahead)'
+    )
+    expect(paceTooltipLine('sevenDay', 21, { pacePct: 26, deltaPct: -5, state: 'behind' })).toContain('5 points behind')
+    expect(paceTooltipLine('fiveHour', 27, { pacePct: 26, deltaPct: 1, state: 'even' })).toContain('(on pace)')
+  })
+  it('adds the pace line to the usage tooltip only when asked', () => {
+    const now = 6 * H
+    expect(usageTooltip(real(), now, [], th)).not.toContain('Pace (')
+    const tip = usageTooltip(real(), now, [], th, true)
+    expect(tip).toContain('Pace (5-hour window): you have used 7%, an even spend would be 20% (13 points behind)')
+    expect(tip).toContain('Pace (7-day window)')
   })
 })
