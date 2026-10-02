@@ -1,8 +1,9 @@
-import { quoteShellArg, shellKindFor } from '@shared/shellQuote'
+import { quoteShellArg, shellKindFor, type ShellKind } from '@shared/shellQuote'
 import { useAppStore } from '../../state/useAppStore'
 import { useToastStore } from '../../state/useToastStore'
 import { useWorkspaceStore } from '../../state/useWorkspaceStore'
 import { paneWriters } from '../../state/paneWriters'
+import { paneShells } from '../../state/paneShells'
 
 export function platformName(): string {
   return document.documentElement.dataset.platform ?? ''
@@ -36,9 +37,15 @@ export function pasteToFocusedPane(text: string): boolean {
   return tab ? paneWriters.paste(tab.focusedLeafId, text) : false
 }
 
+/** The shell kind of the focused pane, from the shell program its pty really started. */
+export function focusedShellKind(): ShellKind {
+  const { tabs, activeId } = useWorkspaceStore.getState()
+  const tab = tabs.find((t) => t.id === activeId)
+  return shellKindFor(platformName(), tab ? paneShells.get(tab.focusedLeafId) : '')
+}
+
 /** Absolute, shell-quoted paths for the focused terminal, space separated with a trailing space. */
-export function terminalPathText(root: string, relPaths: string[]): string {
-  const shell = shellKindFor(platformName())
+export function terminalPathText(root: string, relPaths: string[], shell: ShellKind = focusedShellKind()): string {
   return relPaths.map((rel) => quoteShellArg(joinAbs(root, rel), shell)).join(' ') + ' '
 }
 

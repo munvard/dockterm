@@ -260,3 +260,14 @@ export function parseExpanded(raw: string | null): Set<string> {
     return new Set()
   }
 }
+
+/** The relPaths of a drag payload, or [] when it came from a different project root. */
+export function parseMovePayload(raw: string, root: string | null): string[] {
+  try {
+    const v = JSON.parse(raw) as { root?: unknown; paths?: unknown } | null
+    if (!v || typeof v.root !== 'string' || v.root !== root || !Array.isArray(v.paths)) return []
+    return v.paths.filter((x): x is string => typeof x === 'string')
+  } catch {
+    return []
+  }
+}

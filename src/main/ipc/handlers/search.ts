@@ -9,6 +9,7 @@ import {
   refreshIndex,
   startContent
 } from '../../search/searchService'
+import { watchSchema } from '../../search/watchSchema'
 import type { Registrar } from '../register'
 
 const quickSchema = z.object({
@@ -28,17 +29,6 @@ const contentSchema = z.object({
   include: z.string().max(500),
   exclude: z.string().max(500),
   includeIgnored: z.boolean()
-})
-
-const watchSchema = z.object({
-  events: z
-    .array(
-      z.object({
-        type: z.enum(['add', 'change', 'unlink', 'addDir', 'unlinkDir']),
-        relPath: z.string().max(4096)
-      })
-    )
-    .max(20000)
 })
 
 const noArgs = z.void().or(z.undefined()).or(z.null())

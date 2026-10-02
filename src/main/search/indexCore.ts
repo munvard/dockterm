@@ -4,6 +4,7 @@ import { join, resolve, sep } from 'node:path'
 import { IGNORED_ENTRIES } from '@shared/constants'
 import type { WatchEvent } from '@shared/ipc'
 import { compileGlobs } from '@shared/search/glob'
+import { isSafeRelPath } from '@shared/search/relPath'
 import { isIgnoredBy, parseGitignore, type IgnoreScope } from '@shared/search/gitignore'
 import { F_DIR, F_GIT, F_IGNORED, PathIndex, DEFAULT_MAX_ENTRIES, type QuickOptions, type QuickResults } from '@shared/search/pathIndex'
 import type { ContentOptions, IndexPhase, IndexStatus } from './protocol'
@@ -22,11 +23,13 @@ interface DirItem {
 }
 
 /** Roots that must never be indexed: the home folder, its parents, a drive root. */
-export function isTooBroadToIndex(root: string): boolean {
-  const r = resolve(root)
-  const home = resolve(homedir())
+export function isTooBroadToIndex(root: string, platform: string = process.platform): boolean {
+  // Windows paths compare without regard to case ("c:\\users\\me" is "C:\\Users\\me").
+  const fold = (p: string): string => (platform === 'win32' ? p.toLowerCase() : p)
+  const r = fold(resolve(root))
+  const home = fold(resolve(homedir()))
   if (r === home) return true
-  if (resolve(r, '..') === r) return true
+  if (fold(resolve(root, '..')) === r) return true
   if (home.startsWith(r + sep)) return true
   return false
 }
@@ -141,7 +144,8 @@ export class IndexerCore {
       return
     }
     for (const e of events) {
-      const rel = e.relPath.replace(/\\/g, '/').replace(/^\/+/, '')
+      if (!isSafeRelPath(e.relPath)) continue
+      const rel = e.relPath.replace(/\\/g, '/')
       if (!rel || rel === '.git' || rel.startsWith('.git/')) continue
       if (rel.endsWith('/.gitignore') || rel === '.gitignore') {
         if (e.type === 'add' || e.type === 'change' || e.type === 'unlink') this.scheduleRefresh()

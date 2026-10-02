@@ -1,7 +1,7 @@
 export type ShellKind = 'posix' | 'powershell' | 'cmd'
 
 const POSIX_SAFE = /^[A-Za-z0-9_\-./,:@%+=]+$/
-const PS_SAFE = /^[A-Za-z0-9_./\\:,@%+=][A-Za-z0-9_\-./\\:,@%+=]*$/
+const PS_SAFE = /^[A-Za-z0-9_./\\:@%+=][A-Za-z0-9_\-./\\:@%+=]*$/
 
 /** Which shell a pane most likely runs: a Windows pane is PowerShell unless its shell path says cmd. */
 export function shellKindFor(platform: string, shellPath = ''): ShellKind {

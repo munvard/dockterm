@@ -35,7 +35,7 @@ import {
 import type { TreeNode } from '@shared/ipc'
 import type { FileSortBy } from '@shared/types'
 import type { QuickHit } from '@shared/search/pathIndex'
-import { cdCommand, quoteShellArg, shellKindFor } from '@shared/shellQuote'
+import { cdCommand, quoteShellArg } from '@shared/shellQuote'
 import { validEntryName } from '@shared/fileNames'
 import { useEditorStore } from '../../state/useEditorStore'
 import { useDialogStore } from '../../state/useDialogStore'
@@ -58,6 +58,7 @@ import {
   parentPath,
   parseExpanded,
   planMoves,
+  parseMovePayload,
   remapPath,
   remapSet,
   serializeExpanded,
@@ -72,6 +73,7 @@ import {
   joinAbs,
   joinRel,
   pasteToFocusedPane,
+  focusedShellKind,
   platformName,
   sendPathsToTerminal
 } from './pathActions'
@@ -577,11 +579,11 @@ export function FileTree() {
     }
     dragPaths.current = paths
     e.dataTransfer.effectAllowed = 'copyMove'
-    e.dataTransfer.setData(MOVE_MIME, JSON.stringify(paths))
+    e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ root: activeRoot, paths }))
     if (paths.length === 1) {
       e.dataTransfer.setData('application/x-dockterm', JSON.stringify({ path: joinAbs(activeRoot, paths[0]), type: node.type }))
     }
-    const shell = shellKindFor(platformName())
+    const shell = focusedShellKind()
     e.dataTransfer.setData('text/plain', paths.map((p) => quoteShellArg(joinAbs(activeRoot, p), shell)).join(' '))
   }
 
@@ -631,8 +633,8 @@ export function FileTree() {
     const dest = dropDestFor(node)
     let sources: string[] = []
     try {
-      const v = JSON.parse(raw) as unknown
-      sources = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+      // The payload names the project it came from; a drag from another window's project is ignored.
+      sources = parseMovePayload(raw, activeRoot)
     } catch {
       sources = []
     }
@@ -1215,7 +1217,7 @@ export function FileTree() {
               </button>
               <button
                 onClick={menuAct(() => {
-                  const text = cdCommand(absOf(menuDir), shellKindFor(platformName()))
+                  const text = cdCommand(absOf(menuDir), focusedShellKind())
                   if (!pasteToFocusedPane(text)) toast('Open a terminal first to change its folder', 'error')
                 })}
               >

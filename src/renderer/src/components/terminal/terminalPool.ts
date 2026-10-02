@@ -1,4 +1,5 @@
 import { Terminal } from '@xterm/xterm'
+import { paneShells } from '../../state/paneShells'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { SerializeAddon } from '@xterm/addon-serialize'
@@ -764,6 +765,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         sessionId = res.value.sessionId
         claimSession(sessionId)
         paneSessions.set(id, res.value.sessionId)
+        paneShells.set(id, res.value.shell)
         if (res.value.claudeFlag) paneClaudeFlags.set(id, res.value.claudeFlag)
         if (res.value.cwdFellBack) p.opts.onCwdFallback?.(res.value.cwd)
         // Catch up a resize that was dropped while spawning (see above).
@@ -854,6 +856,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     sessionId = null
     paneSessions.delete(id)
     paneClaudeFlags.delete(id)
+    paneShells.delete(id)
     term.dispose()
     if (host.parentElement) host.parentElement.removeChild(host)
     // Drop this pane's Claude-state + writer registrations (true close only).

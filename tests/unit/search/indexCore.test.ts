@@ -137,4 +137,35 @@ describe('isTooBroadToIndex', () => {
     expect(isTooBroadToIndex(join(homedir(), '..'))).toBe(true)
     expect(isTooBroadToIndex(join(homedir(), 'some-project'))).toBe(false)
   })
+  it('on Windows a differently cased spelling of the home folder is still refused', () => {
+    expect(isTooBroadToIndex(homedir().toUpperCase(), 'win32')).toBe(true)
+    expect(isTooBroadToIndex(homedir().toLowerCase(), 'win32')).toBe(true)
+    expect(isTooBroadToIndex(join(homedir(), 'Some-Project').toUpperCase(), 'win32')).toBe(false)
+  })
+})
+
+describe('applyWatch refuses paths outside the project', () => {
+  it('ignores parent, absolute and drive-letter paths and does not walk outside', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'dockterm-outside-'))
+    writeFileSync(join(outside, 'secret.txt'), 'x')
+    try {
+      await core.start()
+      core.applyWatch([
+        { type: 'add', relPath: '../x.ts' },
+        { type: 'add', relPath: 'src/../../y.ts' },
+        { type: 'addDir', relPath: '..' },
+        { type: 'addDir', relPath: outside },
+        { type: 'add', relPath: 'C:/x/z.ts' },
+        { type: 'add', relPath: '..\\w.ts' },
+        { type: 'add', relPath: 'src/fine.ts' }
+      ])
+      await core.whenIdle()
+      const all = core.query('', { includeIgnored: true, kinds: 'both', limit: 500 }).results.hits.map((h) => h.relPath)
+      expect(all.some((p) => p.includes('..') || p.includes('secret') || /^[A-Za-z]:/.test(p) || p.startsWith('/'))).toBe(false)
+      expect(all).toContain('src/fine.ts')
+      expect(find('x.ts')).toEqual([])
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
 })

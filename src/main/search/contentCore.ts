@@ -1,5 +1,6 @@
 import { constants as fsConstants, promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
+import { isSafeRelPath } from '@shared/search/relPath'
 import { buildMatcher, hasBinaryExtension, looksBinary, searchText } from '@shared/search/lineSearch'
 import {
   CONTENT_CAPS,
@@ -20,6 +21,41 @@ const FLUSH_FILES = 30
 const MAX_OUTSTANDING = 4
 const FEED_CHUNK = 400
 
+/**
+ * Checks, once per folder per search, that a file's real parent folder is still inside the
+ * project root. `O_NOFOLLOW` only covers the last path component, so a folder swapped for a
+ * symlink after indexing would otherwise be followed out of the project.
+ */
+export class RootGuard {
+  private realRoot: Promise<string> | null = null
+  private dirs = new Map<string, Promise<boolean>>()
+  private readonly fold = (p: string): string => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p)
+
+  constructor(private readonly root: string) {}
+
+  async parentInside(rel: string): Promise<boolean> {
+    const dir = dirname(rel)
+    let known = this.dirs.get(dir)
+    if (!known) {
+      known = this.check(dir)
+      this.dirs.set(dir, known)
+    }
+    return known
+  }
+
+  private async check(dir: string): Promise<boolean> {
+    try {
+      this.realRoot ??= fs.realpath(this.root)
+      const [realRoot, realDir] = await Promise.all([this.realRoot, fs.realpath(join(this.root, dir))])
+      const r = this.fold(realRoot)
+      const d = this.fold(realDir)
+      return d === r || d.startsWith(r.endsWith(sep) ? r : r + sep)
+    } catch {
+      return false
+    }
+  }
+}
+
 export type ScanOutcome =
   | { kind: 'none' }
   | { kind: 'skip'; reason: 'binary' | 'large' | 'error' }
@@ -37,10 +73,15 @@ export async function scanFile(
   re: RegExp,
   maxPerFile: number,
   scratch?: Buffer,
-  literal?: Buffer
+  literal?: Buffer,
+  guard?: RootGuard
 ): Promise<ScanOutcome> {
   if (hasBinaryExtension(rel)) return { kind: 'skip', reason: 'binary' }
+  // Never read outside the project, whatever the caller handed us.
+  if (!isSafeRelPath(rel)) return { kind: 'none' }
   const abs = join(root, rel)
+  const absRoot = resolve(root)
+  if (!resolve(abs).startsWith(absRoot.endsWith(sep) ? absRoot : absRoot + sep)) return { kind: 'none' }
   let handle: import('node:fs/promises').FileHandle | null = null
   try {
     // O_NOFOLLOW refuses a symlink in one syscall (the index never holds symlinks, but a
@@ -51,6 +92,7 @@ export async function scanFile(
       if (!before.isFile()) return { kind: 'none' }
     }
     handle = await fs.open(abs, fsConstants.O_RDONLY | NOFOLLOW)
+    if (guard && !(await guard.parentInside(rel))) return { kind: 'none' }
     const first = scratch && scratch.length >= FIRST_CHUNK ? scratch : Buffer.allocUnsafe(FIRST_CHUNK)
     let got = 0
     while (got < FIRST_CHUNK) {
@@ -102,6 +144,7 @@ export class ContentScanner {
   private pending: ContentFileResult[] = []
   private lastFlush = Date.now()
   private scannedLocal = 0
+  private readonly guard: RootGuard
 
   constructor(
     private readonly root: string,
@@ -109,7 +152,9 @@ export class ContentScanner {
     private readonly literal: Buffer | undefined,
     private readonly shared: Int32Array,
     private readonly sink: ScannerSink
-  ) {}
+  ) {
+    this.guard = new RootGuard(root)
+  }
 
   private canceled(): boolean {
     return Atomics.load(this.shared, SHARED.CANCEL) === 1
@@ -124,7 +169,7 @@ export class ContentScanner {
         if (this.canceled()) return
         const i = next++
         if (i >= files.length) return
-        const out = await scanFile(this.root, files[i], this.re, CONTENT_CAPS.MAX_LINES_PER_FILE, scratch, this.literal)
+        const out = await scanFile(this.root, files[i], this.re, CONTENT_CAPS.MAX_LINES_PER_FILE, scratch, this.literal, this.guard)
         this.record(out)
         // Let queued port messages (cancel, next chunk) run between files.
         if ((i & 31) === 31) await new Promise<void>((r) => setImmediate(r))

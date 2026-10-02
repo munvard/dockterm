@@ -28,6 +28,13 @@ describe('quoteShellArg', () => {
     expect(quoteShellArg('C:\\My Project', 'cmd')).toBe('"C:\\My Project"')
     expect(quoteShellArg('C:\\a&b', 'cmd')).toBe('"C:\\a&b"')
   })
+  it('a file named a&calc.exe is quoted for cmd and for PowerShell, and a comma is not left bare in PowerShell', () => {
+    expect(quoteShellArg('C:\\p\\a&calc.exe', 'cmd')).toBe('"C:\\p\\a&calc.exe"')
+    expect(quoteShellArg('C:\\p\\a&calc.exe', 'powershell')).toBe(`'C:\\p\\a&calc.exe'`)
+    expect(quoteShellArg('C:\\a,b', 'powershell')).toBe(`'C:\\a,b'`)
+    expect(shellKindFor('win32', 'C:\\Windows\\System32\\cmd.exe')).toBe('cmd')
+    expect(shellKindFor('win32', 'C:\\Program Files\\PowerShell\\7\\pwsh.exe')).toBe('powershell')
+  })
   it('an empty path is an empty quoted string', () => {
     expect(quoteShellArg('', 'posix')).toBe("''")
     expect(quoteShellArg('', 'cmd')).toBe('""')

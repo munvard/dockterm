@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MessageChannel, type MessagePort } from 'node:worker_threads'
-import { ContentScanner, PortSink, feedContent, matcherFor, scanFile } from '../../../src/main/search/contentCore'
+import { ContentScanner, PortSink, RootGuard, feedContent, matcherFor, scanFile } from '../../../src/main/search/contentCore'
 import { CONTENT_CAPS, SHARED, type ContentFileResult } from '../../../src/main/search/protocol'
 
 let root = ''
@@ -74,6 +74,31 @@ describe('scanFile', () => {
     expect(Buffer.isBuffer(lit({}))).toBe(true)
     expect(lit({ caseSensitive: false })).toBeUndefined()
     expect(lit({ regex: true })).toBeUndefined()
+  })
+  it('never reads a path outside the root, however it is spelled', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'dockterm-outside-'))
+    writeFileSync(join(outside, 'secret.txt'), 'needle')
+    try {
+      const rel = `../${outside.split('/').pop()}/secret.txt`
+      expect(await scanFile(root, rel, re('needle'), 100)).toEqual({ kind: 'none' })
+      expect(await scanFile(root, outside + '/secret.txt', re('needle'), 100)).toEqual({ kind: 'none' })
+      expect(await scanFile(root, 'C:/secret.txt', re('needle'), 100)).toEqual({ kind: 'none' })
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+  it('does not follow a folder that was swapped for a symlink after indexing', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'dockterm-outside-'))
+    writeFileSync(join(outside, 'secret.txt'), 'needle')
+    try {
+      symlinkSync(outside, join(root, 'swapped'))
+      const guard = new RootGuard(root)
+      expect(await scanFile(root, 'swapped/secret.txt', re('needle'), 100, undefined, undefined, guard)).toEqual({ kind: 'none' })
+      put('real/ok.txt', 'needle')
+      expect((await scanFile(root, 'real/ok.txt', re('needle'), 100, undefined, undefined, guard)).kind).toBe('match')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
   })
   it('never reads through a symlink', async () => {
     put('real.txt', 'needle')

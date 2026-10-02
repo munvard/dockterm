@@ -6,6 +6,7 @@ import {
   buildRows,
   navigate,
   parseExpanded,
+  parseMovePayload,
   planMoves,
   remapPath,
   remapSet,
@@ -149,5 +150,16 @@ describe('expansion memory', () => {
   it('caps the remembered folders', () => {
     const big = new Set(Array.from({ length: 1000 }, (_, i) => `d${i}`))
     expect(parseExpanded(serializeExpanded(big)).size).toBe(400)
+  })
+})
+
+describe('parseMovePayload', () => {
+  it('returns the paths for a drag from this project and nothing for another project or a bad payload', () => {
+    const raw = JSON.stringify({ root: '/p/x', paths: ['src/a.ts', 3, 'b.ts'] })
+    expect(parseMovePayload(raw, '/p/x')).toEqual(['src/a.ts', 'b.ts'])
+    expect(parseMovePayload(raw, '/p/y')).toEqual([])
+    expect(parseMovePayload(raw, null)).toEqual([])
+    expect(parseMovePayload(JSON.stringify(['src/a.ts']), '/p/x')).toEqual([])
+    expect(parseMovePayload('nope', '/p/x')).toEqual([])
   })
 })
