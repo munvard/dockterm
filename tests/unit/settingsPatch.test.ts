@@ -106,6 +106,7 @@ describe('usage settings (real usage capture)', () => {
     const u = DEFAULT_SETTINGS.usage
     expect(u.source).toBe('claude')
     expect(u.captureEnabled).toBe(true)
+    expect(u.captureWithoutStatusLine).toBe(false)
     expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: true, warnAt: 75, critAt: 90 })
     expect(u.float).toMatchObject({ enabled: false, x: null, y: null, w: 260, h: 120, alwaysOnTop: true, opacity: 1, show: ['fiveHour', 'sevenDay'], style: 'percent', showReset: true })
   })
@@ -133,7 +134,8 @@ describe('usage settings (real usage capture)', () => {
       { usage: { pill: { show: ['tokens'] } } },
       { usage: { float: { opacity: 0.1 } } },
       { usage: { float: { w: 10 } } },
-      { usage: { captureEnabled: 'yes' } }
+      { usage: { captureEnabled: 'yes' } },
+      { usage: { captureWithoutStatusLine: 1 } }
     ]) expect(settingsPatchSchema.safeParse(bad).success).toBe(false)
   })
 })

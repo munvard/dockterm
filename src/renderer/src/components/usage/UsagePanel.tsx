@@ -22,6 +22,8 @@ import {
   fmtPct,
   fmtRate,
   moveMetric,
+  noDataNote,
+  noWindowsNote,
   readingFor,
   readingsFor,
   setThreshold,
@@ -217,8 +219,7 @@ export function UsagePanel() {
               </div>
               {!real ? (
                 <div className="usage-note usage-note--flush">
-                  No data yet. Start Claude in a DockTerm terminal to see your real usage. These are the numbers
-                  Claude Code itself reports.
+                  {noDataNote(u.captureEnabled, u.captureWithoutStatusLine)}
                 </div>
               ) : (
                 <>
@@ -265,12 +266,7 @@ export function UsagePanel() {
                       <span>{real.updatedAt !== null ? fmtAge(now - real.updatedAt) : 'no limit info yet'}</span>
                     </div>
                   </div>
-                  {!real.fiveHour && !real.sevenDay && (
-                    <div className="usage-note usage-note--flush">
-                      Claude has sent no rate limits yet. They exist for Pro and Max plans, after the first reply in
-                      a session.
-                    </div>
-                  )}
+                  {noWindowsNote(real) && <div className="usage-note usage-note--flush">{noWindowsNote(real)}</div>}
                 </>
               )}
             </div>
@@ -378,10 +374,19 @@ export function UsagePanel() {
               <Row label="Capture from terminals">
                 <Toggle checked={u.captureEnabled} onChange={(captureEnabled) => void update({ usage: { captureEnabled } })} />
               </Row>
+              <Row label="Also without a status line">
+                <Toggle
+                  checked={u.captureWithoutStatusLine}
+                  onChange={(captureWithoutStatusLine) => void update({ usage: { captureWithoutStatusLine } })}
+                />
+              </Row>
               <div className="usage-note usage-note--flush">
                 DockTerm starts Claude with its own status line setting that saves the limits Claude reports to a
-                file on this machine. Nothing is sent anywhere. A change applies to terminals opened after it.
-                The local token count is an estimate and is never shown as a percentage.
+                file on this machine, and still runs your own status line. Nothing is sent anywhere. If you have no
+                status line of your own, capture stays off, because adding one gives Claude an extra footer row
+                and replaces its "? for shortcuts" hint; turn on "Also without a status line" to accept that. A
+                change applies to terminals opened after it. The local token count is an estimate and is never
+                shown as a percentage.
               </div>
             </div>
 

@@ -14,8 +14,10 @@ export const APP_URL = `${SCHEME}://bundle/index.html`
  * drawn 10 percent away from where main hit-tests it. */
 export const OVERLAY_URL = `${SCHEME}://overlay/overlay.html`
 
-/** URL the production floating usage window loads. */
-export const USAGE_WIDGET_URL = `${SCHEME}://bundle/usage-widget.html`
+/** URL the production floating usage window loads. Its own host for the same
+ * reason as the overlay: on `bundle` it inherited the main window's UI zoom and
+ * drew its 260x120 content 10 percent too large. */
+export const USAGE_WIDGET_URL = `${SCHEME}://usage/usage-widget.html`
 
 /**
  * Must run before `app` is ready. Registers `app://` as a standard, secure scheme

@@ -121,7 +121,7 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
   // (see captureSettingsPath): Claude is started untouched.
   delete env.DOCKTERM_USAGE_SETTINGS
   let claudeFlag: string | null = null
-  const captureFile = settings.usage.captureEnabled ? captureSettingsPath() : null
+  const captureFile = settings.usage.captureEnabled ? captureSettingsPath(settings.usage.captureWithoutStatusLine) : null
   if (captureFile) {
     env.DOCKTERM_USAGE_SETTINGS = captureFile
     const hooked = settings.terminal.shellIntegration && shellKind(shell.file) !== 'other'

@@ -158,6 +158,7 @@ const preference = {
       plan: z.enum(['auto', 'pro', 'max5x', 'max20x']).default('auto'),
       source: z.enum(['claude', 'local']).default('claude'),
       captureEnabled: z.boolean().default(true),
+      captureWithoutStatusLine: z.boolean().default(false),
       pill: z
         .object({
           show: z.array(usageMetric).max(4).default(['fiveHour']),

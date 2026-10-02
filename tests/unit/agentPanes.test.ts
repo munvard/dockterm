@@ -102,6 +102,38 @@ describe('createPidOwner', () => {
   })
 })
 
+describe('createPidOwner backoff', () => {
+  it('doubles the wait after each failed read, caps it, and resets after a success', async () => {
+    let now = 0
+    let fail = true
+    const read = vi.fn(async () => {
+      if (fail) throw new Error('wmi blocked')
+      return parseProcessTable('100 1\n110 100')
+    })
+    const own = createPidOwner(read, () => [{ id: 'pty-1', pid: 100 }], 1000, () => now, 5000)
+    const at = async (t: number): Promise<void> => {
+      now = t
+      await own.refresh([110])
+    }
+    await at(0) // fail 1, next gap 1000
+    await at(900)
+    expect(read).toHaveBeenCalledTimes(1)
+    await at(1000) // fail 2, next gap 2000
+    await at(2999)
+    expect(read).toHaveBeenCalledTimes(2)
+    await at(3000) // fail 3, next gap 4000
+    await at(6999)
+    expect(read).toHaveBeenCalledTimes(3)
+    await at(7000) // fail 4, gap capped at 5000
+    await at(11_999)
+    expect(read).toHaveBeenCalledTimes(4)
+    fail = false
+    await at(12_000)
+    expect(read).toHaveBeenCalledTimes(5)
+    expect(own.owner(110)).toBe('pty-1')
+  })
+})
+
 describe('munu state rule', () => {
   it('a pane waiting on its agents is working; a question still wins', () => {
     expect(effectivePaneState('idle', true)).toBe('working')

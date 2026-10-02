@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { AckBatcher, PtyRouter, utf8Length } from '@renderer/components/terminal/ptyRouter'
+import { describe, expect, it, vi } from 'vitest'
+import { AckBatcher, PtyRouter, ptyAcks, utf8Length } from '@renderer/components/terminal/ptyRouter'
 
 describe('PtyRouter', () => {
   it('routes chunks and exits to the claiming pane only', () => {
@@ -74,5 +74,25 @@ describe('AckBatcher', () => {
     b.drop('s1')
     run()
     expect(sent).toEqual([])
+  })
+})
+
+describe('ptyAcks scheduling', () => {
+  it('sends acks in a microtask, so a throttled timer queue cannot delay them', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval'] })
+    const invoke = vi.fn(async () => undefined)
+    vi.stubGlobal('window', { dockterm: { invoke, on: () => () => {} } })
+    try {
+      const a = ptyAcks()
+      a.add('s1', 100)
+      a.add('s1', 50)
+      expect(invoke).not.toHaveBeenCalled()
+      await Promise.resolve()
+      expect(invoke).toHaveBeenCalledTimes(1)
+      expect(invoke).toHaveBeenCalledWith('pty:ack', { sessionId: 's1', bytes: 150 })
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 })

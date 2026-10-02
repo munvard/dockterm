@@ -88,6 +88,11 @@ export interface UserStatusLine {
   command: string
   padding: number | null
   refreshInterval: number | null
+  hideVimModeIndicator: boolean | null
+  /** The status line uses `shell` or `args` (exec form). Claude Code 2.1.287 ignores
+   * both in a statusLine, but the capture command could not carry them over, so
+   * capture steps aside for it. */
+  custom: boolean
 }
 
 /** The status line a Claude settings.json defines, or null. */
@@ -95,13 +100,32 @@ export function userStatusLine(settings: unknown): UserStatusLine | null {
   if (!settings || typeof settings !== 'object') return null
   const s = (settings as { statusLine?: unknown }).statusLine
   if (!s || typeof s !== 'object') return null
-  const sl = s as { type?: unknown; command?: unknown; padding?: unknown; refreshInterval?: unknown }
+  const sl = s as {
+    type?: unknown
+    command?: unknown
+    padding?: unknown
+    refreshInterval?: unknown
+    hideVimModeIndicator?: unknown
+    shell?: unknown
+    args?: unknown
+  }
   if (sl.type !== 'command' || typeof sl.command !== 'string' || !sl.command.trim()) return null
   return {
     command: sl.command,
     padding: isNum(sl.padding) && sl.padding >= 0 ? Math.floor(sl.padding) : null,
-    refreshInterval: isNum(sl.refreshInterval) && sl.refreshInterval >= 1 ? Math.floor(sl.refreshInterval) : null
+    refreshInterval: isNum(sl.refreshInterval) && sl.refreshInterval >= 1 ? Math.floor(sl.refreshInterval) : null,
+    hideVimModeIndicator: typeof sl.hideVimModeIndicator === 'boolean' ? sl.hideVimModeIndicator : null,
+    custom: sl.shell !== undefined || sl.args !== undefined
   }
+}
+
+/** Whether to start Claude with the capture `--settings` at all. A statusLine in
+ * the settings file makes Claude draw an extra footer row and replaces its
+ * "? for shortcuts" hint (checked on Claude Code 2.1.287), so for a user who has
+ * no status line of their own that only happens when they opted in. */
+export function shouldCapture(user: UserStatusLine | null, withoutStatusLine: boolean): boolean {
+  if (user) return !user.custom
+  return withoutStatusLine
 }
 
 /** The path as it must appear inside double quotes of the status line command.
@@ -131,12 +155,13 @@ export function captureCommand(dir: string, platform: NodeJS.Platform): string |
 }
 
 /** Text of the DockTerm-owned settings file given to `claude --settings`. It only
- * sets `statusLine`; padding and refreshInterval follow the user's own status line
- * so its look and cadence do not change. */
+ * sets `statusLine`; padding, refreshInterval and hideVimModeIndicator follow the
+ * user's own status line so its look and cadence do not change. */
 export function captureSettingsJson(command: string, user: UserStatusLine | null): string {
   const statusLine: Record<string, unknown> = { type: 'command', command }
   if (user?.padding != null) statusLine.padding = user.padding
   if (user?.refreshInterval != null) statusLine.refreshInterval = user.refreshInterval
+  if (user?.hideVimModeIndicator != null) statusLine.hideVimModeIndicator = user.hideVimModeIndicator
   return JSON.stringify({ statusLine }, null, 2) + '\n'
 }
 

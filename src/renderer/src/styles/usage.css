@@ -99,7 +99,7 @@
 .usage-pill--quiet svg {
   color: var(--text-faint);
 }
-.usage-pill--preview {
+.usage-pill.usage-pill--preview {
   cursor: default;
   margin: 0;
   max-width: 100%;

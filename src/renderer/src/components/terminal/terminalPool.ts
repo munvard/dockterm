@@ -212,6 +212,24 @@ export function paneClaudeFlag(leafId: string): string | null {
   return paneClaudeFlags.get(leafId) ?? null
 }
 
+const paneSessionListeners = new Set<() => void>()
+
+/** Called whenever a pane gets, changes or loses its pty session id. */
+export function onPaneSessionChange(fn: () => void): () => void {
+  paneSessionListeners.add(fn)
+  return () => void paneSessionListeners.delete(fn)
+}
+
+function setPaneSession(leafId: string, sessionId: string | null): void {
+  if (sessionId === null) {
+    if (!paneSessions.delete(leafId)) return
+  } else {
+    if (paneSessions.get(leafId) === sessionId) return
+    paneSessions.set(leafId, sessionId)
+  }
+  for (const fn of [...paneSessionListeners]) fn()
+}
+
 /** The pty session id backing a pane (null if not started / disposed). */
 export function paneSessionId(leafId: string): string | null {
   return paneSessions.get(leafId) ?? null
@@ -764,7 +782,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
         }
         sessionId = res.value.sessionId
         claimSession(sessionId)
-        paneSessions.set(id, res.value.sessionId)
+        setPaneSession(id, res.value.sessionId)
         paneShells.set(id, res.value.shell)
         if (res.value.claudeFlag) paneClaudeFlags.set(id, res.value.claudeFlag)
         if (res.value.cwdFellBack) p.opts.onCwdFallback?.(res.value.cwd)
@@ -854,7 +872,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
       void window.dockterm.invoke('pty:kill', { sessionId })
     }
     sessionId = null
-    paneSessions.delete(id)
+    setPaneSession(id, null)
     paneClaudeFlags.delete(id)
     paneShells.delete(id)
     term.dispose()

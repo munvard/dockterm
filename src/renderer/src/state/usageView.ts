@@ -228,3 +228,25 @@ export function usageTooltip(
   lines.push(real.updatedAt !== null ? `Limits updated ${fmtAge(now - real.updatedAt)}` : 'No limit info captured yet')
   return lines.join('\n')
 }
+
+/** The panel note under the real usage card when Claude has reported no live limit
+ * window. Null when at least one window is live. A report that existed but has
+ * ended (the windows reset) must not read as "never sent". */
+export function noWindowsNote(real: RealUsage): string | null {
+  if (real.fiveHour || real.sevenDay) return null
+  if (real.updatedAt !== null) {
+    return 'The limit windows Claude last reported have ended. New numbers arrive with the next reply in a Claude session.'
+  }
+  return 'Claude has not sent rate limits yet. They exist for Pro and Max plans, after the first reply in a session.'
+}
+
+/** The panel note when no capture has arrived at all. */
+export function noDataNote(captureEnabled: boolean, withoutStatusLine: boolean): string {
+  if (!captureEnabled) {
+    return 'Capture from terminals is off, so no real usage arrives. Turn it on under Data below.'
+  }
+  const base = 'No data yet. Start Claude in a DockTerm terminal to see your real usage. These are the numbers Claude Code itself reports.'
+  return withoutStatusLine
+    ? base
+    : base + ' If you have no status line set up in Claude, turn on "Also capture without a status line" under Data below.'
+}

@@ -117,16 +117,23 @@ export function processTableReader(platform: NodeJS.Platform = process.platform)
  * or none) is kept until the pid leaves the registry; only new pids trigger a
  * process-table read, at most once per `minGapMs`. `refresh` resolves true when it
  * learned something new; callers need not wait for it (the read is a child process).
+ * A failing read backs off exponentially instead of retrying at a fixed pace.
  */
 export function createPidOwner(
   readTable: ProcessTableReader,
   ptys: () => PtyProc[],
   minGapMs: number,
-  clock: () => number = Date.now
+  clock: () => number = Date.now,
+  maxGapMs = 600_000
 ) {
   const known = new Map<number, string | null>()
   let lastRead = -Infinity
   let reading: Promise<void> | null = null
+  let failures = 0
+
+  /** The wait before the next read: `minGapMs`, doubling after every failed read
+   * (a PowerShell start costs 0.3 to 0.5 s of CPU on Windows) up to `maxGapMs`. */
+  const gap = (): number => Math.min(maxGapMs, minGapMs * 2 ** Math.min(Math.max(0, failures - 1), 20))
 
   async function refresh(pids: readonly number[]): Promise<boolean> {
     const want = new Set(pids)
@@ -135,7 +142,7 @@ export function createPidOwner(
     const liveIds = new Set(live.map((p) => p.id))
     for (const [p, pty] of known) if (pty && !liveIds.has(pty)) known.delete(p)
     const missing = pids.filter((p) => !known.has(p))
-    if (missing.length === 0 || live.length === 0 || reading || clock() - lastRead < minGapMs) return false
+    if (missing.length === 0 || live.length === 0 || reading || clock() - lastRead < gap()) return false
     lastRead = clock()
     let learned = false
     reading = (async () => {
@@ -145,7 +152,9 @@ export function createPidOwner(
         // a pid missing from a table read after it registered has exited: not in a pane
         for (const p of missing) known.set(p, table.has(p) ? ptyForPid(p, table, byPid) : null)
         learned = true
+        failures = 0
       } catch {
+        failures++
         // unknown for now: those sessions count as unplaced until a later read works
       } finally {
         reading = null

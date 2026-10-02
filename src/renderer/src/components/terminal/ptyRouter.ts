@@ -62,8 +62,9 @@ export function utf8Length(s: string): number {
 
 /**
  * Coalesces flow-control acks: every write xterm finishes parsing in one task adds
- * to a per-session count that goes out as a single `pty:ack` on the next macrotask,
- * instead of one IPC round trip per chunk. Nothing is held longer than that, so the
+ * to a per-session count that goes out as a single `pty:ack` in a microtask, instead
+ * of one IPC round trip per chunk. A microtask, not a timer: a minimized or hidden
+ * window throttles timers to 1 s or more, and a delayed ack pauses a busy pty. Nothing is held longer than that, so the
  * main process's pause/resume watermarks see the same numbers as before.
  */
 export class AckBatcher {
@@ -113,7 +114,7 @@ export function ptyAcks(): AckBatcher {
   if (acks) return acks
   acks = new AckBatcher(
     (sessionId, bytes) => void window.dockterm.invoke('pty:ack', { sessionId, bytes }),
-    (fn) => void setTimeout(fn, 0)
+    (fn) => queueMicrotask(fn)
   )
   return acks
 }

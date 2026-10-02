@@ -15,7 +15,9 @@ import {
   sparkPath,
   toggleMetric,
   toneFor,
-  usageTooltip
+  usageTooltip,
+  noDataNote,
+  noWindowsNote
 } from '@renderer/state/usageView'
 
 const th = { warnAt: 75, critAt: 90 }
@@ -143,5 +145,25 @@ describe('usageTooltip', () => {
     expect(tip).toContain('7-day window: 80% used')
     expect(tip).toContain('Context window: 29% used')
     expect(tip).toContain('Limits updated 1h ago')
+  })
+})
+
+describe('panel notes', () => {
+  const base = { fiveHour: null, sevenDay: null, updatedAt: null, capturedAt: 1, contextPct: 29, model: 'Haiku 4.5', costUsd: 0.1 }
+  it('no note while a window is live', () => {
+    expect(noWindowsNote({ ...base, fiveHour: { pct: 5, resetsAt: 9 } })).toBeNull()
+  })
+  it('expired windows are not described as "never sent"', () => {
+    const n = noWindowsNote({ ...base, updatedAt: 5 })!
+    expect(n).toMatch(/have ended/)
+    expect(n).not.toMatch(/no rate limits|not sent/i)
+  })
+  it('a capture that never carried limits says so', () => {
+    expect(noWindowsNote(base)).toMatch(/not sent rate limits/)
+  })
+  it('the empty state follows the capture settings', () => {
+    expect(noDataNote(false, false)).toMatch(/off/)
+    expect(noDataNote(true, false)).toMatch(/no status line/)
+    expect(noDataNote(true, true)).not.toMatch(/no status line/)
   })
 })

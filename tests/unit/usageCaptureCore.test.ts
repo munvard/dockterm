@@ -12,6 +12,7 @@ import {
   pruneExpired,
   sameRealUsage,
   settingsFlagText,
+  shouldCapture,
   toRealUsage,
   userStatusLine
 } from '@main/services/usageCaptureCore'
@@ -112,8 +113,15 @@ describe('userStatusLine', () => {
     expect(userStatusLine({ statusLine: { type: 'command', command: '~/.claude/statusline.sh', padding: 0, refreshInterval: 60 } })).toEqual({
       command: '~/.claude/statusline.sh',
       padding: 0,
-      refreshInterval: 60
+      refreshInterval: 60,
+      hideVimModeIndicator: null,
+      custom: false
     })
+  })
+  it('reads hideVimModeIndicator and flags shell / args as custom', () => {
+    expect(userStatusLine({ statusLine: { type: 'command', command: 'x', hideVimModeIndicator: true } })).toMatchObject({ hideVimModeIndicator: true, custom: false })
+    expect(userStatusLine({ statusLine: { type: 'command', command: 'x', shell: 'powershell' } })).toMatchObject({ custom: true })
+    expect(userStatusLine({ statusLine: { type: 'command', command: 'x', args: ['-c', 'y'] } })).toMatchObject({ custom: true })
   })
   it('returns null when there is no usable status line', () => {
     for (const s of [null, {}, { statusLine: null }, { statusLine: { type: 'command' } }, { statusLine: { type: 'command', command: '  ' } }, { statusLine: { type: 'other', command: 'x' } }]) {
@@ -124,8 +132,25 @@ describe('userStatusLine', () => {
     expect(userStatusLine({ statusLine: { type: 'command', command: 'x', padding: -1, refreshInterval: 0 } })).toEqual({
       command: 'x',
       padding: null,
-      refreshInterval: null
+      refreshInterval: null,
+      hideVimModeIndicator: null,
+      custom: false
     })
+  })
+})
+
+describe('shouldCapture', () => {
+  const own = { command: 'x', padding: null, refreshInterval: null, hideVimModeIndicator: null, custom: false }
+  it('captures for a user who already has a status line', () => {
+    expect(shouldCapture(own, false)).toBe(true)
+  })
+  it('does not add a status line to a user who has none, unless they opted in', () => {
+    expect(shouldCapture(null, false)).toBe(false)
+    expect(shouldCapture(null, true)).toBe(true)
+  })
+  it('steps aside for a status line that uses shell or args', () => {
+    expect(shouldCapture({ ...own, custom: true }, false)).toBe(false)
+    expect(shouldCapture({ ...own, custom: true }, true)).toBe(false)
   })
 })
 
@@ -149,10 +174,10 @@ describe('captureCommand', () => {
 })
 
 describe('captureSettingsJson', () => {
-  const user = { command: 'x', padding: 0, refreshInterval: 60 }
-  it('sets only statusLine, mirroring the user padding and refreshInterval', () => {
+  const user = { command: 'x', padding: 0, refreshInterval: 60, hideVimModeIndicator: true, custom: false }
+  it('sets only statusLine, mirroring the user padding, refreshInterval and hideVimModeIndicator', () => {
     const j = JSON.parse(captureSettingsJson('sh "/x"', user))
-    expect(j).toEqual({ statusLine: { type: 'command', command: 'sh "/x"', padding: 0, refreshInterval: 60 } })
+    expect(j).toEqual({ statusLine: { type: 'command', command: 'sh "/x"', padding: 0, refreshInterval: 60, hideVimModeIndicator: true } })
   })
   it('adds neither when the user has no status line', () => {
     expect(JSON.parse(captureSettingsJson('sh "/x"', null))).toEqual({ statusLine: { type: 'command', command: 'sh "/x"' } })

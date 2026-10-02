@@ -259,6 +259,9 @@ export interface UsageSettings {
    * line JSON (real rate limits) can be captured. Off = Claude is started untouched
    * and no real numbers arrive. Applies to terminals opened after the change. */
   captureEnabled: boolean
+  /** Also capture for a user who has no status line of their own. That adds one
+   * footer row to Claude and replaces its "? for shortcuts" hint, so it is opt in. */
+  captureWithoutStatusLine: boolean
   /** The top-bar usage pill. */
   pill: UsagePillConfig
   /** The floating usage window. */

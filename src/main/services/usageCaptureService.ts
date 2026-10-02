@@ -15,6 +15,7 @@ import {
   nextExpiry,
   nodeOnPath,
   pruneExpired,
+  shouldCapture,
   sameRealUsage,
   toRealUsage,
   userStatusLine
@@ -58,17 +59,20 @@ function readUserStatusLine(): ReturnType<typeof userStatusLine> {
 
 let cachedPath: string | null = null
 let cachedAt = 0
+let cachedFor = false
 const RESYNC_MS = 5_000
 
 /** Write the capture files (idempotent) and return the DockTerm-owned settings
  * file to pass as `claude --settings`, or null when capture cannot work here
  * (Windows without `node` on PATH, an unquotable install path, a read-only
- * userData). Re-checked at most every few seconds, so a changed refreshInterval or
+ * userData, or a user with no status line who did not opt in: a status line would
+ * add a footer row and hide Claude's "? for shortcuts" hint). Re-checked at most every few seconds, so a changed refreshInterval or
  * status line in the user's settings is picked up for the next terminal. */
-export function captureSettingsPath(): string | null {
+export function captureSettingsPath(withoutStatusLine: boolean): string | null {
   const now = Date.now()
-  if (now - cachedAt < RESYNC_MS) return cachedPath
+  if (now - cachedAt < RESYNC_MS && cachedFor === withoutStatusLine) return cachedPath
   cachedAt = now
+  cachedFor = withoutStatusLine
   cachedPath = null
   try {
     const platform = process.platform
@@ -78,6 +82,7 @@ export function captureSettingsPath(): string | null {
     if (!command) return null
     mkdirSync(dir, { recursive: true })
     const user = readUserStatusLine()
+    if (!shouldCapture(user, withoutStatusLine)) return null
     writeIfChanged(join(dir, CAPTURE_SCRIPT), captureScript)
     if (platform !== 'win32') {
       writeIfChanged(join(dir, CAPTURE_WRAPPER), CAPTURE_WRAPPER_SH)
