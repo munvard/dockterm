@@ -1,3 +1,5 @@
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)"  srcset="assets/brand/dockterm-logo.svg">
@@ -10,6 +12,15 @@
   <b>Run Claude Code, then go do something else.</b><br>
   A terminal-first workspace for <a href="https://www.anthropic.com/claude-code">Claude Code</a> — keep your real <code>claude</code> session, with checkpoints, live agents, diffs, Git, files, MCP &amp; usage one keypress away.<br>
   And <b>munu</b>, a face in your notch — or pinned anywhere on screen — tells you the moment Claude needs you, even in a fullscreen app on another desktop.
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/hd/hero.gif" alt="munu surfacing Claude's permission prompt over a fullscreen movie, answered without leaving the film" width="900">
+</p>
+
+<p align="center">
+  <b>macOS, Windows and Linux.</b> Free, open source (MIT), no account, no telemetry.<br>
+  <a href="#install">Download</a> · <a href="https://munetic.net/dockterm">Website</a> · <a href="../../issues">Report a bug</a>
 </p>
 
 <p align="center">
@@ -37,9 +48,15 @@
 </p>
 <p align="center"><sub>One calm window — your real <code>claude</code> sessions front and center, with files, diffs, Git, MCP and usage on demand. A project per pane.</sub></p>
 
-<p align="center"><b>Watch the 54-second tour</b> (sound on)</p>
-
-https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3" poster="https://raw.githubusercontent.com/munvard/dockterm/main/docs/screenshots/tour-poster.jpg" controls muted playsinline width="800">
+    <a href="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3">
+      <img src="docs/screenshots/tour-poster.jpg" alt="Watch the 54-second DockTerm tour (sound on)" width="800">
+    </a>
+  </video>
+  <br>
+  <b>▶ Watch the 54-second tour</b> (sound on)
+</p>
 
 ---
 
@@ -194,7 +211,13 @@ DockTerm uses the shortcuts you already know from each platform's default termin
 
 ## Install
 
-Download from [Releases](../../releases):
+**macOS, with Homebrew:**
+
+```bash
+brew install --cask munvard/dockterm/dockterm
+```
+
+**Or download** from [Releases](../../releases):
 
 | System | File |
 |---|---|
