@@ -77,6 +77,8 @@ export interface AppInfo {
   /** Windows build number (from os.release()), win32 only. xterm's conpty
    * reflow/scrollback heuristics key off this. Undefined elsewhere. */
   windowsBuildNumber?: number
+  /** The asking window is in native fullscreen (macOS: no traffic lights to make room for). */
+  fullScreen: boolean
 }
 
 /** Application-menu items that route to the focused renderer (File/View, etc.). */
@@ -437,6 +439,9 @@ export interface InvokeChannels {
   'window:isPrimary': (req: void) => Result<boolean>
   /** Windows only: recolour the caption buttons to match the theme (no-op elsewhere). */
   'window:setTitleBarOverlay': (req: { color: string; symbolColor: string }) => Result<void>
+  /** macOS only: a double-click on the empty top bar or tab strip, acted on like a
+   * native title bar per the system setting (no-op elsewhere: Windows does it natively). */
+  'window:titleDoubleClick': (req: void) => Result<void>
   'app:recover': (req: { hard: boolean }) => Result<void>
   'ui:setZoom': (req: { factor: number }) => Result<{ zoom: number }>
 
@@ -512,6 +517,8 @@ export interface EventChannels {
    * (the primary window closed and this window took over — workspace
    * persistence + last-project restore now belong to it). */
   'window:primaryChanged': boolean
+  /** main → renderer: this window entered (true) or left (false) native fullscreen. */
+  'window:fullScreen': boolean
   /** main → renderer: open this project (a second app launch pointed at a
    * folder, or the OS "open with" / dock-drop path). */
   'project:openRequested': { path: string }
@@ -610,6 +617,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'window:new',
   'window:isPrimary',
   'window:setTitleBarOverlay',
+  'window:titleDoubleClick',
   'app:recover',
   'ui:setZoom',
   'munu:report',
@@ -653,6 +661,7 @@ export const EVENT_CHANNELS: readonly EventName[] = [
   'session:changed',
   'menu:action',
   'window:primaryChanged',
+  'window:fullScreen',
   'project:openRequested'
 ]
 

@@ -163,7 +163,9 @@ const preference = {
         .object({
           show: z.array(usageMetric).max(4).default(['fiveHour']),
           style: usageStyle.default('percent'),
-          showReset: z.boolean().default(true),
+          // The top bar default is the smallest honest form, "5h 11%"; the reset
+          // time is in the tooltip. A saved choice is kept as it is.
+          showReset: z.boolean().default(false),
           warnAt: z.number().min(0).max(100).default(75),
           critAt: z.number().min(0).max(100).default(90)
         })
@@ -213,7 +215,7 @@ const preference = {
     .default({})
 }
 
-const settingsSchema = z.object({
+export const settingsSchema = z.object({
   schemaVersion: z.number().default(1),
   lastProjectPath: z.string().nullable().default(null),
   recentProjects: z

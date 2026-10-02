@@ -51,7 +51,12 @@ export default function App() {
       if (r.ok) {
         document.documentElement.dataset.platform = r.value.platform
         useAppStore.setState({ homeDir: r.value.home })
+        if (r.value.fullScreen) document.documentElement.dataset.fullscreen = ''
       }
+    })
+    return window.dockterm.on('window:fullScreen', (on) => {
+      if (on) document.documentElement.dataset.fullscreen = ''
+      else delete document.documentElement.dataset.fullscreen
     })
   }, [])
 

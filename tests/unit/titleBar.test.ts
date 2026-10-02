@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chromeOptions, HEX_COLOR, TITLEBAR_HEIGHT } from '@main/titleBar'
+import { chromeOptions, HEX_COLOR, TITLEBAR_HEIGHT, titleDoubleClickAction } from '@main/titleBar'
 
 describe('chromeOptions (F9)', () => {
   it('win32 hides the native title bar and overlays the caption buttons at app-bar height', () => {
@@ -26,5 +26,16 @@ describe('chromeOptions (F9)', () => {
     expect(HEX_COLOR.test('#1e1e1d')).toBe(true)
     expect(HEX_COLOR.test('red')).toBe(false)
     expect(HEX_COLOR.test('rgba(0,0,0,1)')).toBe(false)
+  })
+})
+
+describe('titleDoubleClickAction', () => {
+  it('follows the macOS "double-click a title bar" setting, zoom when unset', () => {
+    expect(titleDoubleClickAction(undefined)).toBe('zoom')
+    expect(titleDoubleClickAction('')).toBe('zoom')
+    expect(titleDoubleClickAction('Maximize')).toBe('zoom')
+    expect(titleDoubleClickAction('Fill')).toBe('zoom')
+    expect(titleDoubleClickAction('Minimize')).toBe('minimize')
+    expect(titleDoubleClickAction('None')).toBe('none')
   })
 })

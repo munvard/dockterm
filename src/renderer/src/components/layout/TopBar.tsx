@@ -3,6 +3,7 @@ import { useAppStore } from '../../state/useAppStore'
 import { useGitStore } from '../../state/useGitStore'
 import { basenameOf } from '../../state/workspace'
 import { TopBarTools } from './TopBarTools'
+import { onChromeDoubleClick } from './chromeDoubleClick'
 
 export function TopBar() {
   const project = useAppStore((s) => s.project)
@@ -23,7 +24,7 @@ export function TopBar() {
   const upstream = status?.upstream
 
   return (
-    <header className="topbar">
+    <header className="topbar" onDoubleClick={onChromeDoubleClick}>
       <div className="topbar__left">
         <button
           className="iconbtn"
@@ -47,9 +48,9 @@ export function TopBar() {
           </span>
         )}
         {branch && (
-          <span className="topbar__branch">
+          <span className="topbar__branch" title={branch}>
             <GitBranch size={12} />
-            {branch}
+            <span className="topbar__branch-name">{branch}</span>
           </span>
         )}
         {upstream && (upstream.ahead > 0 || upstream.behind > 0) && (

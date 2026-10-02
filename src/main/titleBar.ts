@@ -31,4 +31,13 @@ export function chromeOptions(platform: string): BrowserWindowConstructorOptions
   return {}
 }
 
+/** What a double-click on DockTerm's own title bar areas does on macOS, from the
+ * user's "Double-click a window's title bar to" setting (AppleActionOnDoubleClick:
+ * "Maximize" (zoom), "Fill", "Minimize" or "None"; unset means zoom). */
+export function titleDoubleClickAction(pref: string | undefined): 'zoom' | 'minimize' | 'none' {
+  if (pref === 'Minimize') return 'minimize'
+  if (pref === 'None') return 'none'
+  return 'zoom'
+}
+
 export const HEX_COLOR = /^#[0-9a-fA-F]{6}$/

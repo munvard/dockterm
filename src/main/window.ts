@@ -66,6 +66,9 @@ export function createWindow(): BrowserWindow {
 
   applyWindowSecurity(win)
   win.once('ready-to-show', () => win.show())
+  // The top bar drops its traffic-light inset in fullscreen (no lights there).
+  win.on('enter-full-screen', () => win.webContents.send('window:fullScreen', true))
+  win.on('leave-full-screen', () => win.webContents.send('window:fullScreen', false))
 
   // A page reload (dev tools, a crash-recovery reload) past the FIRST load, or
   // the renderer process itself dying, must clean up this window's PTYs/watch

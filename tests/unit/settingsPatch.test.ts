@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, mergeSettingsPatch, settingsPatchSchema } from '@main/services/settingsService'
+import { DEFAULT_SETTINGS, mergeSettingsPatch, settingsPatchSchema, settingsSchema } from '@main/services/settingsService'
 import type { Settings } from '@shared/types'
 
 const base = (): Settings => ({
@@ -107,7 +107,7 @@ describe('usage settings (real usage capture)', () => {
     expect(u.source).toBe('claude')
     expect(u.captureEnabled).toBe(true)
     expect(u.captureWithoutStatusLine).toBe(false)
-    expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: true, warnAt: 75, critAt: 90 })
+    expect(u.pill).toEqual({ show: ['fiveHour'], style: 'percent', showReset: false, warnAt: 75, critAt: 90 })
     expect(u.float).toMatchObject({ enabled: false, x: null, y: null, w: 260, h: 120, alwaysOnTop: true, opacity: 1, show: ['fiveHour', 'sevenDay'], style: 'percent', showReset: true })
   })
 
@@ -118,6 +118,11 @@ describe('usage settings (real usage capture)', () => {
     expect(next.usage.source).toBe('local')
     expect(next.usage.captureEnabled).toBe(true)
     expect(next.usage.float.w).toBe(260)
+  })
+
+  it('the compact pill default never overrides a saved reset choice', () => {
+    expect(settingsSchema.parse({ usage: { pill: { showReset: true } } }).usage.pill.showReset).toBe(true)
+    expect(settingsSchema.parse({ usage: { source: 'claude' } }).usage.pill.showReset).toBe(false)
   })
 
   it('a partial pill / float patch never resets the sibling fields', () => {
