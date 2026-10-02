@@ -17,6 +17,7 @@ import { useComposeStore } from '../../state/useComposeStore'
 import { useMunuStore } from '../../state/useMunuStore'
 import { paneWriters } from '../../state/paneWriters'
 import { createPtyInput } from './ptyInput'
+import { ptyAcks, ptyRouter, utf8Length } from './ptyRouter'
 import { bundledConptyBuild } from './conptyBuild'
 import {
   CLEAR_STARTING_HINT,
@@ -34,8 +35,6 @@ import { toComposerPlatform } from '../chat/composerText'
 import { useToastStore } from '../../state/useToastStore'
 import type { TerminalOptions } from './useTerminal'
 import '@xterm/xterm/css/xterm.css'
-
-const encoder = new TextEncoder()
 
 function currentPlatform(): string {
   return document.documentElement.dataset.platform ?? ''
@@ -634,32 +633,30 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
       term.write(CLEAR_STARTING_HINT)
     }
     term.write(data, () => {
-      if (sessionId) {
-        void window.dockterm.invoke('pty:ack', {
-          sessionId,
-          bytes: encoder.encode(data).length
-        })
-      }
+      if (sessionId) ptyAcks().add(sessionId, utf8Length(data))
     })
   }
 
-  const offData = window.dockterm.on('pty:data', (e) => {
-    if (sessionId === null) {
-      pending.push(e)
-      return
-    }
-    if (e.sessionId === sessionId) {
-      writeChunk(e.data)
-      p.opts.onActivity?.()
-      scheduleStatus()
-    }
+  // Until the spawn returns a session id, unclaimed chunks are buffered here.
+  let offData = ptyRouter().wait((e) => {
+    if (sessionId === null) pending.push(e)
   })
-  const offExit = window.dockterm.on('pty:exit', (e) => {
-    if (e.sessionId === sessionId) {
-      exited = true
-      term.writeln(`\r\n\x1b[2m[shell exited with code ${e.exitCode}]\x1b[0m`)
-    }
-  })
+  let offRoute = (): void => {}
+  const claimSession = (sid: string): void => {
+    offData()
+    offData = () => {}
+    offRoute = ptyRouter().claim(sid, {
+      data: (data) => {
+        writeChunk(data)
+        p.opts.onActivity?.()
+        scheduleStatus()
+      },
+      exit: (exitCode) => {
+        exited = true
+        term.writeln(`\r\n\x1b[2m[shell exited with code ${exitCode}]\x1b[0m`)
+      }
+    })
+  }
 
   // pty:write rejects over 1 MiB, so a huge paste goes out in order as several writes
   // instead of being dropped silently. Split on code points, never inside a surrogate pair.
@@ -754,6 +751,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
           return
         }
         sessionId = res.value.sessionId
+        claimSession(sessionId)
         paneSessions.set(id, res.value.sessionId)
         if (res.value.claudeFlag) paneClaudeFlags.set(id, res.value.claudeFlag)
         if (res.value.cwdFellBack) p.opts.onCwdFallback?.(res.value.cwd)
@@ -827,7 +825,7 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     disposed = true
     if (hintTimer) clearTimeout(hintTimer)
     offData()
-    offExit()
+    offRoute()
     dataSub.dispose()
     resizeSub.dispose()
     observer.disconnect()
@@ -838,7 +836,10 @@ function createPooled(id: string, opts: TerminalOptions): PooledTerminal {
     if (fitTimer) clearTimeout(fitTimer)
     if (statusTimer) clearTimeout(statusTimer)
     if (statusMaxTimer) clearTimeout(statusMaxTimer)
-    if (sessionId) void window.dockterm.invoke('pty:kill', { sessionId })
+    if (sessionId) {
+      ptyAcks().drop(sessionId)
+      void window.dockterm.invoke('pty:kill', { sessionId })
+    }
     sessionId = null
     paneSessions.delete(id)
     paneClaudeFlags.delete(id)

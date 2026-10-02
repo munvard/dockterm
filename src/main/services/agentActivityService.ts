@@ -90,11 +90,10 @@ function noteCount(active: number): void {
   if (prev !== active) for (const cb of countListeners) cb()
 }
 
-/** Cheap fingerprint so an unchanged snapshot is not re-sent every second. */
+/** Everything a window renders from a snapshot except its timestamp, so an
+ * unchanged snapshot is not re-sent (the UI ticks elapsed time itself). */
 function fingerprint(s: AgentActivity): string {
-  return s.agents
-    .map((a) => `${a.id}|${a.phase}|${a.steps}|${a.action ?? ''}|${a.resultPreview ?? ''}`)
-    .join('\n')
+  return JSON.stringify([s.agents, s.activeCount, s.byProject])
 }
 
 function tick(): void {
@@ -109,9 +108,9 @@ function tick(): void {
     .then(() => {
       const snap = buildSnapshot()
       const fp = fingerprint(snap)
-      // Re-send on any change, and once a second while agents run (elapsed time is
-      // computed in the UI, but a single missed send must not leave a window stale).
-      if (fp !== lastSent || snap.activeCount > 0) {
+      // Send only on a change: a window that (re)loads pulls a fresh snapshot
+      // through activity:get, so nothing relies on a once-a-second resend.
+      if (fp !== lastSent) {
         lastSent = fp
         broadcast(snap)
       }

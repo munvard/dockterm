@@ -155,7 +155,8 @@ export function createPty(args: CreatePtyArgs): CreatePtyResult {
   sessions.set(id, session)
 
   pty.onData((data) => {
-    if (session.flow.push(data)) flushSession(session)
+    const full = session.flow.push(data)
+    if (full || (!session.flushTimer && session.flow.isLeadingEdge(Date.now()))) flushSession(session)
     else scheduleFlush(session)
   })
 
@@ -176,10 +177,11 @@ function flushSession(session: Session): void {
     session.flushTimer = null
   }
   if (!session.flow.hasBuffered) return
+  const bytes = session.flow.bufferedByteCount
   const data = session.flow.drain()
   if (session.win.isDestroyed()) return
   session.win.webContents.send('pty:data', { sessionId: session.id, data })
-  if (session.flow.onSent(Buffer.byteLength(data))) {
+  if (session.flow.onSent(bytes)) {
     session.pty.pause()
   }
 }

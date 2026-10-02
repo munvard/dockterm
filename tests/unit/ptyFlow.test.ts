@@ -35,4 +35,23 @@ describe('PtyFlow', () => {
     expect(f.onAck(999)).toBe(false)
     expect(f.isPaused).toBe(false)
   })
+
+  it('sends the first chunk after a quiet window at once and batches the rest of a burst', () => {
+    const f = new PtyFlow()
+    expect(f.isLeadingEdge(1000)).toBe(true)
+    f.push('a')
+    f.onSent(f.bufferedByteCount, 1000)
+    f.drain()
+    expect(f.isLeadingEdge(1000 + PTY.FLUSH_MS - 1)).toBe(false)
+    expect(f.isLeadingEdge(1000 + PTY.FLUSH_MS)).toBe(true)
+  })
+
+  it('counts buffered bytes as UTF-8', () => {
+    const f = new PtyFlow()
+    f.push('é✓')
+    f.push('😀')
+    expect(f.bufferedByteCount).toBe(2 + 3 + 4)
+    f.drain()
+    expect(f.bufferedByteCount).toBe(0)
+  })
 })

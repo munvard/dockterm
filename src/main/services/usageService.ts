@@ -151,12 +151,16 @@ function whenWindowShown(run: () => void): void {
 }
 
 /** Start tailing transcripts: first once the window has shown, then every few
- * seconds. Skips entirely while Usage is disabled, so nothing is read from disk. */
+ * seconds. Skips entirely while Usage is disabled or reads Claude's own numbers,
+ * so nothing is read from disk in the background. */
 export function startUsageWatcher(): void {
   if (started) return
   started = true
   const tick = (): void => {
-    if (!getSettings().usage.enabled) return
+    const u = getSettings().usage
+    // With source 'claude' the pill reads Claude's own numbers, so the transcript
+    // scan only runs on demand (usage:get, when the Usage panel opens).
+    if (!u.enabled || u.source === 'claude') return
     void scan().then((r) => {
       if (r.changed) broadcast(r.snapshot)
     })
