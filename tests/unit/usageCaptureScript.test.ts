@@ -128,7 +128,7 @@ describe('merge / pickWindow', () => {
 
 describe('resolveDelegate', () => {
   const sl = (command: string): any => ({ statusLine: { type: 'command', command } })
-  const reader = (files: Record<string, any>) => (f: string) => files[f] ?? null
+  const reader = (files: Record<string, any>) => (f: string) => files[f.replace(/\\/g, '/')] ?? null
   it('local project settings beat project settings beat user settings', () => {
     const read = reader({
       '/p/.claude/settings.local.json': sl('local'),
