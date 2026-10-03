@@ -3,14 +3,12 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__: an average pace line, a calmer top bar, and a gentler Zen mode
+## 🎯 What's new in v__VER__: signed by Moon Labs
 
-- **Average pace marker on usage.** The 5-hour and 7-day readings now show where your usage would be if you spent the window evenly, so you see at a glance if you are above or below average. It is a tick on the ring and the bar, a dashed line on the graph, and a small arrow on the percent view. The tooltip gives the real numbers. On by default, with a switch in the pill settings and in the widget menu.
-- **A calmer top bar.** There is always a free area to grab and drag the window, and the empty space in the tab strip drags it too. When space runs out, items give way in a fixed order instead of overlapping or wrapping. The usage pill is compact by default (`5h 11%`). Double-click the bar to zoom on macOS, and fullscreen drops the extra left padding.
-- **Zen mode only hides the bars.** It no longer dims the panes you are not using or adds extra padding. It hides the top bar and the side panels and nothing else.
-- **Windows fix.** A path separator bug in one test made CI fail on Windows. Fixed.
+- **The macOS app is now signed and notarized by Moon Labs LLC.** Before, the signer was a personal Apple account. It opens normally with no security warning. Nothing else in the app changed since v0.32.1.
+- **If the in-app update does not install on your Mac,** download the new `.dmg` from this page once and drag DockTerm into Applications. The signer changed, so macOS may ask for one manual install. Updates after that work as before.
 
-Everything from v0.32.0 is included: real 5-hour and 7-day usage from Claude itself, agents in munu, Quick Open and Find in files, a better file explorer, a much smoother app, and a clickable munu on Windows.
+What came in v0.32.1: an average pace marker on the 5-hour and 7-day usage, a calmer top bar with a free drag area, and a Zen mode that only hides the bars.
 
 All local and read-only on your own `~/.claude` files. No API, no telemetry.
 
