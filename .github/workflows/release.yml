@@ -63,6 +63,9 @@ jobs:
             mkdir -p "$HOME/private_keys"
             printf '%s' "$APPLE_API_KEY_P8" > "$HOME/private_keys/AuthKey.p8"
             export APPLE_API_KEY="$HOME/private_keys/AuthKey.p8"
+            # electron-builder prefers APPLE_ID over the API key when both are set,
+            # and an old Apple ID belongs to the wrong team: use the key alone.
+            unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
             npx --no-install electron-builder $ARGS --publish always -c.mac.notarize=true
           elif [ -n "$APPLE_ID" ]; then
             echo "Notarizing via Apple ID + app-specific password"
