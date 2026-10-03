@@ -3,12 +3,11 @@
      past versions; replace this section each release. Older notes live in the
      git history and on each previous GitHub release. -->
 
-## 🎯 What's new in v__VER__: signed by Moon Labs
+## 🎯 What's new in v__VER__: Mac updates verify correctly
 
-- **The macOS app is now signed and notarized by Moon Labs LLC.** Before, the signer was a personal Apple account. It opens normally with no security warning. Nothing else in the app changed since v0.32.1.
-- **If the in-app update does not install on your Mac,** download the new `.dmg` from this page once and drag DockTerm into Applications. The signer changed, so macOS may ask for one manual install. Updates after that work as before.
-
-What came in v0.32.1: an average pace marker on the 5-hour and 7-day usage, a calmer top bar with a free drag area, and a Zen mode that only hides the bars.
+- **In-app updates on macOS now pass their checksum.** Each Mac build used to be uploaded twice by two CI jobs, so the checksum file could describe a different `.dmg` than the one you download. The updater would then refuse it. Each job now builds only its own chip, so the file and the download always match.
+- **Signed and notarized by Moon Labs LLC** (since v0.32.2). It opens normally with no security warning.
+- **If the in-app update does not install on your Mac,** download the new `.dmg` from this page once and drag DockTerm into Applications. The signer changed from a personal Apple account to Moon Labs, so macOS may ask for one manual install. Updates after that work as before.
 
 All local and read-only on your own `~/.claude` files. No API, no telemetry.
 
