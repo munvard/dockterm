@@ -10,7 +10,7 @@
 
 <p align="center">
   <b>启动 Claude Code，然后去忙别的。</b><br>
-  一个以终端为核心的 <a href="https://www.anthropic.com/claude-code">Claude Code</a> 工作区：保留你真正的 <code>claude</code> 会话，检查点、实时 agent、diff、Git、文件、MCP 和用量，一个快捷键就能打开。<br>
+  一个以终端为核心的 <a href="https://www.anthropic.com/claude-code">Claude Code</a> 工作区：保留你真正的 <code>claude</code> 会话，检查点、实时 agent、diff、Git、文件和 MCP，一个快捷键就能打开。<br>
   还有 <b>munu</b>，一张住在刘海里的脸（也可以固定在屏幕任意位置），Claude 一需要你，它就会提醒你，哪怕你正在另一个桌面的全屏应用里。
 </p>
 
@@ -46,16 +46,16 @@
 <p align="center">
   <img src="docs/screenshots/cover.png" alt="DockTerm：多窗格工作区，文件树、两个正在运行的 Claude Code 会话和一份路线图并排打开" width="960">
 </p>
-<p align="center"><sub>一个安静的窗口：你真正的 <code>claude</code> 会话占据中心，文件、diff、Git、MCP 和用量按需出现。每个窗格一个项目。</sub></p>
+<p align="center"><sub>一个安静的窗口：你真正的 <code>claude</code> 会话占据中心，文件、diff、Git 和 MCP 按需出现。每个窗格一个项目。</sub></p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3" poster="https://raw.githubusercontent.com/munvard/dockterm/main/docs/screenshots/tour-poster.jpg" controls muted playsinline width="800">
-    <a href="https://github.com/user-attachments/assets/843bdec3-c634-4382-963d-f0c96531d4c3">
-      <img src="docs/screenshots/tour-poster.jpg" alt="观看 54 秒的 DockTerm 导览（请开启声音）" width="800">
-    </a>
-  </video>
+  <a href="https://munetic.net/dockterm">
+    <img src="docs/screenshots/tour.gif" alt="电影全屏播放时 Claude Code 请求权限，munu 从刘海里弹出提示，一次点击就能回答" width="800">
+  </a>
   <br>
-  <b>▶ 观看 54 秒导览</b>（请开启声音）
+  <b>▶ <a href="https://munetic.net/dockterm">观看带声音的完整演示</a></b>
+  <br>
+  <sub>片中电影：<i>Wing It!</i> © Blender Foundation，CC BY 4.0。</sub>
 </p>
 
 ---
