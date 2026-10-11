@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/hd/hero.gif" alt="munu surfacing Claude's permission prompt over a fullscreen movie, answered without leaving the film" width="900">
+  <img src="docs/screenshots/hero.png" alt="munu, the DockTerm mascot, hanging from the MacBook notch with Claude Code's permission prompt: Yes, Yes and don't ask again, No" width="900">
 </p>
 
 <p align="center">

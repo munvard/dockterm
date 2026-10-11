@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/hd/hero.gif" alt="munu 在全屏电影上方弹出 Claude 的权限提示，无需离开影片就能回答" width="900">
+  <img src="docs/screenshots/hero.png" alt="munu 从 MacBook 刘海里弹出 Claude Code 的权限提示：Yes、Yes 且不再询问、No" width="900">
 </p>
 
 <p align="center">
