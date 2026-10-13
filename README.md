@@ -14,6 +14,8 @@
   And <b>munu</b>, a face in your notch (or pinned anywhere on screen), tells you the moment Claude needs you, even in a fullscreen app on another desktop.
 </p>
 
+<p align="center"><b>Live on DevHunt this week.</b> If DockTerm helps you, an upvote helps a lot: <a href="https://devhunt.org/tool/dockterm">devhunt.org/tool/dockterm</a></p>
+
 <p align="center">
   <img src="docs/screenshots/hero.png" alt="munu, the DockTerm mascot, hanging from the MacBook notch with Claude Code's permission prompt: Yes, Yes and don't ask again, No" width="900">
 </p>

@@ -14,6 +14,8 @@
   还有 <b>munu</b>，一张住在刘海里的脸（也可以固定在屏幕任意位置），Claude 一需要你，它就会提醒你，哪怕你正在另一个桌面的全屏应用里。
 </p>
 
+<p align="center"><b>DockTerm 本周在 DevHunt 发布。</b>如果它对你有用，欢迎投一票：<a href="https://devhunt.org/tool/dockterm">devhunt.org/tool/dockterm</a></p>
+
 <p align="center">
   <img src="docs/screenshots/hero.png" alt="munu 从 MacBook 刘海里弹出 Claude Code 的权限提示：Yes、Yes 且不再询问、No" width="900">
 </p>
